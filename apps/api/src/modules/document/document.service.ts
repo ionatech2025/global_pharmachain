@@ -98,17 +98,40 @@ export class DocumentService {
       throw forbidden("Only the uploader can complete this upload");
     }
     const scanStatus = await scanUploadedObject(document.storageKey);
-    const [updated] = await prisma.$transaction([
-      prisma.document.update({
+    const { updated, requeued } = await prisma.$transaction(async (tx) => {
+      const updated = await tx.document.update({
         where: { id: documentId },
         data: { uploadCompletedAt: new Date(), scanStatus },
-      }),
+      });
       // Version history (US-102/303/502): prior versions retained, never removed
-      prisma.document.updateMany({
+      await tx.document.updateMany({
         where: { supersededById: documentId },
         data: { status: "SUPERSEDED" },
-      }),
-    ]);
+      });
+      // US-103: re-uploading a verification document after a rejection returns the
+      // company to the review queue automatically (as the status page promises).
+      // Scoped to REJECTED so it's a no-op for companies already pending/verified.
+      let requeued = false;
+      if (isVerificationKind(document.kind)) {
+        const { count } = await tx.company.updateMany({
+          where: { id: document.ownerCompanyId, verificationStatus: "REJECTED" },
+          data: { verificationStatus: "PENDING_VERIFICATION", rejectionReason: null },
+        });
+        requeued = count > 0;
+      }
+      return { updated, requeued };
+    });
+    if (requeued) {
+      await recordAudit(
+        { id: user.id, email: user.email },
+        {
+          action: "company.verification-resubmit",
+          entityType: "Company",
+          entityId: document.ownerCompanyId,
+          companyId: document.ownerCompanyId,
+        },
+      );
+    }
     return updated;
   }
 

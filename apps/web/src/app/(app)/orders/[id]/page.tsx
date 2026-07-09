@@ -230,7 +230,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            {ORDER_DOCUMENT_KINDS.filter((k) => k !== "OTHER").map((kind) => (
+            {ORDER_DOCUMENT_KINDS.map((kind) => (
               <UploadButton
                 key={kind}
                 kind={kind}

@@ -9,6 +9,30 @@ export function fmtMoney(amount: string | number, currency: string): string {
   }).format(value);
 }
 
+export interface DisplayRate {
+  base: string;
+  quote: string;
+  rate: string | number;
+}
+
+/** Indicative alternate-currency conversions for a base price (US-302) —
+ *  display-only, using admin-managed rates (no live FX in the MVP). */
+export function convertedPrices(
+  amount: string | number,
+  currency: string,
+  rates: DisplayRate[],
+): string[] {
+  const value = typeof amount === "string" ? Number.parseFloat(amount) : amount;
+  if (!Number.isFinite(value)) return [];
+  return rates
+    .filter((r) => r.base === currency)
+    .map((r) => {
+      const rate = typeof r.rate === "string" ? Number.parseFloat(r.rate) : r.rate;
+      return Number.isFinite(rate) ? fmtMoney(value * rate, r.quote) : null;
+    })
+    .filter((v): v is string => v !== null);
+}
+
 export function fmtNumber(value: string | number): string {
   const n = typeof value === "string" ? Number.parseFloat(value) : value;
   return Number.isFinite(n) ? new Intl.NumberFormat("en").format(n) : String(value);

@@ -14,8 +14,8 @@ import { CompareButton, CompareTray } from "@/components/compare";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
-import type { CategoryRow, ListingRow, Paginated } from "@/lib/api/types";
-import { fmtMoney } from "@/lib/format";
+import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
+import { convertedPrices, fmtMoney } from "@/lib/format";
 
 export const metadata = { title: "Marketplace" };
 
@@ -35,7 +35,7 @@ export default async function MarketplacePage({
 }) {
   const params = await searchParams;
   const api = await apiServer();
-  const [results, categories] = await Promise.all([
+  const [results, categories, rates] = await Promise.all([
     api.get<Paginated<ListingRow>>("/catalogue/search", {
       query: {
         q: params.q,
@@ -47,6 +47,7 @@ export default async function MarketplacePage({
       },
     }),
     api.get<CategoryRow[]>("/catalogue/categories"),
+    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates"),
   ]);
 
   return (
@@ -148,6 +149,11 @@ export default async function MarketplacePage({
                   <TableCell className="text-muted-foreground">{l.countryOfOrigin}</TableCell>
                   <TableCell>
                     {fmtMoney(l.price, l.currency)} / {l.unit}
+                    {convertedPrices(l.price, l.currency, rates).map((c) => (
+                      <div key={c} className="text-xs text-muted-foreground">
+                        ≈ {c}
+                      </div>
+                    ))}
                   </TableCell>
                   <TableCell>
                     {l.sdsMissing ? (
