@@ -234,6 +234,8 @@ export class RfqService {
         url: `${env.APP_URL}/rfqs/${rfq.id}`,
         cta: "Compare quotations",
       }),
+      // US-604: WhatsApp for new quotations — short summary + link only, no details.
+      whatsappText: `PharmaChain: ${updated ? "updated quotation" : "new quotation"} from ${supplierName} on RFQ ${rfq.refNo}. ${env.APP_URL}/rfqs/${rfq.id}`,
     });
   }
 
