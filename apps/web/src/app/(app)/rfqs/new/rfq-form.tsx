@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
+import { AttachmentPicker } from "@/components/attachment-picker";
 import { api } from "@/lib/api/browser";
 import { ApiClientError, errorMessage } from "@/lib/api/http";
 
@@ -217,6 +218,26 @@ export function RfqForm({
                     />
                   </FormControl>
                   <FormDescription>Past deadlines are rejected (US-401 TC2).</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="attachmentDocumentIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Attachments (optional)</FormLabel>
+                  <FormControl>
+                    <AttachmentPicker
+                      kind="RFQ_ATTACHMENT"
+                      value={field.value ?? []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Spec sheets or drawings — eligible suppliers can download these.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

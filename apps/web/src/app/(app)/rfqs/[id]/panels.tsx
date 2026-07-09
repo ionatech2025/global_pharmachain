@@ -34,6 +34,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AttachmentPicker } from "@/components/attachment-picker";
 import { DocumentChip } from "@/components/document-chip";
 import { QuotationStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
@@ -254,6 +255,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
   const [leadTimeDays, setLeadTimeDays] = useState(String(existing?.leadTimeDays ?? 14));
   const [validDays, setValidDays] = useState("30");
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -265,7 +267,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
       leadTimeDays: Number(leadTimeDays),
       validUntil: new Date(Date.now() + Number(validDays) * 24 * 60 * 60 * 1000).toISOString(),
       notes: notes || undefined,
-      attachmentDocumentIds: [],
+      attachmentDocumentIds: attachmentIds,
     };
     try {
       if (existing && existing.status === "ACTIVE") {
@@ -386,6 +388,15 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
               placeholder="Incoterms, packaging, documentation included…"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Attachments (optional)</Label>
+            <AttachmentPicker
+              kind="QUOTATION_ATTACHMENT"
+              value={attachmentIds}
+              onChange={setAttachmentIds}
+              disabled={!open}
             />
           </div>
           <div className="flex gap-2">
