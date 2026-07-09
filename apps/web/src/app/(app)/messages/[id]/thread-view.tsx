@@ -136,6 +136,10 @@ export function ThreadView({
                   )}
                 >
                   {message.sender.name}
+                  {" · "}
+                  {message.senderCompanyId === thread.buyerCompany.id
+                    ? thread.buyerCompany.name
+                    : thread.supplierCompany.name}
                   {message.senderRole
                     ? ` · ${message.senderRole.toLowerCase().replace("_", " ")}`
                     : ""}
