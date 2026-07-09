@@ -1,0 +1,10 @@
+{
+  "extends": "@pharmachain/typescript-config/bun.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src"]
+}

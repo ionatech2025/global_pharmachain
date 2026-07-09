@@ -1,0 +1,4 @@
+{
+  "extends": "@pharmachain/typescript-config/react-library.json",
+  "include": ["src"]
+}

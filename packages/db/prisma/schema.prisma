@@ -1,0 +1,764 @@
+// PharmaChain Phase 1 MVP schema.
+// Enum values mirror @pharmachain/core (client code imports enums from core,
+// never from @prisma/client).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum CompanyType {
+  RAW_MATERIAL_MANUFACTURER
+  FINISHED_PRODUCT_MANUFACTURER
+  SUPPLIER
+}
+
+enum VerificationStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  EXPIRED_DOCUMENT
+}
+
+enum ProfileStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum SubscriptionTier {
+  FREEMIUM
+  PREMIUM
+  FEATURED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DEACTIVATED
+}
+
+enum CompanyRole {
+  COMPANY_ADMIN
+  OPERATIONS
+  FINANCE
+}
+
+enum LoginMethod {
+  PASSWORD
+  OTP
+}
+
+enum ListingKind {
+  RAW_MATERIAL
+  FINISHED_PRODUCT
+}
+
+enum ListingStatus {
+  DRAFT
+  PUBLISHED
+  DEACTIVATED
+}
+
+enum DocumentKind {
+  CERTIFICATE_OF_INCORPORATION
+  TRADING_LICENCE
+  TAX_ID
+  IMPORT_EXPORT_LICENCE
+  MANUFACTURING_LICENCE
+  GMP_CERTIFICATE
+  OTHER_COMPLIANCE
+  PROFORMA_INVOICE
+  CERTIFICATE_OF_ANALYSIS
+  QUALITY_CERTIFICATE
+  SHIPPING_INSTRUCTIONS
+  SDS
+  RFQ_ATTACHMENT
+  QUOTATION_ATTACHMENT
+  MESSAGE_ATTACHMENT
+  COMPANY_LOGO
+  OTHER
+}
+
+enum DocumentStatus {
+  ACTIVE
+  SUPERSEDED
+  DELETED
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  ERROR
+}
+
+enum RfqStatus {
+  OPEN
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+enum QuotationStatus {
+  ACTIVE
+  SUPERSEDED
+  WITHDRAWN
+  EXPIRED
+  ACCEPTED
+}
+
+enum OrderStatus {
+  ORDER_CONFIRMED
+  PICKUP_SCHEDULED
+  GOODS_COLLECTED
+  IN_TRANSIT
+  AT_PORT
+  DELIVERED
+}
+
+enum BomStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_QUOTATION
+  RFQ_STATUS_CHANGE
+  SHIPMENT_STATUS_CHANGE
+  DOCUMENT_UPLOADED
+  DOCUMENT_EXPIRY
+  VERIFICATION_DECISION
+  ANNOUNCEMENT
+  USAGE_LIMIT_WARNING
+  CREDIT_UPDATE
+  TIER_CHANGE
+  ACCOUNT_UPDATE
+  DATA_REQUEST
+}
+
+enum AnnouncementAudience {
+  ALL
+  ROLE
+  COMPANY
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  RETRACTED
+}
+
+enum CreditKind {
+  RFQ
+  QUOTATION
+}
+
+enum CreditStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  REJECTED
+}
+
+enum DataRequestStatus {
+  PENDING
+  COMPLETED
+}
+
+// ─── Identity & access ───────────────────────────────────────────────────────
+
+model Company {
+  id                      String             @id @default(uuid(7)) @db.Uuid
+  name                    String
+  type                    CompanyType
+  country                 String
+  address                 String
+  registrationNumber      String             @unique
+  primaryContactName      String
+  primaryContactEmail     String
+  primaryContactPhone     String?
+  website                 String?
+  verificationStatus      VerificationStatus @default(PENDING_VERIFICATION)
+  rejectionReason         String?
+  verifiedAt              DateTime?
+  verifiedById            String?            @db.Uuid
+  reverificationDueAt     DateTime?
+  subscriptionTier        SubscriptionTier   @default(FREEMIUM)
+  // Public profile (US-301); publishable once VERIFIED
+  profileDescription      String?
+  profileStatus           ProfileStatus      @default(DRAFT)
+  profilePublishedAt      DateTime?
+  countriesOfOperation    String[]           @default([])
+  displayedCertifications String[]           @default([])
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  members                CompanyUserRole[]
+  invites                Invite[]
+  documents              Document[]
+  listings               Listing[]
+  rfqs                   Rfq[]
+  quotations             Quotation[]
+  ordersAsBuyer          Order[]           @relation("OrderBuyer")
+  ordersAsSeller         Order[]           @relation("OrderSeller")
+  threadsAsBuyer         MessageThread[]   @relation("ThreadBuyer")
+  threadsAsSupplier      MessageThread[]   @relation("ThreadSupplier")
+  creditRequests         CreditRequest[]
+  announcementsTargeted  Announcement[]
+
+  @@index([verificationStatus])
+  @@index([type, verificationStatus])
+}
+
+model User {
+  id                 String     @id @default(uuid(7)) @db.Uuid
+  email              String     @unique
+  name               String
+  passwordHash       String?
+  status             UserStatus @default(ACTIVE)
+  isSuperAdmin       Boolean    @default(false)
+  // Bumped to invalidate all sessions (deactivation, password reset, override)
+  sessionVersion     Int        @default(1)
+  whatsappNumber     String?
+  whatsappVerifiedAt DateTime?
+  lastLoginAt        DateTime?
+  deactivatedAt      DateTime?
+  anonymizedAt       DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  membership              CompanyUserRole?
+  invitesSent             Invite[]
+  passwordResetTokens     PasswordResetToken[]
+  loginActivity           LoginActivity[]
+  documentsUploaded       Document[]
+  rfqsCreated             Rfq[]
+  quotationsSubmitted     Quotation[]
+  ordersCreated           Order[]
+  orderStatusEvents       OrderStatusEvent[]
+  bomsCreated             Bom[]
+  messages                Message[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  announcementsCreated    Announcement[]
+  creditRequestsMade      CreditRequest[]
+  dataDeletionRequests    DataDeletionRequest[]
+}
+
+// One membership per user in Phase 1 (US-201: an email active in another
+// company is rejected). Kept as a join table so multi-company membership is a
+// dropped constraint away, not a migration.
+model CompanyUserRole {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  userId    String      @unique @db.Uuid
+  companyId String      @db.Uuid
+  role      CompanyRole
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+}
+
+model Invite {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  companyId   String      @db.Uuid
+  email       String
+  role        CompanyRole
+  tokenHash   String      @unique
+  invitedById String      @db.Uuid
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime    @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id])
+  invitedBy User    @relation(fields: [invitedById], references: [id])
+
+  @@index([companyId])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model EmailOtp {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  email      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+}
+
+model LoginActivity {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  userId    String?     @db.Uuid
+  email     String
+  method    LoginMethod
+  success   Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+}
+
+// ─── Catalogue ───────────────────────────────────────────────────────────────
+
+model Category {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  name        String
+  slug        String       @unique
+  kind        ListingKind?
+  description String?
+  createdAt   DateTime     @default(now())
+
+  listings Listing[]
+  rfqs     Rfq[]
+  bomItems BomItem[]
+}
+
+model Listing {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  companyId         String        @db.Uuid
+  kind              ListingKind
+  name              String
+  casNumber         String?
+  ghsClassification String?
+  countryOfOrigin   String
+  packagingType     String
+  packSize          String
+  unit              String
+  hsCode            String?
+  shelfLifeMonths   Int?
+  storageConditions String?
+  certifications    String[]      @default([])
+  categoryId        String        @db.Uuid
+  price             Decimal       @db.Decimal(14, 4)
+  currency          String
+  description       String?
+  status            ListingStatus @default(DRAFT)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id])
+  category  Category   @relation(fields: [categoryId], references: [id])
+  documents Document[]
+  boms      Bom[]
+
+  @@index([companyId, status])
+  @@index([status, kind])
+  @@index([categoryId])
+  @@index([countryOfOrigin])
+}
+
+// Manually configured display rates (Phase 1 has no live FX).
+model ExchangeRate {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(16, 8)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([base, quote])
+}
+
+// ─── Documents ───────────────────────────────────────────────────────────────
+
+model Document {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  ownerCompanyId    String         @db.Uuid
+  uploadedById      String         @db.Uuid
+  kind              DocumentKind
+  fileName          String
+  contentType       String
+  size              Int
+  storageKey        String         @unique
+  expiresAt         DateTime?
+  version           Int            @default(1)
+  supersededById    String?        @db.Uuid
+  status            DocumentStatus @default(ACTIVE)
+  scanStatus        ScanStatus     @default(PENDING)
+  uploadCompletedAt DateTime?
+  lastExpiryAlertAt DateTime?
+  // Optional business links — at most one, enforced at the contract layer
+  listingId         String?        @db.Uuid
+  rfqId             String?        @db.Uuid
+  quotationId       String?        @db.Uuid
+  orderId           String?        @db.Uuid
+  messageId         String?        @db.Uuid
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  ownerCompany Company    @relation(fields: [ownerCompanyId], references: [id])
+  uploadedBy   User       @relation(fields: [uploadedById], references: [id])
+  listing      Listing?   @relation(fields: [listingId], references: [id])
+  rfq          Rfq?       @relation(fields: [rfqId], references: [id])
+  quotation    Quotation? @relation(fields: [quotationId], references: [id])
+  order        Order?     @relation(fields: [orderId], references: [id])
+  message      Message?   @relation(fields: [messageId], references: [id])
+  supersededBy Document?  @relation("DocumentVersions", fields: [supersededById], references: [id])
+  supersedes   Document[] @relation("DocumentVersions")
+
+  @@index([ownerCompanyId, kind, status])
+  @@index([expiresAt, status])
+  @@index([orderId])
+  @@index([listingId])
+}
+
+// ─── RFQ → Quotation → Order ─────────────────────────────────────────────────
+
+model Rfq {
+  id                   String      @id @default(uuid(7)) @db.Uuid
+  refNo                String      @unique
+  buyerCompanyId       String      @db.Uuid
+  createdById          String      @db.Uuid
+  title                String
+  specifications       String?
+  quantity             Decimal     @db.Decimal(16, 4)
+  unit                 String
+  targetCompanyType    CompanyType
+  categoryId           String?     @db.Uuid
+  deadline             DateTime
+  status               RfqStatus   @default(OPEN)
+  visibleSupplierCount Int         @default(0)
+  bomItemId            String?     @db.Uuid
+  awardedAt            DateTime?
+  closedAt             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  buyerCompany Company         @relation(fields: [buyerCompanyId], references: [id])
+  createdBy    User            @relation(fields: [createdById], references: [id])
+  category     Category?       @relation(fields: [categoryId], references: [id])
+  bomItem      BomItem?        @relation(fields: [bomItemId], references: [id])
+  quotations   Quotation[]
+  documents    Document[]
+  threads      MessageThread[]
+  order        Order?
+
+  @@index([status, deadline])
+  @@index([buyerCompanyId, createdAt])
+  @@index([targetCompanyType, status])
+}
+
+model Quotation {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  refNo             String          @unique
+  rfqId             String          @db.Uuid
+  supplierCompanyId String          @db.Uuid
+  submittedById     String          @db.Uuid
+  version           Int             @default(1)
+  unitPrice         Decimal         @db.Decimal(14, 4)
+  currency          String
+  totalPrice        Decimal         @db.Decimal(16, 2)
+  leadTimeDays      Int
+  validUntil        DateTime
+  notes             String?
+  status            QuotationStatus @default(ACTIVE)
+  withdrawnAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  rfq             Rfq            @relation(fields: [rfqId], references: [id])
+  supplierCompany Company        @relation(fields: [supplierCompanyId], references: [id])
+  submittedBy     User           @relation(fields: [submittedById], references: [id])
+  documents       Document[]
+  thread          MessageThread?
+  order           Order?
+
+  // Resubmission = new row with version+1; prior row becomes SUPERSEDED
+  // inside the same transaction (partial unique indexes aren't expressible
+  // in Prisma, so uniqueness includes the version).
+  @@unique([rfqId, supplierCompanyId, version])
+  @@index([supplierCompanyId, createdAt])
+  @@index([rfqId, status])
+}
+
+model Order {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  orderNo        String      @unique
+  rfqId          String      @unique @db.Uuid
+  quotationId    String      @unique @db.Uuid
+  buyerCompanyId String      @db.Uuid
+  sellerCompanyId String     @db.Uuid
+  createdById    String      @db.Uuid
+  // Snapshot of the awarded terms (US-405)
+  title          String
+  quantity       Decimal     @db.Decimal(16, 4)
+  unit           String
+  unitPrice      Decimal     @db.Decimal(14, 4)
+  currency       String
+  totalAmount    Decimal     @db.Decimal(16, 2)
+  status         OrderStatus @default(ORDER_CONFIRMED)
+  eta            DateTime?
+  forwarderName  String?
+  forwarderEmail String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  rfq           Rfq                @relation(fields: [rfqId], references: [id])
+  quotation     Quotation          @relation(fields: [quotationId], references: [id])
+  buyerCompany  Company            @relation("OrderBuyer", fields: [buyerCompanyId], references: [id])
+  sellerCompany Company            @relation("OrderSeller", fields: [sellerCompanyId], references: [id])
+  createdBy     User               @relation(fields: [createdById], references: [id])
+  statusEvents  OrderStatusEvent[]
+  documents     Document[]
+  thread        MessageThread?
+
+  @@index([buyerCompanyId, createdAt])
+  @@index([sellerCompanyId, createdAt])
+  @@index([status])
+}
+
+// Shipment-stage history (US-702): every transition with note and ETA.
+model OrderStatusEvent {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  orderId     String      @db.Uuid
+  status      OrderStatus
+  note        String?
+  eta         DateTime?
+  actorUserId String      @db.Uuid
+  createdAt   DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+  actor User  @relation(fields: [actorUserId], references: [id])
+
+  @@index([orderId, createdAt])
+}
+
+// ─── BOM ─────────────────────────────────────────────────────────────────────
+
+model Bom {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  productListingId String    @db.Uuid
+  version          Int       @default(1)
+  status           BomStatus @default(DRAFT)
+  notes            String?
+  createdById      String    @db.Uuid
+  archivedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  productListing Listing   @relation(fields: [productListingId], references: [id])
+  createdBy      User      @relation(fields: [createdById], references: [id])
+  items          BomItem[]
+
+  // One ACTIVE version per product is enforced transactionally (activate
+  // archives the prior ACTIVE row before flipping this one).
+  @@unique([productListingId, version])
+  @@index([productListingId, status])
+}
+
+model BomItem {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  bomId           String   @db.Uuid
+  materialName    String
+  categoryId      String?  @db.Uuid
+  quantityPerUnit Decimal  @db.Decimal(16, 6)
+  unit            String
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  bom      Bom       @relation(fields: [bomId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
+  rfqs     Rfq[]
+
+  @@index([bomId])
+}
+
+// ─── Messaging & notifications ───────────────────────────────────────────────
+
+// Threads are pairwise between buyer and supplier. RFQ threads exist per
+// (rfq, supplier) so suppliers never see each other (US-406); quotation and
+// order threads are naturally pairwise.
+model MessageThread {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  buyerCompanyId      String    @db.Uuid
+  supplierCompanyId   String    @db.Uuid
+  rfqId               String?   @db.Uuid
+  quotationId         String?   @unique @db.Uuid
+  orderId             String?   @unique @db.Uuid
+  // Skip-throttle marker: max 1 email per thread per 10 minutes (US-603)
+  lastEmailNotifiedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  buyerCompany    Company    @relation("ThreadBuyer", fields: [buyerCompanyId], references: [id])
+  supplierCompany Company    @relation("ThreadSupplier", fields: [supplierCompanyId], references: [id])
+  rfq             Rfq?       @relation(fields: [rfqId], references: [id])
+  quotation       Quotation? @relation(fields: [quotationId], references: [id])
+  order           Order?     @relation(fields: [orderId], references: [id])
+  messages        Message[]
+
+  @@unique([rfqId, supplierCompanyId])
+  @@index([buyerCompanyId])
+  @@index([supplierCompanyId])
+}
+
+model Message {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  threadId        String       @db.Uuid
+  senderId        String       @db.Uuid
+  senderCompanyId String       @db.Uuid
+  senderRole      CompanyRole?
+  body            String
+  createdAt       DateTime     @default(now())
+
+  thread      MessageThread @relation(fields: [threadId], references: [id])
+  sender      User          @relation(fields: [senderId], references: [id])
+  attachments Document[]
+
+  @@index([threadId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// Per-event opt-out for email/WhatsApp; in-app is always delivered (US-606).
+model NotificationPreference {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  userId    String           @db.Uuid
+  eventType NotificationType
+  email     Boolean          @default(true)
+  whatsapp  Boolean          @default(true)
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventType])
+}
+
+// ─── Platform administration ─────────────────────────────────────────────────
+
+model Announcement {
+  id              String               @id @default(uuid(7)) @db.Uuid
+  title           String
+  body            String
+  audience        AnnouncementAudience
+  targetRole      CompanyRole?
+  targetCompanyId String?              @db.Uuid
+  status          AnnouncementStatus   @default(PUBLISHED)
+  expiresAt       DateTime?
+  createdById     String               @db.Uuid
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  targetCompany Company? @relation(fields: [targetCompanyId], references: [id])
+  createdBy     User     @relation(fields: [createdById], references: [id])
+
+  @@index([status, expiresAt])
+}
+
+model SystemParameter {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  key         String   @unique
+  value       String
+  type        String
+  description String
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Pay-per-use credit requests beyond the Freemium limit (US-907).
+// Confirmed credits count toward the month of `decidedAt`.
+model CreditRequest {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  companyId     String       @db.Uuid
+  kind          CreditKind
+  count         Int
+  fee           Decimal      @db.Decimal(12, 2)
+  currency      String       @default("USD")
+  status        CreditStatus @default(PENDING_PAYMENT)
+  requestedById String       @db.Uuid
+  confirmedById String?      @db.Uuid
+  note          String?
+  decidedAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id])
+  requestedBy User    @relation(fields: [requestedById], references: [id])
+
+  @@index([companyId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+// GDPR deletion pipeline (US-1003): request → super-admin anonymize.
+model DataDeletionRequest {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  userId        String            @db.Uuid
+  status        DataRequestStatus @default(PENDING)
+  completedById String?           @db.Uuid
+  completedAt   DateTime?
+  createdAt     DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+// Insert-only at the application layer; no update/delete paths exist in the
+// API. For defence in depth, production migrations can additionally
+// REVOKE UPDATE, DELETE on this table from the app role.
+model AuditLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  actorUserId String?  @db.Uuid
+  actorEmail  String?
+  companyId   String?  @db.Uuid
+  action      String
+  entityType  String?
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  reason      String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+}

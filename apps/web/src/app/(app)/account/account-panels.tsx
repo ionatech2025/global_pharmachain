@@ -1,0 +1,214 @@
+"use client";
+
+import { Button } from "@pharmachain/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@pharmachain/ui/components/card";
+import { Input } from "@pharmachain/ui/components/input";
+import { Label } from "@pharmachain/ui/components/label";
+import { signOut } from "next-auth/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { api } from "@/lib/api/browser";
+import { errorMessage } from "@/lib/api/http";
+
+function ChangePasswordCard() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== confirm) {
+      toast.error("New passwords don't match");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post("/auth/me/change-password", { currentPassword, newPassword });
+      toast.success("Password changed — sign in again with your new password");
+      await signOut({ callbackUrl: "/login" });
+    } catch (err) {
+      toast.error(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Change password</CardTitle>
+        <CardDescription>
+          Changing your password signs out every session, including this one.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="current">Current password</Label>
+            <Input
+              id="current"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="new">New password</Label>
+              <Input
+                id="new"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={12}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="confirm">Confirm new password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Changing…" : "Change password"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WhatsappCard() {
+  const [number, setNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.put("/auth/me/whatsapp", { number });
+      toast.success("WhatsApp number saved — used for opted-in notifications");
+      setNumber("");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">WhatsApp notifications</CardTitle>
+        <CardDescription>
+          International format (e.g. +256700000000). Manage which events use it on the notifications
+          page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
+          <div className="min-w-52 flex-1">
+            <Input
+              placeholder="+256700000000"
+              required
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save number"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DataPrivacyCard() {
+  const [exporting, setExporting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const data = await api.get<unknown>("/auth/me/export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "pharmachain-data-export.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function requestDeletion() {
+    if (
+      !window.confirm(
+        "Request deletion of your account? The platform team processes requests within 30 days; your account is then anonymized and deactivated.",
+      )
+    ) {
+      return;
+    }
+    setRequesting(true);
+    try {
+      await api.post("/auth/me/deletion-request");
+      toast.success("Deletion request submitted — the platform team has been notified");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Your data</CardTitle>
+        <CardDescription>
+          Export a copy of your personal data, or request account deletion (30-day SLA, US-1003).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={exportData} disabled={exporting}>
+          {exporting ? "Preparing…" : "Download my data (JSON)"}
+        </Button>
+        <Button variant="destructive" onClick={requestDeletion} disabled={requesting}>
+          Request account deletion
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AccountPanels() {
+  return (
+    <div className="space-y-4">
+      <ChangePasswordCard />
+      <WhatsappCard />
+      <DataPrivacyCard />
+    </div>
+  );
+}

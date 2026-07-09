@@ -1,0 +1,4 @@
+{
+  "extends": "@pharmachain/typescript-config/bun.json",
+  "include": ["src"]
+}

@@ -1,0 +1,8 @@
+# Compatibility shim only — Bun is the package manager for this repo
+# (see "packageManager" in package.json; workspaces are defined there too).
+# This file exists so the workspace layout is discoverable by pnpm-based
+# tooling / CI fallbacks on plain Node.js. To actually drive the repo with
+# pnpm you would also change "packageManager" in package.json.
+packages:
+  - "apps/*"
+  - "packages/*"

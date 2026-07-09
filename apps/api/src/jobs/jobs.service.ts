@@ -1,0 +1,38 @@
+import { Injectable } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { logger } from "../lib/logger";
+import { runDocumentExpiryJob } from "./document-expiry";
+import { runQuotationExpiryJob, runRfqAutoCloseJob, runTokenCleanupJob } from "./housekeeping";
+
+async function guarded(name: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    logger.error(`job ${name} failed`, { error: String(err) });
+  }
+}
+
+/** Scheduled jobs (all UTC). Runs inside the API when JOBS_IN_PROCESS=true,
+ *  or in the dedicated worker (src/jobs/worker.ts). */
+@Injectable()
+export class JobsService {
+  @Cron("0 5 * * *", { timeZone: "UTC" })
+  documentExpiry(): Promise<void> {
+    return guarded("document-expiry", () => runDocumentExpiryJob());
+  }
+
+  @Cron("*/15 * * * *", { timeZone: "UTC" })
+  rfqAutoClose(): Promise<void> {
+    return guarded("rfq-auto-close", () => runRfqAutoCloseJob());
+  }
+
+  @Cron("*/15 * * * *", { timeZone: "UTC" })
+  quotationExpiry(): Promise<void> {
+    return guarded("quotation-expiry", () => runQuotationExpiryJob());
+  }
+
+  @Cron("0 * * * *", { timeZone: "UTC" })
+  tokenCleanup(): Promise<void> {
+    return guarded("token-cleanup", () => runTokenCleanupJob());
+  }
+}

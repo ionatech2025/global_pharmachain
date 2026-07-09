@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+.turbo/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+
+# env & secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# requirement PDFs stay local (large binaries)
+/*.pdf
+
+# test artifacts
+playwright-report/
+test-results/
+
+# misc
+.DS_Store
+*.log
