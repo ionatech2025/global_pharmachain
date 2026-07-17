@@ -29,7 +29,7 @@ function layout(title: string, bodyHtml: string): string {
   return `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;margin:0;padding:24px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:32px">
-  <tr><td style="font-size:18px;font-weight:bold;color:#166534;padding-bottom:16px">PharmaChain</td></tr>
+  <tr><td style="font-size:18px;font-weight:bold;color:#00579a;padding-bottom:16px">PharmaChain</td></tr>
   <tr><td style="font-size:16px;font-weight:bold;color:#111827;padding-bottom:12px">${escapeHtml(title)}</td></tr>
   <tr><td style="font-size:14px;color:#374151;line-height:1.6">${bodyHtml}</td></tr>
   <tr><td style="font-size:12px;color:#9ca3af;padding-top:24px">You receive this because you have a PharmaChain account. Manage notification preferences in Settings.</td></tr>
@@ -38,7 +38,7 @@ function layout(title: string, bodyHtml: string): string {
 
 /** Only platform-built URLs reach this helper; the label is escaped. */
 function link(href: string, label: string): string {
-  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:#166534;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;margin-top:12px">${escapeHtml(label)}</a>`;
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:#00579a;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;margin-top:12px">${escapeHtml(label)}</a>`;
 }
 
 export function welcomeEmail(args: { companyName: string; appUrl: string }): EmailContent {

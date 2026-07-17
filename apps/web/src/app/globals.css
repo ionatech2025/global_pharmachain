@@ -7,73 +7,91 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * PharmaChain design tokens — OKLCH, brand hue 155 (pharma green).
+ * PharmaChain design tokens — OKLCH, azure brand (hue 250) on neutral
+ * surfaces, dark mode on a near-black blue-tinted canvas.
  * Two rules keep the system coherent:
  *  1. Components consume ONLY semantic tokens (never raw palette classes),
  *     so light/dark stay tuned together and a rebrand is a one-file change.
  *  2. Status colors (success/warning/info/destructive) are reserved for
- *     state, never decoration — that is what keeps them scannable.
+ *     state, never decoration — the brand being blue keeps green/amber/red
+ *     unambiguous wherever they appear.
  */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0.002 145);
-  --foreground: oklch(0.16 0.01 155);
+  --radius: 0.75rem;
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.01 155);
+  --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.01 155);
-  /* PharmaChain green */
-  --primary: oklch(0.45 0.11 155);
-  --primary-foreground: oklch(0.98 0.01 150);
-  --secondary: oklch(0.96 0.01 150);
-  --secondary-foreground: oklch(0.25 0.03 155);
-  --muted: oklch(0.96 0.008 150);
-  --muted-foreground: oklch(0.5 0.015 155);
-  --accent: oklch(0.94 0.02 152);
-  --accent-foreground: oklch(0.25 0.03 155);
-  --destructive: oklch(0.55 0.2 25);
-  --border: oklch(0.91 0.008 150);
-  --input: oklch(0.91 0.008 150);
-  --ring: oklch(0.55 0.1 155);
+  --popover-foreground: oklch(0.145 0 0);
+  /* PharmaChain azure */
+  --primary: oklch(0.45 0.1 250);
+  --primary-foreground: oklch(0.985 0 0);
+  /* Text/link tint. Light mode: same as the solid primary (dark azure reads
+     fine on light surfaces). Dark mode overrides it lighter — see below. */
+  --primary-accent: oklch(0.45 0.1 250);
+  --secondary: oklch(0.965 0.006 240);
+  --secondary-foreground: oklch(0.25 0.02 250);
+  --muted: oklch(0.962 0.002 240);
+  --muted-foreground: oklch(0.5 0.008 250);
+  --accent: oklch(0.95 0.01 240);
+  --accent-foreground: oklch(0.25 0.02 250);
+  --destructive: oklch(0.58 0.23 27);
+  --border: oklch(0.925 0.003 240);
+  --input: oklch(0.925 0.003 240);
+  --ring: oklch(0.55 0.13 250);
   /* Status — AA on their tinted (12–15%) surfaces at badge sizes */
   --success: oklch(0.48 0.12 155);
   --warning: oklch(0.54 0.13 75);
-  --info: oklch(0.5 0.13 245);
+  --info: oklch(0.5 0.1 200);
+  /* Hero globe wireframe — a branded azure line legible on the light hero */
+  --globe-line: oklch(0.5 0.09 250 / 0.55);
+  --globe-line-soft: oklch(0.5 0.09 250 / 0.28);
+  --globe-halo: oklch(0.55 0.14 250 / 0.16);
   /* Dashboard / data-viz series */
-  --chart-1: oklch(0.55 0.13 155);
-  --chart-2: oklch(0.6 0.12 245);
-  --chart-3: oklch(0.68 0.14 75);
+  --chart-1: oklch(0.62 0.19 40);
+  --chart-2: oklch(0.55 0.12 185);
+  --chart-3: oklch(0.45 0.1 250);
   --chart-4: oklch(0.55 0.12 300);
-  --chart-5: oklch(0.65 0.13 25);
+  --chart-5: oklch(0.55 0.2 25);
 }
 
 .dark {
-  --background: oklch(0.15 0.01 155);
-  --foreground: oklch(0.96 0.005 150);
-  --card: oklch(0.19 0.012 155);
-  --card-foreground: oklch(0.96 0.005 150);
-  --popover: oklch(0.19 0.012 155);
-  --popover-foreground: oklch(0.96 0.005 150);
-  --primary: oklch(0.72 0.13 155);
-  --primary-foreground: oklch(0.16 0.02 155);
-  --secondary: oklch(0.25 0.015 155);
-  --secondary-foreground: oklch(0.96 0.005 150);
-  --muted: oklch(0.24 0.012 155);
-  --muted-foreground: oklch(0.68 0.012 152);
-  --accent: oklch(0.28 0.02 155);
-  --accent-foreground: oklch(0.96 0.005 150);
-  --destructive: oklch(0.65 0.18 25);
-  --border: oklch(0.28 0.012 155);
-  --input: oklch(0.3 0.012 155);
-  --ring: oklch(0.6 0.1 155);
-  --success: oklch(0.75 0.13 155);
+  --background: oklch(0.13 0.006 250);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.165 0.007 250);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.165 0.007 250);
+  --popover-foreground: oklch(0.985 0 0);
+  /* L 0.54 keeps white button text ≥ 4.5:1 (WCAG AA) while staying vivid on
+     the near-black canvas — verified against the color-contrast audit. */
+  --primary: oklch(0.54 0.16 250);
+  --primary-foreground: oklch(0.985 0 0);
+  /* Lighter than the solid primary so small primary-coloured TEXT clears AA
+     on dark surfaces (the solid stays dark enough for white button labels). */
+  --primary-accent: oklch(0.72 0.15 250);
+  --secondary: oklch(0.21 0.008 250);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.2 0.007 250);
+  --muted-foreground: oklch(0.64 0.01 250);
+  --accent: oklch(0.22 0.01 250);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --border: oklch(0.24 0.008 250);
+  --input: oklch(0.26 0.008 250);
+  --ring: oklch(0.58 0.16 250);
+  --success: oklch(0.72 0.13 155);
   --warning: oklch(0.8 0.13 80);
-  --info: oklch(0.72 0.12 245);
-  --chart-1: oklch(0.72 0.13 155);
-  --chart-2: oklch(0.68 0.12 245);
-  --chart-3: oklch(0.8 0.13 80);
+  --info: oklch(0.7 0.12 200);
+  /* Lighter line so the wireframe stands out on the near-black hero */
+  --globe-line: oklch(0.8 0.08 250 / 0.5);
+  --globe-line-soft: oklch(0.8 0.08 250 / 0.24);
+  --globe-halo: oklch(0.72 0.16 250 / 0.24);
+  --chart-1: oklch(0.7 0.17 45);
+  --chart-2: oklch(0.7 0.13 185);
+  --chart-3: oklch(0.62 0.17 250);
   --chart-4: oklch(0.68 0.12 300);
-  --chart-5: oklch(0.7 0.14 25);
+  --chart-5: oklch(0.68 0.17 25);
 }
 
 @theme inline {
@@ -169,12 +187,139 @@
     background: linear-gradient(
       92deg,
       var(--primary),
-      color-mix(in oklch, var(--primary) 55%, var(--info))
+      color-mix(in oklch, var(--primary) 45%, var(--info))
     );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
+
+  /* Hero motion (all neutralised by the reduced-motion kill switch below).
+     will-change promotes the blurred blobs to their own compositor layer so
+     the drift is a cheap transform, not a per-frame repaint of the blur. */
+  .animate-aurora-slow {
+    will-change: transform;
+    animation: aurora-drift 18s ease-in-out infinite;
+  }
+  .animate-aurora-fast {
+    will-change: transform;
+    animation: aurora-drift 11s ease-in-out infinite reverse;
+  }
+  .animate-marquee {
+    will-change: transform;
+    animation: marquee-slide 32s linear infinite;
+  }
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+  .animate-orbit-slow {
+    animation: orbit-spin 48s linear infinite;
+  }
+  .animate-arc-dash {
+    animation: arc-dash 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .animate-twinkle {
+    animation: starfield-twinkle 3.5s ease-in-out infinite;
+  }
+  /* Node halo pulse — CSS (not SMIL) so reduced-motion can stop it. Scales
+     around the circle's own centre via fill-box. */
+  .animate-node-ping {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: node-ping 2.8s ease-out infinite;
+  }
+  /* 3D globe scene: perspective on the wrapper, a slow dimensional tilt on the
+     wireframe layer (kept off the blurred glass so the blur never re-samples
+     per frame), and a rotating sheen that reads as the lit surface turning. */
+  .globe-scene {
+    perspective: 1100px;
+  }
+  .animate-globe-tilt {
+    transform-style: preserve-3d;
+    animation: globe-tilt 18s ease-in-out infinite;
+  }
+  .animate-globe-sheen {
+    animation: orbit-spin 20s linear infinite;
+  }
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, -2%) scale(1.08);
+  }
+}
+@keyframes marquee-slide {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes arc-dash {
+  0% {
+    stroke-dashoffset: 400;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes starfield-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+@keyframes node-ping {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.4;
+  }
+  80%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+@keyframes globe-tilt {
+  0%,
+  100% {
+    transform: rotateX(7deg) rotateY(-12deg);
+  }
+  50% {
+    transform: rotateX(3deg) rotateY(12deg);
+  }
+}
+
+/*
+ * In dark mode, the `text-primary` utility reads as a lighter azure so small
+ * primary-coloured text and links clear WCAG AA (4.5:1) on dark surfaces,
+ * while `bg-primary` (buttons, solid badges) keeps the solid primary that is
+ * dark enough for white labels. Unlayered + `.dark .text-primary` (0,2,0)
+ * outranks Tailwind's layered `.text-primary` utility.
+ */
+.dark .text-primary {
+  color: var(--primary-accent);
 }
 
 /* Vestibular safety: motion is decoration, never information */

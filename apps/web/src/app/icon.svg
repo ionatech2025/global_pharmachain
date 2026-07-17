@@ -2,8 +2,8 @@
   <title>PharmaChain</title>
   <defs>
     <linearGradient id="g" x1="6" y1="5" x2="27" y2="28" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#34a873"/>
-      <stop offset="1" stop-color="#14603f"/>
+      <stop offset="0" stop-color="#2f96e0"/>
+      <stop offset="1" stop-color="#0a4d80"/>
     </linearGradient>
   </defs>
   <path d="M27.5 16 L21.75 25.96 L10.25 25.96 L4.5 16 L10.25 6.04 L21.75 6.04 Z" fill="url(#g)" stroke="url(#g)" stroke-width="4" stroke-linejoin="round"/>

@@ -17,7 +17,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { HeroGlobe } from "@/components/hero-globe";
 import { Logo, LogoMark } from "@/components/logo";
+import { RouteMarquee } from "@/components/route-marquee";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
   title: { absolute: "PharmaChain — verified B2B pharmaceutical marketplace" },
@@ -102,8 +105,9 @@ export default async function LandingPage() {
           <Link href="/" aria-label="PharmaChain home">
             <Logo markClassName="size-8" />
           </Link>
-          <nav className="flex items-center gap-2">
-            <Button asChild variant="ghost">
+          <nav className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <Button asChild variant="ghost" className="hidden sm:inline-flex">
               <Link href="/login">Sign in</Link>
             </Button>
             <Button asChild>
@@ -119,44 +123,48 @@ export default async function LandingPage() {
         {/* Hero */}
         <section className="relative overflow-hidden">
           <div aria-hidden className="absolute inset-0 -z-10 bg-hero-glow" />
-          <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-grid-fade" />
-          <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-20 pb-16 text-center sm:px-6 sm:pt-28">
-            <p className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden />
-              Verified-only B2B pharmaceutical marketplace
-            </p>
-            <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-6xl">
-              Pharmaceutical sourcing,
-              <br />
-              <span className="text-gradient">from RFQ to delivered</span>
-            </h1>
-            <p className="mt-6 max-w-2xl text-base text-muted-foreground sm:text-lg">
-              PharmaChain connects verified manufacturers and suppliers. Publish catalogues, compare
-              quotations, confirm orders and track every shipment — with compliant document exchange
-              and a full audit trail underneath.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg">
-                <Link href="/register">
-                  Register your company <ArrowRight />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/login">Sign in</Link>
-              </Button>
+          <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[40rem] bg-grid-fade" />
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 pt-16 pb-14 sm:px-6 sm:pt-24 lg:grid-cols-2 lg:gap-8">
+            <div className="text-center lg:text-left">
+              <p className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+                <span className="size-1.5 rounded-full bg-success" aria-hidden />
+                Verified-only B2B pharmaceutical marketplace
+              </p>
+              <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-6xl">
+                Pharmaceutical sourcing,
+                <br />
+                <span className="text-gradient">from RFQ to delivered</span>
+              </h1>
+              <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground sm:text-lg lg:mx-0">
+                PharmaChain connects verified manufacturers and suppliers. Publish catalogues,
+                compare quotations, confirm orders and track every shipment — with compliant
+                document exchange and a full audit trail underneath.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <Button asChild size="lg">
+                  <Link href="/register">
+                    Register your company <ArrowRight />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/login">Sign in</Link>
+                </Button>
+              </div>
+              <ul className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
+                <li className="flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-success" /> Every counterparty verified
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <ScrollText className="size-4 text-success" /> Immutable audit trail
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <Lock className="size-4 text-success" /> GDPR-ready by design
+                </li>
+              </ul>
             </div>
-            <ul className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-1.5">
-                <ShieldCheck className="size-4 text-success" /> Every counterparty verified
-              </li>
-              <li className="flex items-center gap-1.5">
-                <ScrollText className="size-4 text-success" /> Immutable audit trail
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Lock className="size-4 text-success" /> GDPR-ready by design
-              </li>
-            </ul>
+            <HeroGlobe className="relative mx-auto aspect-square w-full max-w-md lg:max-w-none" />
           </div>
+          <RouteMarquee />
         </section>
 
         {/* Audiences */}
