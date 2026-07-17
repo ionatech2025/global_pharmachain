@@ -1,30 +1,36 @@
-# End-to-end tests (placeholder)
+# End-to-end tests
 
-Phase 1 ships this directory as a placeholder: `golden-path.spec.ts` encodes
-the acceptance walkthrough as a skipped Playwright spec so the scenario is
-version-controlled next to the code it verifies. Wiring it into CI is a
-Phase 2 task (it needs a disposable stack: compose services + seeded DB).
+`golden-path.spec.ts` drives the Phase 1 golden path through a real browser
+against a running stack: the seeded buyer raises an RFQ, the seeded supplier
+finds it in the quote inbox and quotes, the buyer accepts (creating an
+order), the seller advances the shipment one stage, and the buyer sees the
+new stage plus history. Each persona runs in its own browser context.
 
 ## Running locally
 
 ```bash
-docker compose up -d
-bun run db:push && bun run db:seed
-bun run dev                    # web :3000 + api :3001
-bunx playwright install chromium
-bunx --bun playwright test e2e # after removing the skip marker
+docker compose up -d               # PostgreSQL + MinIO (or any Postgres)
+bun run db:migrate:deploy && bun run db:seed
+bun run --filter @pharmachain/api start &          # api :3001
+bun run --filter @pharmachain/web build
+(cd apps/web && bunx next start --port 3000) &     # web :3000
+bunx playwright install chromium   # once
+bun run test:e2e
 ```
 
-## Golden path covered by the spec
+The API and web app must share `AUTH_SECRET`; the spec signs in with the
+seeded demo users (`ops@nilepharma.demo` / `ops@kampalafinechem.demo`,
+password from `SEED_DEMO_PASSWORD`, default per `.env.example`). Set
+`E2E_BASE_URL` to point at a different web origin.
 
-1. Register a company → confirmation email (console) → status page shows
-   `PENDING_VERIFICATION`.
-2. Seeded super admin uploads-checks pass → approve → company `VERIFIED`.
-3. Supplier publishes profile + listing (with SDS upload).
-4. Buyer raises an RFQ (usage meter moves) → supplier quotes → resubmits
-   (supersede) → buyer accepts → order at `ORDER_CONFIRMED`.
-5. Seller advances shipment stages with notes; buyer sees tracker + gets
-   notifications; order documents upload via presigned PUT.
-6. Freemium limit blocks the next RFQ → credit request → admin confirms →
-   limit raised.
-7. User requests deletion → admin anonymizes within the queue.
+## Coverage notes
+
+- The flow exercises auth, RBAC-gated navigation, marketplace data, the RFQ
+  lifecycle, quotation submission, award → order creation, and shipment
+  status updates with buyer-visible history.
+- Document upload (presigned PUT → complete → scan) is not covered — it
+  needs object storage with real objects; the seed's placeholder documents
+  cover list/checklist rendering only.
+- The suite is single-worker and stateful within a run; every run tags its
+  RFQ title with a unique run id, so re-runs against the same database don't
+  collide.
