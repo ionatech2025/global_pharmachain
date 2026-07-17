@@ -1,11 +1,11 @@
 import { Button } from "@pharmachain/ui/components/button";
-import { FlaskConical } from "lucide-react";
 import Link from "next/link";
+import { LogoMark } from "@/components/logo";
 
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-      <FlaskConical className="size-10 text-primary" />
+      <LogoMark className="size-11" />
       <div>
         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">404</p>
         <h1 className="mt-1 text-xl font-semibold">This page doesn't exist</h1>

@@ -21,7 +21,7 @@ import {
   SheetTrigger,
 } from "@pharmachain/ui/components/sheet";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { FlaskConical, Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
+import { Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -29,6 +29,7 @@ import { useTheme } from "next-themes";
 import { useState } from "react";
 import { CommandMenu } from "./command-menu";
 import { IdleSession } from "./idle-session";
+import { Logo, LogoMark } from "./logo";
 import { type NavSection, navFor } from "./nav-config";
 import { NotificationsBell } from "./notifications-bell";
 
@@ -139,11 +140,8 @@ export function AppShell({
       </a>
 
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card lg:flex">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 px-5 py-4 font-semibold text-primary"
-        >
-          <FlaskConical className="size-5" /> PharmaChain
+        <Link href="/dashboard" className="px-4 py-4">
+          <Logo markClassName="size-7" />
         </Link>
         <NavLinks sections={sections} pathname={pathname} />
         <CompanyCard me={me} />
@@ -163,8 +161,8 @@ export function AppShell({
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-72 gap-0 p-0">
-              <SheetTitle className="flex items-center gap-2 px-5 py-4 text-primary">
-                <FlaskConical className="size-5" /> PharmaChain
+              <SheetTitle className="px-4 py-4">
+                <Logo markClassName="size-7" />
               </SheetTitle>
               <SheetDescription className="sr-only">Main navigation</SheetDescription>
               <NavLinks
@@ -176,12 +174,8 @@ export function AppShell({
             </SheetContent>
           </Sheet>
 
-          <Link
-            href="/dashboard"
-            aria-label="PharmaChain dashboard"
-            className="flex items-center gap-2 font-semibold text-primary lg:hidden"
-          >
-            <FlaskConical className="size-5" />
+          <Link href="/dashboard" aria-label="PharmaChain dashboard" className="lg:hidden">
+            <LogoMark className="size-7" />
           </Link>
 
           <div className="ml-auto flex items-center gap-1.5">

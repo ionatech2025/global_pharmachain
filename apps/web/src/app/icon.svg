@@ -1,9 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>PharmaChain</title>
-  <rect width="32" height="32" rx="7" fill="#1b6e4b"/>
-  <g transform="translate(4 4)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/>
-    <path d="M8.5 2h7"/>
-    <path d="M7 16h10"/>
+  <defs>
+    <linearGradient id="g" x1="6" y1="5" x2="27" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34a873"/>
+      <stop offset="1" stop-color="#14603f"/>
+    </linearGradient>
+  </defs>
+  <path d="M27.5 16 L21.75 25.96 L10.25 25.96 L4.5 16 L10.25 6.04 L21.75 6.04 Z" fill="url(#g)" stroke="url(#g)" stroke-width="4" stroke-linejoin="round"/>
+  <g stroke="#ffffff" stroke-width="1.7" stroke-linecap="round">
+    <path d="M16 11.4 L11.7 19.3"/>
+    <path d="M16 11.4 L20.3 19.3"/>
+    <path d="M11.7 19.3 L20.3 19.3"/>
   </g>
+  <circle cx="16" cy="11.2" r="2.6" fill="#ffffff"/>
+  <circle cx="11.6" cy="19.5" r="2.1" fill="#ffffff"/>
+  <circle cx="20.4" cy="19.5" r="2.1" fill="#ffffff" fill-opacity="0.85"/>
 </svg>
