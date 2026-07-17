@@ -71,7 +71,7 @@ export class ShipmentService {
       href: `/orders/${order.id}`,
       emailContent: genericEventEmail({
         title: `Order ${order.orderNo} — ${ORDER_STATUS_LABELS[body.status]}`,
-        body: `${body.note ?? "Shipment status updated."}${updated.eta ? `<br/>ETA: ${updated.eta.toDateString()}` : ""}`,
+        body: `${body.note ?? "Shipment status updated."}${updated.eta ? `\nETA: ${updated.eta.toDateString()}` : ""}`,
         url: `${env.APP_URL}/orders/${order.id}`,
         cta: "Track order",
       }),

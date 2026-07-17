@@ -1,0 +1,22 @@
+# Keep secrets, VCS history and build junk out of image layers — the API
+# Dockerfile does `COPY . .` from the repo root.
+.git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+node_modules
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+coverage
+playwright-report
+test-results
+*.log
+*.pdf
+e2e
+docs
+.github
+.dockerignore

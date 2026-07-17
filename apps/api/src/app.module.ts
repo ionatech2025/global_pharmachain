@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { AppController } from "./app.controller";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { AuthGuard } from "./common/guards/auth.guard";
+import { ClientIpThrottlerGuard } from "./common/guards/client-ip-throttler.guard";
 import { MembershipGuard } from "./common/guards/membership.guard";
 import { PolicyGuard } from "./common/guards/policy.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
@@ -51,7 +52,7 @@ import { RfqModule } from "./modules/rfq/rfq.module";
   controllers: [AppController],
   providers: [
     // Guard order matters: throttle → authenticate → load membership → policy.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClientIpThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: MembershipGuard },
     { provide: APP_GUARD, useClass: PolicyGuard },

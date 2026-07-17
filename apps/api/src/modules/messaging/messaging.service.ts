@@ -202,7 +202,7 @@ export class MessagingService {
       emailContent: sendEmail
         ? genericEventEmail({
             title: `New message on ${context}`,
-            body: `${user.name} (${membership.company.name}) wrote:<br/><em>${excerpt}</em>`,
+            body: `${user.name} (${membership.company.name}) wrote:\n"${excerpt}"`,
             url: `${env.APP_URL}/messages/${threadId}`,
             cta: "Reply",
           })
