@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { ServiceWorker } from "@/components/service-worker";
 
 // Self-hosted via next/font: same-origin, preloaded, size-adjusted fallback —
 // no external font request and no layout shift.
@@ -12,6 +13,12 @@ export const metadata: Metadata = {
   title: { default: "PharmaChain", template: "%s · PharmaChain" },
   description: "B2B pharmaceutical sourcing and procurement platform",
   applicationName: "PharmaChain",
+  // manifest.ts is auto-linked; these add iOS standalone/PWA support.
+  appleWebApp: {
+    capable: true,
+    title: "PharmaChain",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -32,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
+        <ServiceWorker />
       </body>
     </html>
   );
