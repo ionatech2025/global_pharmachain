@@ -1,10 +1,19 @@
 # End-to-end tests
 
-`golden-path.spec.ts` drives the Phase 1 golden path through a real browser
-against a running stack: the seeded buyer raises an RFQ, the seeded supplier
-finds it in the quote inbox and quotes, the buyer accepts (creating an
-order), the seller advances the shipment one stage, and the buyer sees the
-new stage plus history. Each persona runs in its own browser context.
+Three browser suites run against a running stack (local or deployed — set
+`E2E_BASE_URL`):
+
+- **`golden-path.spec.ts`** — the Phase 1 golden path: the seeded buyer
+  raises an RFQ, the seeded supplier finds it in the quote inbox and quotes,
+  the buyer accepts (creating an order), the seller advances the shipment,
+  and the buyer sees the new stage plus history. Each persona runs in its own
+  browser context.
+- **`endpoints.spec.ts`** — read coverage of every `/api/backend` GET across
+  all controllers, signed in as an OPERATIONS user, a COMPANY_ADMIN and the
+  super admin, plus RBAC / auth / validation negative paths.
+- **`regression.spec.ts`** — hardening properties that must not silently
+  regress: helmet security headers, no `x-powered-by`, per-client-IP
+  throttling, the consistent JSON error envelope, and no account enumeration.
 
 ## Running locally
 
