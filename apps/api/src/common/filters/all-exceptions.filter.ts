@@ -7,8 +7,14 @@ interface ErrorEnvelope {
   error: { code: string; message: string; details?: unknown };
 }
 
+// Only OUR envelope qualifies: `error` must be an object carrying a `code`.
+// Nest's built-in exceptions (router 404, bare ForbiddenException, …) use
+// `{ statusCode, message, error: "Not Found" }` where `error` is a string —
+// those must be reformatted into our shape, not passed through.
 function isEnvelope(value: unknown): value is ErrorEnvelope {
-  return typeof value === "object" && value !== null && "error" in value;
+  if (typeof value !== "object" || value === null || !("error" in value)) return false;
+  const inner = (value as { error: unknown }).error;
+  return typeof inner === "object" && inner !== null && "code" in inner;
 }
 
 /**
