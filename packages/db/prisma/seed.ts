@@ -142,6 +142,401 @@ async function seedDemoCompany(spec: DemoCompanySpec, verifiedById: string) {
   return company;
 }
 
+// ─── Full-lifecycle demo data ────────────────────────────────────────────────
+// EmailOtp and PasswordResetToken are deliberately never seeded — they are
+// transient security artifacts that only the live flows should create.
+
+const sha256Hex = (input: string) => {
+  const hasher = new Bun.CryptoHasher("sha256");
+  hasher.update(input);
+  return hasher.digest("hex");
+};
+
+/** Placeholder object keys: list/checklist UIs render fully; downloads are
+ *  expected to 404 unless a real object is uploaded through the app. */
+const seedStorageKey = (companyId: string, fileName: string) =>
+  `${companyId}/seed-demo/${fileName}`;
+
+async function seedDocument(args: {
+  ownerCompanyId: string;
+  uploadedById: string;
+  kind: Parameters<typeof prisma.document.create>[0]["data"]["kind"];
+  fileName: string;
+  expiresAt?: Date;
+  listingId?: string;
+  orderId?: string;
+}) {
+  const storageKey = seedStorageKey(args.ownerCompanyId, args.fileName);
+  await prisma.document.upsert({
+    where: { storageKey },
+    update: {},
+    create: {
+      ownerCompanyId: args.ownerCompanyId,
+      uploadedById: args.uploadedById,
+      kind: args.kind,
+      fileName: args.fileName,
+      contentType: "application/pdf",
+      size: 184_320,
+      storageKey,
+      expiresAt: args.expiresAt,
+      status: "ACTIVE",
+      scanStatus: "CLEAN",
+      uploadCompletedAt: new Date(),
+      listingId: args.listingId,
+      orderId: args.orderId,
+    },
+  });
+}
+
+async function seedCompanyDocuments(companyId: string, uploaderId: string) {
+  const in180d = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+  const docs = [
+    { kind: "CERTIFICATE_OF_INCORPORATION", fileName: "certificate-of-incorporation.pdf" },
+    { kind: "TRADING_LICENCE", fileName: "trading-licence.pdf", expiresAt: in180d },
+    { kind: "TAX_ID", fileName: "tax-registration.pdf" },
+    { kind: "IMPORT_EXPORT_LICENCE", fileName: "import-export-licence.pdf", expiresAt: in180d },
+    { kind: "MANUFACTURING_LICENCE", fileName: "manufacturing-licence.pdf", expiresAt: in180d },
+    { kind: "GMP_CERTIFICATE", fileName: "gmp-certificate.pdf", expiresAt: in180d },
+  ] as const;
+  for (const doc of docs) {
+    await seedDocument({ ownerCompanyId: companyId, uploadedById: uploaderId, ...doc });
+  }
+}
+
+interface TradeActors {
+  supplier: { id: string };
+  manufacturer: { id: string };
+  supplierOpsId: string;
+  manufacturerOpsId: string;
+  apiCategoryId: string;
+  excipientCategoryId: string;
+}
+
+/** Quotations on the open RFQ plus a fully progressed order:
+ *  RFQ → superseded + accepted quotations → order → shipment history → thread. */
+async function seedTradeCycle(actors: TradeActors) {
+  const openRfq = await prisma.rfq.findFirst({
+    where: { buyerCompanyId: actors.manufacturer.id, status: "OPEN" },
+  });
+  if (openRfq) {
+    const activeQuote = await prisma.quotation.findFirst({
+      where: { rfqId: openRfq.id, supplierCompanyId: actors.supplier.id },
+    });
+    if (!activeQuote) {
+      await prisma.quotation.create({
+        data: {
+          refNo: generateRefNo("QUO"),
+          rfqId: openRfq.id,
+          supplierCompanyId: actors.supplier.id,
+          submittedById: actors.supplierOpsId,
+          unitPrice: "11.9000",
+          currency: "USD",
+          totalPrice: "5950.00",
+          leadTimeDays: 21,
+          validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          notes: "BP/EP grade, CoA per batch. FOB Kampala.",
+          status: "ACTIVE",
+        },
+      });
+    }
+  }
+
+  const existingOrder = await prisma.order.findFirst({
+    where: { buyerCompanyId: actors.manufacturer.id },
+  });
+  if (existingOrder) return existingOrder;
+
+  const day = 24 * 60 * 60 * 1000;
+  const awardedRfq = await prisma.rfq.create({
+    data: {
+      refNo: generateRefNo("RFQ"),
+      buyerCompanyId: actors.manufacturer.id,
+      createdById: actors.manufacturerOpsId,
+      title: "Microcrystalline Cellulose PH102 — 800 kg",
+      specifications: "PH102 grade, moisture ≤ 5%, supplied in 20 kg bags.",
+      quantity: "800.0000",
+      unit: "kg",
+      targetCompanyType: "RAW_MATERIAL_MANUFACTURER",
+      categoryId: actors.excipientCategoryId,
+      deadline: new Date(Date.now() - 4 * day),
+      status: "AWARDED",
+      awardedAt: new Date(Date.now() - 3 * day),
+      closedAt: new Date(Date.now() - 4 * day),
+      visibleSupplierCount: 1,
+      createdAt: new Date(Date.now() - 12 * day),
+    },
+  });
+  // Resubmission history: v1 superseded, v2 accepted (matches the live flow
+  // and the one-live-quotation partial unique index).
+  await prisma.quotation.create({
+    data: {
+      refNo: generateRefNo("QUO"),
+      rfqId: awardedRfq.id,
+      supplierCompanyId: actors.supplier.id,
+      submittedById: actors.supplierOpsId,
+      version: 1,
+      unitPrice: "4.6000",
+      currency: "USD",
+      totalPrice: "3680.00",
+      leadTimeDays: 14,
+      validUntil: new Date(Date.now() + 20 * day),
+      status: "SUPERSEDED",
+      createdAt: new Date(Date.now() - 10 * day),
+    },
+  });
+  const accepted = await prisma.quotation.create({
+    data: {
+      refNo: generateRefNo("QUO"),
+      rfqId: awardedRfq.id,
+      supplierCompanyId: actors.supplier.id,
+      submittedById: actors.supplierOpsId,
+      version: 2,
+      unitPrice: "4.4000",
+      currency: "USD",
+      totalPrice: "3520.00",
+      leadTimeDays: 12,
+      validUntil: new Date(Date.now() + 20 * day),
+      notes: "Revised price for full-truck consolidation.",
+      status: "ACCEPTED",
+      createdAt: new Date(Date.now() - 8 * day),
+    },
+  });
+
+  const order = await prisma.order.create({
+    data: {
+      orderNo: generateRefNo("ORD"),
+      rfqId: awardedRfq.id,
+      quotationId: accepted.id,
+      buyerCompanyId: actors.manufacturer.id,
+      sellerCompanyId: actors.supplier.id,
+      createdById: actors.manufacturerOpsId,
+      title: awardedRfq.title,
+      quantity: awardedRfq.quantity,
+      unit: awardedRfq.unit,
+      unitPrice: accepted.unitPrice,
+      currency: accepted.currency,
+      totalAmount: accepted.totalPrice,
+      status: "IN_TRANSIT",
+      eta: new Date(Date.now() + 5 * day),
+      forwarderName: "TransAfrica Logistics",
+      forwarderEmail: "dispatch@transafrica.demo",
+      createdAt: new Date(Date.now() - 3 * day),
+    },
+  });
+  const history = [
+    { status: "ORDER_CONFIRMED", note: "Order confirmed after award", offset: -3 * day },
+    { status: "PICKUP_SCHEDULED", note: "Pickup booked with forwarder", offset: -2.5 * day },
+    { status: "GOODS_COLLECTED", note: "Collected from Kampala plant", offset: -2 * day },
+    { status: "IN_TRANSIT", note: "On the road — Malaba border crossing", offset: -1 * day },
+  ] as const;
+  for (const event of history) {
+    await prisma.orderStatusEvent.create({
+      data: {
+        orderId: order.id,
+        status: event.status,
+        note: event.note,
+        eta: new Date(Date.now() + 5 * day),
+        actorUserId: actors.supplierOpsId,
+        createdAt: new Date(Date.now() + event.offset),
+      },
+    });
+  }
+
+  const thread = await prisma.messageThread.create({
+    data: {
+      buyerCompanyId: actors.manufacturer.id,
+      supplierCompanyId: actors.supplier.id,
+      orderId: order.id,
+      lastEmailNotifiedAt: new Date(Date.now() - 1 * day),
+    },
+  });
+  const conversation = [
+    {
+      senderId: actors.manufacturerOpsId,
+      senderCompanyId: actors.manufacturer.id,
+      body: "Hi — can you confirm the truck cleared Malaba? Our QA slot is booked for Friday.",
+      offset: -1 * day,
+    },
+    {
+      senderId: actors.supplierOpsId,
+      senderCompanyId: actors.supplier.id,
+      body: "Cleared this morning. CoA and packing list are attached to the order documents.",
+      offset: -0.9 * day,
+    },
+  ];
+  for (const message of conversation) {
+    await prisma.message.create({
+      data: {
+        threadId: thread.id,
+        senderId: message.senderId,
+        senderCompanyId: message.senderCompanyId,
+        senderRole: "OPERATIONS",
+        body: message.body,
+        createdAt: new Date(Date.now() + message.offset),
+      },
+    });
+  }
+
+  return order;
+}
+
+/** Announcements, notifications + preferences, credit request, pending
+ *  invite, login history, GDPR queue entry and verification audit rows. */
+async function seedWorkspaceExtras(args: {
+  superAdminId: string;
+  superAdminEmail: string;
+  supplier: { id: string; name: string };
+  manufacturer: { id: string; name: string };
+  users: { email: string; id: string; companyId: string }[];
+  orderId: string;
+  supplierAdminId: string;
+  manufacturerAdminId: string;
+}) {
+  const announcementTitle = "Scheduled maintenance — Sunday 02:00–04:00 UTC";
+  const existingAnnouncement = await prisma.announcement.findFirst({
+    where: { title: announcementTitle },
+  });
+  if (!existingAnnouncement) {
+    await prisma.announcement.create({
+      data: {
+        title: announcementTitle,
+        body: "The platform will be briefly unavailable while we apply database upgrades. Open RFQs and orders are unaffected.",
+        audience: "ALL",
+        status: "PUBLISHED",
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        createdById: args.superAdminId,
+      },
+    });
+  }
+
+  for (const user of args.users) {
+    const hasNotifications = await prisma.notification.findFirst({
+      where: { userId: user.id },
+    });
+    if (!hasNotifications) {
+      await prisma.notification.createMany({
+        data: [
+          {
+            userId: user.id,
+            type: "SHIPMENT_STATUS_CHANGE",
+            title: "Order in transit",
+            body: "Your order crossed the Malaba border and is en route.",
+            href: `/orders/${args.orderId}`,
+            readAt: new Date(),
+          },
+          {
+            userId: user.id,
+            type: "NEW_MESSAGE",
+            title: "New message on your order",
+            body: "There is a reply waiting in the order conversation.",
+            href: "/messages",
+          },
+        ],
+      });
+    }
+    await prisma.notificationPreference.upsert({
+      where: { userId_eventType: { userId: user.id, eventType: "NEW_MESSAGE" } },
+      update: {},
+      create: { userId: user.id, eventType: "NEW_MESSAGE", email: true, whatsapp: false },
+    });
+  }
+
+  const existingCredit = await prisma.creditRequest.findFirst({
+    where: { companyId: args.manufacturer.id },
+  });
+  if (!existingCredit) {
+    await prisma.creditRequest.create({
+      data: {
+        companyId: args.manufacturer.id,
+        kind: "RFQ",
+        count: 5,
+        fee: "25.00",
+        currency: "USD",
+        status: "PENDING_PAYMENT",
+        requestedById: args.manufacturerAdminId,
+      },
+    });
+  }
+
+  const inviteEmail = "finance@nilepharma.demo";
+  await prisma.invite.upsert({
+    where: { tokenHash: sha256Hex(`seed-invite:${inviteEmail}`) },
+    update: {},
+    create: {
+      companyId: args.manufacturer.id,
+      email: inviteEmail,
+      role: "FINANCE",
+      tokenHash: sha256Hex(`seed-invite:${inviteEmail}`),
+      invitedById: args.manufacturerAdminId,
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+    },
+  });
+
+  const hasLogins = await prisma.loginActivity.findFirst({
+    where: { userId: args.manufacturerAdminId },
+  });
+  if (!hasLogins) {
+    await prisma.loginActivity.createMany({
+      data: [
+        {
+          userId: args.manufacturerAdminId,
+          email: "admin@nilepharma.demo",
+          method: "PASSWORD",
+          success: true,
+          ip: "203.0.113.10",
+          userAgent: "Mozilla/5.0 (seed)",
+        },
+        {
+          userId: args.manufacturerAdminId,
+          email: "admin@nilepharma.demo",
+          method: "PASSWORD",
+          success: false,
+          ip: "203.0.113.10",
+          userAgent: "Mozilla/5.0 (seed)",
+        },
+      ],
+    });
+  }
+
+  // A departed staff member with a pending GDPR deletion request
+  const departedEmail = "former.staff@kampalafinechem.demo";
+  const departed = await prisma.user.upsert({
+    where: { email: departedEmail },
+    update: {},
+    create: {
+      email: departedEmail,
+      name: "Former Staff",
+      status: "DEACTIVATED",
+      deactivatedAt: new Date(),
+    },
+  });
+  const hasDeletionRequest = await prisma.dataDeletionRequest.findFirst({
+    where: { userId: departed.id },
+  });
+  if (!hasDeletionRequest) {
+    await prisma.dataDeletionRequest.create({ data: { userId: departed.id, status: "PENDING" } });
+  }
+
+  for (const company of [args.supplier, args.manufacturer]) {
+    const hasAudit = await prisma.auditLog.findFirst({
+      where: { entityType: "Company", entityId: company.id, action: "company.verify-approve" },
+    });
+    if (!hasAudit) {
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: args.superAdminId,
+          actorEmail: args.superAdminEmail,
+          companyId: company.id,
+          action: "company.verify-approve",
+          entityType: "Company",
+          entityId: company.id,
+          newValues: { verificationStatus: "VERIFIED" },
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   console.log("Seeding PharmaChain…");
 
@@ -323,6 +718,61 @@ async function main() {
     });
   }
 
+  // Full lifecycle: quotations, awarded order with shipment history, thread,
+  // documents, notifications, credits, invite, GDPR queue, audit rows.
+  const [supplierAdmin, supplierOps, manufacturerAdmin] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { email: "admin@kampalafinechem.demo" } }),
+    prisma.user.findUniqueOrThrow({ where: { email: "ops@kampalafinechem.demo" } }),
+    prisma.user.findUniqueOrThrow({ where: { email: "admin@nilepharma.demo" } }),
+  ]);
+
+  const order = await seedTradeCycle({
+    supplier,
+    manufacturer,
+    supplierOpsId: supplierOps.id,
+    manufacturerOpsId: manufacturerOps.id,
+    apiCategoryId,
+    excipientCategoryId,
+  });
+
+  await seedCompanyDocuments(supplier.id, supplierAdmin.id);
+  await seedCompanyDocuments(manufacturer.id, manufacturerAdmin.id);
+  const paracetamol = await prisma.listing.findFirst({
+    where: { companyId: supplier.id, name: "Paracetamol BP/EP (API)" },
+  });
+  if (paracetamol) {
+    await seedDocument({
+      ownerCompanyId: supplier.id,
+      uploadedById: supplierOps.id,
+      kind: "SDS",
+      fileName: "paracetamol-sds.pdf",
+      listingId: paracetamol.id,
+    });
+  }
+  await seedDocument({
+    ownerCompanyId: supplier.id,
+    uploadedById: supplierOps.id,
+    kind: "PROFORMA_INVOICE",
+    fileName: "proforma-invoice-mcc-800kg.pdf",
+    orderId: order.id,
+  });
+
+  await seedWorkspaceExtras({
+    superAdminId: superAdmin.id,
+    superAdminEmail: SUPER_ADMIN_EMAIL,
+    supplier: { id: supplier.id, name: supplier.name },
+    manufacturer: { id: manufacturer.id, name: manufacturer.name },
+    users: [
+      { email: supplierAdmin.email, id: supplierAdmin.id, companyId: supplier.id },
+      { email: supplierOps.email, id: supplierOps.id, companyId: supplier.id },
+      { email: manufacturerAdmin.email, id: manufacturerAdmin.id, companyId: manufacturer.id },
+      { email: manufacturerOps.email, id: manufacturerOps.id, companyId: manufacturer.id },
+    ],
+    orderId: order.id,
+    supplierAdminId: supplierAdmin.id,
+    manufacturerAdminId: manufacturerAdmin.id,
+  });
+
   console.log("Seed complete.");
   console.log(
     `  Super admin:        ${SUPER_ADMIN_EMAIL} (password: SEED_SUPER_ADMIN_PASSWORD env)`,
@@ -330,6 +780,8 @@ async function main() {
   console.log("  Demo supplier:      admin@kampalafinechem.demo / ops@kampalafinechem.demo");
   console.log("  Demo manufacturer:  admin@nilepharma.demo / ops@nilepharma.demo");
   console.log("  Demo user password: value of SEED_DEMO_PASSWORD (defaults per .env.example)");
+  console.log("  Includes: open + awarded RFQs, quotations, in-transit order with history,");
+  console.log("  messages, documents, notifications, credit request, invite, GDPR queue.");
 }
 
 main()
