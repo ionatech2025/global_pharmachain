@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
 import {
   idParamSchema,
+  type PaginationQuery,
+  paginationQuerySchema,
   type QuotationSubmit,
   quotationSubmitSchema,
   type RfqCreate,
@@ -32,8 +34,11 @@ export class RfqController {
 
   @RequirePermission("rfq:read")
   @Get()
-  listMine(@CurrentMembership() membership: Membership) {
-    return this.rfqService.listMine(membership);
+  listMine(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.rfqService.listMine(membership, query);
   }
 
   @RequirePermission("rfq:write")
@@ -58,8 +63,11 @@ export class RfqController {
   @RequirePermission("quotation:read")
   @RequireVerified()
   @Get("inbox")
-  inbox(@CurrentMembership() membership: Membership) {
-    return this.rfqService.inbox(membership);
+  inbox(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.rfqService.inbox(membership, query);
   }
 
   @Get(":id")

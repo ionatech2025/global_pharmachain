@@ -303,19 +303,23 @@ export class AuthService {
         notificationPreferences: true,
       },
     });
-    const [notifications, loginActivity, messages] = await Promise.all([
-      prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      prisma.loginActivity.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      prisma.message.count({ where: { senderId: userId } }),
-    ]);
+    const EXPORT_WINDOW = 500;
+    const [notifications, notificationTotal, loginActivity, loginActivityTotal, messages] =
+      await Promise.all([
+        prisma.notification.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: EXPORT_WINDOW,
+        }),
+        prisma.notification.count({ where: { userId } }),
+        prisma.loginActivity.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: EXPORT_WINDOW,
+        }),
+        prisma.loginActivity.count({ where: { userId } }),
+        prisma.message.count({ where: { senderId: userId } }),
+      ]);
     return {
       exportedAt: new Date().toISOString(),
       profile: {
@@ -328,8 +332,13 @@ export class AuthService {
       },
       membership: user.membership,
       notificationPreferences: user.notificationPreferences,
+      // A truncated export must say so (GDPR completeness).
       notifications,
+      notificationTotal,
+      notificationsTruncated: notificationTotal > notifications.length,
       loginActivity,
+      loginActivityTotal,
+      loginActivityTruncated: loginActivityTotal > loginActivity.length,
       authoredMessagesCount: messages,
     };
   }

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type { QuotationSubmit, RfqCreate } from "@pharmachain/core";
-import { canTransitionRfq, generateRefNo } from "@pharmachain/core";
+import type { PaginationQuery, QuotationSubmit, RfqCreate } from "@pharmachain/core";
+import { canTransitionRfq, generateRefNo, paginate, skipTake } from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
@@ -95,46 +95,56 @@ export class RfqService {
     return rfq;
   }
 
-  async listMine(membership: Membership) {
-    return prisma.rfq.findMany({
-      where: { buyerCompanyId: membership.companyId },
-      include: {
-        category: { select: { name: true } },
-        _count: { select: { quotations: { where: { status: { not: "SUPERSEDED" } } } } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+  async listMine(membership: Membership, query: PaginationQuery) {
+    const where = { buyerCompanyId: membership.companyId } as const;
+    const [items, total] = await prisma.$transaction([
+      prisma.rfq.findMany({
+        where,
+        include: {
+          category: { select: { name: true } },
+          _count: { select: { quotations: { where: { status: { not: "SUPERSEDED" } } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        ...skipTake(query),
+      }),
+      prisma.rfq.count({ where }),
+    ]);
+    return paginate(items, total, query);
   }
 
   /** Supplier inbox (US-402): open, before deadline, targeted at my company
    *  type, and — when the RFQ names a category — matching my published lines. */
-  async inbox(membership: Membership) {
+  async inbox(membership: Membership, query: PaginationQuery) {
     const myCategories = await prisma.listing.findMany({
       where: { companyId: membership.companyId, status: "PUBLISHED" },
       select: { categoryId: true },
       distinct: ["categoryId"],
     });
     const categoryIds = myCategories.map((l) => l.categoryId);
-    return prisma.rfq.findMany({
-      where: {
-        status: "OPEN",
-        deadline: { gt: new Date() },
-        targetCompanyType: membership.company.type,
-        buyerCompanyId: { not: membership.companyId },
-        OR: [{ categoryId: null }, { categoryId: { in: categoryIds } }],
-      },
-      include: {
-        buyerCompany: { select: { id: true, name: true, country: true } },
-        category: { select: { name: true } },
-        quotations: {
-          where: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-          select: { id: true, status: true, version: true },
+    const where = {
+      status: "OPEN",
+      deadline: { gt: new Date() },
+      targetCompanyType: membership.company.type,
+      buyerCompanyId: { not: membership.companyId },
+      OR: [{ categoryId: null }, { categoryId: { in: categoryIds } }],
+    } satisfies Prisma.RfqWhereInput;
+    const [items, total] = await prisma.$transaction([
+      prisma.rfq.findMany({
+        where,
+        include: {
+          buyerCompany: { select: { id: true, name: true, country: true } },
+          category: { select: { name: true } },
+          quotations: {
+            where: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
+            select: { id: true, status: true, version: true },
+          },
         },
-      },
-      orderBy: { deadline: "asc" },
-      take: 200,
-    });
+        orderBy: { deadline: "asc" },
+        ...skipTake(query),
+      }),
+      prisma.rfq.count({ where }),
+    ]);
+    return paginate(items, total, query);
   }
 
   async getRfq(user: AuthUser, membership: Membership | undefined, rfqId: string) {

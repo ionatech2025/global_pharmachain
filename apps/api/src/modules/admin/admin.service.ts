@@ -254,6 +254,14 @@ export class AdminService {
         where: { userId },
         data: { email: "anonymized", ip: null, userAgent: null },
       });
+      // Invitations addressed to this email also carry PII.
+      await tx.invite.updateMany({
+        where: { email: user.email },
+        data: { email: `deleted-${userId}@anonymized.invalid` },
+      });
+      // Deliberately retained: AuditLog.actorEmail (legal-basis audit trail,
+      // US-903) and Company.primaryContact* (company business record, owned
+      // by the company rather than the user).
       return anonymized;
     }, SERIALIZABLE);
     return { before: { email: user.email }, anonymized };
