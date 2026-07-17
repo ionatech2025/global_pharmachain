@@ -116,6 +116,7 @@ export function BomManager({
                   />
                 </div>
                 <select
+                  aria-label="Material category"
                   className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
                   value={item.categoryId ?? ""}
                   onChange={(e) => setItem(i, { categoryId: e.target.value || undefined })}

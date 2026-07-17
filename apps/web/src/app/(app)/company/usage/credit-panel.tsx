@@ -82,6 +82,7 @@ export function CreditRequestPanel({
         {canRequest && tier === "FREEMIUM" && (
           <form onSubmit={request} className="flex flex-wrap items-end gap-2">
             <select
+              aria-label="Credit type"
               className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
               value={kind}
               onChange={(e) => setKind(e.target.value as CreditKind)}

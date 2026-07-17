@@ -67,6 +67,7 @@ export default async function MarketplacePage({
         </div>
         <select
           name="categoryId"
+          aria-label="Filter by category"
           defaultValue={params.categoryId ?? ""}
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
         >
@@ -79,6 +80,7 @@ export default async function MarketplacePage({
         </select>
         <select
           name="kind"
+          aria-label="Filter by listing kind"
           defaultValue={params.kind ?? ""}
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
         >
@@ -94,6 +96,7 @@ export default async function MarketplacePage({
         />
         <select
           name="sort"
+          aria-label="Sort results"
           defaultValue={params.sort ?? "relevance"}
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
         >

@@ -85,6 +85,7 @@ export function InvitePanel({ invites }: { invites: InviteRow[] }) {
             />
           </div>
           <select
+            aria-label="Role for the invited member"
             className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
             value={role}
             onChange={(e) => setRole(e.target.value as CompanyRole)}
@@ -190,6 +191,7 @@ export function MembersTable({
             <TableCell>
               {canManage && member.user.id !== meUserId ? (
                 <select
+                  aria-label={`Role for ${member.user.name}`}
                   className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
                   value={member.role}
                   onChange={(e) => changeRole(member.user.id, e.target.value as CompanyRole)}
