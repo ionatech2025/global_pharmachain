@@ -147,6 +147,36 @@
   }
 }
 
+@layer utilities {
+  /* Landing / auth backdrop: faint blueprint grid that fades out downward */
+  .bg-grid-fade {
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+  }
+  /* Soft brand glow behind hero content */
+  .bg-hero-glow {
+    background: radial-gradient(
+      52rem 30rem at 50% -6rem,
+      color-mix(in oklch, var(--primary) 16%, transparent),
+      transparent 70%
+    );
+  }
+  /* Brand-gradient display text (hero keyword) */
+  .text-gradient {
+    background: linear-gradient(
+      92deg,
+      var(--primary),
+      color-mix(in oklch, var(--primary) 55%, var(--info))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
 /* Vestibular safety: motion is decoration, never information */
 @media (prefers-reduced-motion: reduce) {
   *,
