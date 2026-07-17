@@ -85,13 +85,15 @@ export default async function OrdersPage({
                     </Link>
                     <p className="text-xs text-muted-foreground">from {o.rfq.refNo}</p>
                   </TableCell>
-                  <TableCell>{o.title}</TableCell>
+                  <TableCell className="max-w-56 truncate" title={o.title}>
+                    {o.title}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{o.buyerCompany.name}</TableCell>
                   <TableCell className="text-muted-foreground">{o.sellerCompany.name}</TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium tabular-nums whitespace-nowrap">
                     {fmtMoney(o.totalAmount, o.currency)}
                   </TableCell>
-                  <TableCell>{fmtDate(o.eta)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{fmtDate(o.eta)}</TableCell>
                   <TableCell>
                     <OrderStatusBadge status={o.status} />
                   </TableCell>
