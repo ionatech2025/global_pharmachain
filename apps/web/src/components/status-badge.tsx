@@ -12,10 +12,26 @@ import { Badge } from "@pharmachain/ui/components/badge";
 
 type Variant = React.ComponentProps<typeof Badge>["variant"];
 
+/**
+ * One color language across every lifecycle, so a glance carries meaning:
+ *   success = healthy/complete · info = in progress · warning = needs your
+ *   attention · destructive = blocked · secondary/outline = inert history.
+ * The leading dot mirrors the variant color — status reads even where the
+ * tint is subtle, and rows scan faster than filled pills.
+ */
+function StatusBadge({ variant, label }: { variant: Variant; label: string }) {
+  return (
+    <Badge variant={variant} className="gap-1.5">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current opacity-80" />
+      {label}
+    </Badge>
+  );
+}
+
 const RFQ_VARIANTS: Record<RfqStatus, Variant> = {
   OPEN: "success",
   CLOSED: "secondary",
-  AWARDED: "default",
+  AWARDED: "info",
   CANCELLED: "outline",
 };
 
@@ -24,15 +40,15 @@ const QUOTATION_VARIANTS: Record<QuotationStatus, Variant> = {
   SUPERSEDED: "outline",
   WITHDRAWN: "warning",
   EXPIRED: "secondary",
-  ACCEPTED: "default",
+  ACCEPTED: "info",
 };
 
 const ORDER_VARIANTS: Record<OrderStatus, Variant> = {
   ORDER_CONFIRMED: "secondary",
-  PICKUP_SCHEDULED: "warning",
-  GOODS_COLLECTED: "warning",
-  IN_TRANSIT: "default",
-  AT_PORT: "default",
+  PICKUP_SCHEDULED: "info",
+  GOODS_COLLECTED: "info",
+  IN_TRANSIT: "info",
+  AT_PORT: "info",
   DELIVERED: "success",
 };
 
@@ -44,19 +60,24 @@ const VERIFICATION_VARIANTS: Record<VerificationStatus, Variant> = {
 };
 
 export function RfqStatusBadge({ status }: { status: RfqStatus }) {
-  return <Badge variant={RFQ_VARIANTS[status]}>{RFQ_STATUS_LABELS[status]}</Badge>;
+  return <StatusBadge variant={RFQ_VARIANTS[status]} label={RFQ_STATUS_LABELS[status]} />;
 }
 
 export function QuotationStatusBadge({ status }: { status: QuotationStatus }) {
-  return <Badge variant={QUOTATION_VARIANTS[status]}>{QUOTATION_STATUS_LABELS[status]}</Badge>;
+  return (
+    <StatusBadge variant={QUOTATION_VARIANTS[status]} label={QUOTATION_STATUS_LABELS[status]} />
+  );
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  return <Badge variant={ORDER_VARIANTS[status]}>{ORDER_STATUS_LABELS[status]}</Badge>;
+  return <StatusBadge variant={ORDER_VARIANTS[status]} label={ORDER_STATUS_LABELS[status]} />;
 }
 
 export function VerificationStatusBadge({ status }: { status: VerificationStatus }) {
   return (
-    <Badge variant={VERIFICATION_VARIANTS[status]}>{VERIFICATION_STATUS_LABELS[status]}</Badge>
+    <StatusBadge
+      variant={VERIFICATION_VARIANTS[status]}
+      label={VERIFICATION_STATUS_LABELS[status]}
+    />
   );
 }
