@@ -1,0 +1,7 @@
+# Hoisted (classic flat) node_modules layout. Bun's default isolated linker
+# stores packages under node_modules/.bun with symlinks, which breaks
+# Vercel/Next.js output-file tracing (functions reference .bun store paths
+# that don't survive upload). Hoisted keeps every tool — tsc, Next, NFT,
+# Prisma generate — on the layout they expect. The lockfile is unaffected.
+[install]
+linker = "hoisted"
