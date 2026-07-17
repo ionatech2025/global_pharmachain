@@ -141,7 +141,7 @@ export function AppShell({
 
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card lg:flex">
         <Link href="/dashboard" className="px-4 py-4">
-          <Logo markClassName="size-7" />
+          <Logo markClassName="size-8" />
         </Link>
         <NavLinks sections={sections} pathname={pathname} />
         <CompanyCard me={me} />
@@ -162,7 +162,7 @@ export function AppShell({
             </SheetTrigger>
             <SheetContent side="left" className="w-72 gap-0 p-0">
               <SheetTitle className="px-4 py-4">
-                <Logo markClassName="size-7" />
+                <Logo markClassName="size-8" />
               </SheetTitle>
               <SheetDescription className="sr-only">Main navigation</SheetDescription>
               <NavLinks
@@ -174,8 +174,12 @@ export function AppShell({
             </SheetContent>
           </Sheet>
 
-          <Link href="/dashboard" aria-label="PharmaChain dashboard" className="lg:hidden">
-            <LogoMark className="size-7" />
+          <Link
+            href="/dashboard"
+            aria-label="PharmaChain dashboard"
+            className="group/logo lg:hidden"
+          >
+            <LogoMark className="size-8" />
           </Link>
 
           <div className="ml-auto flex items-center gap-1.5">

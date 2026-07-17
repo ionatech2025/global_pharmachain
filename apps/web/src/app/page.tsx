@@ -103,7 +103,7 @@ export default async function LandingPage() {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" aria-label="PharmaChain home">
-            <Logo markClassName="size-8" />
+            <Logo markClassName="size-9 sm:size-10" />
           </Link>
           <nav className="flex items-center gap-1.5">
             <ThemeToggle />
@@ -259,7 +259,7 @@ export default async function LandingPage() {
       <footer className="border-t">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2.5">
-            <LogoMark className="size-6" />
+            <LogoMark className="size-7" />
             <span className="text-sm text-muted-foreground">
               © 2026 PharmaChain · B2B pharmaceutical sourcing
             </span>
