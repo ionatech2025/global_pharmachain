@@ -13,87 +13,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@pharmachain/ui/components/dropdown-menu";
-import { cn } from "@pharmachain/ui/lib/utils";
 import {
-  Building2,
-  FileText,
-  FlaskConical,
-  Inbox,
-  LayoutDashboard,
-  ListChecks,
-  Megaphone,
-  MessageSquare,
-  Moon,
-  Package,
-  ScrollText,
-  Search,
-  Settings2,
-  ShieldCheck,
-  ShoppingCart,
-  Sun,
-  UserRound,
-  Users,
-  Wallet,
-} from "lucide-react";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from "@pharmachain/ui/components/sheet";
+import { cn } from "@pharmachain/ui/lib/utils";
+import { FlaskConical, Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
+import { useState } from "react";
+import { CommandMenu } from "./command-menu";
 import { IdleSession } from "./idle-session";
+import { type NavSection, navFor } from "./nav-config";
 import { NotificationsBell } from "./notifications-bell";
 
 interface Announcement {
   id: string;
   title: string;
   body: string;
-}
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-function navFor(me: AuthenticatedUser): { section: string; items: NavItem[] }[] {
-  if (me.isSuperAdmin && !me.membership) {
-    return [
-      {
-        section: "Platform admin",
-        items: [
-          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          { href: "/admin/verification", label: "Verification queue", icon: ShieldCheck },
-          { href: "/admin/companies", label: "Companies", icon: Building2 },
-          { href: "/admin/credits", label: "Credit requests", icon: Wallet },
-          { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
-          { href: "/admin/parameters", label: "Parameters & FX", icon: Settings2 },
-          { href: "/admin/logins", label: "Login activity", icon: Users },
-          { href: "/admin/audit", label: "Audit logs", icon: ScrollText },
-          { href: "/admin/data-requests", label: "Data requests", icon: UserRound },
-        ],
-      },
-    ];
-  }
-  return [
-    {
-      section: "Trade",
-      items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/marketplace", label: "Marketplace", icon: Search },
-        { href: "/catalogue", label: "My catalogue", icon: Package },
-        { href: "/rfqs", label: "My RFQs", icon: ListChecks },
-        { href: "/quotes", label: "Quote inbox", icon: Inbox },
-        { href: "/orders", label: "Orders", icon: ShoppingCart },
-      ],
-    },
-    {
-      section: "Workspace",
-      items: [
-        { href: "/documents", label: "Documents", icon: FileText },
-        { href: "/messages", label: "Messages", icon: MessageSquare },
-        { href: "/company", label: "Company", icon: Building2 },
-      ],
-    },
-  ];
 }
 
 function ThemeToggle() {
@@ -111,6 +53,66 @@ function ThemeToggle() {
   );
 }
 
+function NavLinks({
+  sections,
+  pathname,
+  onNavigate,
+}: {
+  sections: NavSection[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
+      {sections.map((section) => (
+        <div key={section.section}>
+          <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {section.section}
+          </p>
+          <div className="grid gap-0.5">
+            {section.items.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    active
+                      ? "bg-primary/10 font-medium text-primary before:absolute before:inset-y-1 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function CompanyCard({ me }: { me: AuthenticatedUser }) {
+  const membership = me.membership;
+  if (!membership) return null;
+  return (
+    <div className="border-t px-5 py-3 text-xs text-muted-foreground">
+      <p className="truncate font-medium text-foreground">{membership.companyName}</p>
+      <Badge
+        variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}
+        className="mt-1"
+      >
+        {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
+      </Badge>
+    </div>
+  );
+}
+
 export function AppShell({
   me,
   announcements,
@@ -121,12 +123,21 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const sections = navFor(me);
   const membership = me.membership;
   const unverified = membership && membership.verificationStatus !== "VERIFIED";
+  const canTrade = Boolean(membership);
 
   return (
     <div className="flex min-h-screen">
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+      >
+        Skip to content
+      </a>
+
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card lg:flex">
         <Link
           href="/dashboard"
@@ -134,57 +145,47 @@ export function AppShell({
         >
           <FlaskConical className="size-5" /> PharmaChain
         </Link>
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
-          {sections.map((section) => (
-            <div key={section.section}>
-              <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {section.section}
-              </p>
-              <div className="grid gap-0.5">
-                {section.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        active
-                          ? "bg-primary/10 font-medium text-primary"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                    >
-                      <item.icon className="size-4" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-        {membership && (
-          <div className="border-t px-5 py-3 text-xs text-muted-foreground">
-            <p className="truncate font-medium text-foreground">{membership.companyName}</p>
-            <Badge
-              variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}
-              className="mt-1"
-            >
-              {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
-            </Badge>
-          </div>
-        )}
+        <NavLinks sections={sections} pathname={pathname} />
+        <CompanyCard me={me} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open navigation"
+                className="lg:hidden"
+              >
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 gap-0 p-0">
+              <SheetTitle className="flex items-center gap-2 px-5 py-4 text-primary">
+                <FlaskConical className="size-5" /> PharmaChain
+              </SheetTitle>
+              <SheetDescription className="sr-only">Main navigation</SheetDescription>
+              <NavLinks
+                sections={sections}
+                pathname={pathname}
+                onNavigate={() => setMobileOpen(false)}
+              />
+              <CompanyCard me={me} />
+            </SheetContent>
+          </Sheet>
+
           <Link
             href="/dashboard"
+            aria-label="PharmaChain dashboard"
             className="flex items-center gap-2 font-semibold text-primary lg:hidden"
           >
             <FlaskConical className="size-5" />
           </Link>
-          <div className="ml-auto flex items-center gap-1">
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <CommandMenu sections={sections} canTrade={canTrade} />
             <ThemeToggle />
             <NotificationsBell />
             <DropdownMenu>
@@ -224,29 +225,9 @@ export function AppShell({
           </div>
         </header>
 
-        {/* Mobile nav */}
-        <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5 lg:hidden">
-          {sections
-            .flatMap((s) => s.items)
-            .map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "whitespace-nowrap rounded-md px-2.5 py-1 text-xs",
-                  pathname.startsWith(item.href)
-                    ? "bg-primary/10 font-medium text-primary"
-                    : "text-muted-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-        </div>
-
-        <main className="flex-1 space-y-4 p-4 lg:p-6">
+        <main id="main" className="flex-1 space-y-4 p-4 lg:p-6">
           {announcements.map((a) => (
-            <Alert key={a.id}>
+            <Alert key={a.id} variant="info">
               <Megaphone className="size-4" />
               <AlertTitle>{a.title}</AlertTitle>
               <AlertDescription>{a.body}</AlertDescription>
