@@ -9,7 +9,14 @@ import { ServiceWorker } from "@/components/service-worker";
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmachain-seven.vercel.app";
+const SHARE_DESCRIPTION =
+  "Source pharmaceutical raw materials and finished products from verified companies — RFQs, quotations, orders, shipment tracking and compliant document exchange.";
+
 export const metadata: Metadata = {
+  // Absolute base so the file-convention opengraph-image / twitter-image and
+  // any relative URLs resolve to fully-qualified links in share previews.
+  metadataBase: new URL(SITE_URL),
   title: { default: "PharmaChain", template: "%s · PharmaChain" },
   description: "B2B pharmaceutical sourcing and procurement platform",
   applicationName: "PharmaChain",
@@ -18,6 +25,21 @@ export const metadata: Metadata = {
     capable: true,
     title: "PharmaChain",
     statusBarStyle: "default",
+  },
+  // Social share card (the opengraph-image.png / twitter-image.png file
+  // conventions supply the image + dimensions automatically).
+  openGraph: {
+    type: "website",
+    siteName: "PharmaChain",
+    title: "PharmaChain — verified B2B pharmaceutical marketplace",
+    description: SHARE_DESCRIPTION,
+    url: "/",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PharmaChain — verified B2B pharmaceutical marketplace",
+    description: SHARE_DESCRIPTION,
   },
 };
 
