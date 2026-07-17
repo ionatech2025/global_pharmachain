@@ -12,7 +12,7 @@ import {
 import { notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import type { DocumentService } from "../document/document.service";
+import { DocumentService } from "../document/document.service";
 
 const orderListQuerySchema = paginationQuerySchema.extend({
   role: z.enum(["buyer", "seller"]).optional(),

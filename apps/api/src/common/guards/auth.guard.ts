@@ -1,5 +1,5 @@
 import { type CanActivate, type ExecutionContext, Injectable } from "@nestjs/common";
-import type { Reflector } from "@nestjs/core";
+import { Reflector } from "@nestjs/core";
 import { decodeSessionToken } from "@pharmachain/auth/session";
 import { prisma } from "@pharmachain/db";
 import type { FastifyRequest } from "fastify";

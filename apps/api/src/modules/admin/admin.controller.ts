@@ -39,7 +39,7 @@ import { env } from "../../env";
 import type { AuthUser } from "../../lib/context";
 import { invalidateParamCache } from "../../lib/params";
 import { platformStats } from "../dashboard/dashboard.service";
-import type { AdminService } from "./admin.service";
+import { AdminService } from "./admin.service";
 
 const companiesQuerySchema = paginationQuerySchema.extend({
   status: z.enum(["PENDING_VERIFICATION", "VERIFIED", "REJECTED", "EXPIRED_DOCUMENT"]).optional(),

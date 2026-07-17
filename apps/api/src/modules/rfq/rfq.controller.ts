@@ -18,7 +18,7 @@ import {
 } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import type { RfqService } from "./rfq.service";
+import { RfqService } from "./rfq.service";
 
 const quotationSortSchema = z.object({
   sort: z.enum(["price", "leadTime"]).default("price"),

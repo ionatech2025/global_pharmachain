@@ -17,7 +17,7 @@ import { unauthorized } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser } from "../../lib/context";
 import { clientIp } from "../../lib/context";
-import type { AuthService } from "./auth.service";
+import { AuthService } from "./auth.service";
 
 const loginBodySchema = z.object({
   email: z.email(),
