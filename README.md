@@ -48,7 +48,7 @@ cp .env.example .env          # then set AUTH_SECRET (openssl rand -base64 32)
 docker compose up -d          # PostgreSQL 17 + MinIO (+ bucket bootstrap)
 bun install
 bun run db:generate           # prisma generate
-bun run db:push               # dev-only schema sync (prod uses migrations)
+bun run db:push               # dev-only schema sync (prod applies the committed migrations)
 bun run db:seed               # super admin, parameters, categories, FX, demo data
 bun run dev                   # web http://localhost:3000 · api http://localhost:3001
 ```
@@ -67,6 +67,8 @@ anywhere shared) plus two verified demo companies with listings and an open RFQ.
 | `bun run typecheck` | `tsc --noEmit` in every workspace |
 | `bun run test` | `bun test` suites (API unit tests: RBAC, state machines, limits…) |
 | `bun run db:push` / `db:seed` / `db:studio` | Prisma dev workflows |
+| `bun run db:migrate` | `prisma migrate dev` — evolve the committed migration set |
+| `bun run db:migrate:deploy` | `prisma migrate deploy` — apply migrations (release pipeline) |
 | `bun run --filter @pharmachain/api jobs` | Scheduled jobs as a standalone worker (`JOBS_IN_PROCESS=false`) |
 
 ## Architecture
@@ -124,7 +126,16 @@ Key properties:
   access to order documents is itself audited.
 - **Session security** — 30-minute rolling JWT; an idle warning fires at 25
   minutes, then sign-out. Deactivating a user bumps `sessionVersion`, which
-  invalidates every outstanding token immediately.
+  invalidates every outstanding token immediately. Sign-in is protected two
+  ways: per-client-IP throttling (the web tier forwards the caller's IP) and
+  a DB-backed per-account lockout (5 consecutive failures in 15 minutes →
+  429), which rotating IPs cannot bypass.
+- **Multi-instance safe** — scheduled jobs take a Postgres advisory lock
+  (`pg_try_advisory_xact_lock`), so replicas and the standalone worker never
+  double-run a sweep or double-send its notifications.
+- **Side-effect discipline** — `notify()` never throws into a committed
+  mutation; provider calls carry 10s timeouts; the audit row is written (with
+  one retry) before the response is acknowledged.
 - **Files** — clients never touch storage credentials: the API issues presigned
   PUT/GET URLs for random UUID keys; uploads pass a virus-scan stub before the
   document becomes downloadable; re-uploads create new versions and retain the
@@ -151,27 +162,50 @@ Key properties:
 
 ### Database migrations (production path)
 
-Development uses `prisma db push`. For production:
+The migration set is committed under `packages/db/prisma/migrations`:
+
+- `…_init` — the full Phase 1 schema.
+- `…_business_invariants` — partial unique indexes Prisma's DSL cannot
+  express: at most one live (non-superseded) quotation per (RFQ, supplier)
+  and one ACTIVE BOM per product. The application enforces these
+  transactionally; the indexes turn any race into a 409 instead of a
+  duplicate.
 
 ```bash
-cd packages/db
-bunx prisma migrate dev --name init   # once, locally: create the migration set
-bunx prisma migrate deploy            # in the release pipeline, against prod
+bun run db:migrate:deploy   # release pipeline, against prod
+bun run db:migrate          # locally, to evolve the schema (creates new migrations)
 ```
 
+Development keeps using `bun run db:push` for fast iteration; never point
+`db push` at production.
+
 Optional hardening after the first deploy — make the audit log append-only at
-the database level:
+the database level (requires the app to connect as a non-owner role):
 
 ```sql
 REVOKE UPDATE, DELETE ON "AuditLog" FROM pharmachain;
 ```
 
-### TLS
+### TLS & network topology
 
 Terminate TLS at a reverse proxy (Caddy, Traefik, nginx) in front of both
 apps; redirect HTTP → HTTPS and enable HSTS. With HTTPS on, Auth.js switches
 to the `__Secure-` cookie prefix automatically — the API accepts both cookie
 salts, so no extra configuration is needed.
+
+**The API must not be directly reachable from the internet.** It trusts
+`x-forwarded-for` / `x-client-ip` (set by the web tier) for rate-limit
+keying and login audit, so expose it only to the web app and the reverse
+proxy. The per-account login lockout holds even against spoofed IPs, but IP
+throttles on public endpoints assume this topology.
+
+### Health probes
+
+- `GET /health` — liveness (process up; touches nothing).
+- `GET /health/ready` — readiness (database answers; returns 503 otherwise).
+
+The API handles SIGTERM gracefully: in-flight requests drain, then Prisma
+disconnects — safe for rolling deploys.
 
 ### Backups (required by US-1002)
 
@@ -216,7 +250,11 @@ stdout for dev.
 8. Credit/tier billing is manual admin confirmation (US-907) — no payment
    gateway in Phase 1.
 9. Bun is the package manager and API runtime; the web app runs on the Node
-   runtime (Next.js standalone) for stability.
+   runtime (Next.js standalone) for stability. NestJS injectables must use
+   value imports (`import { XService }`), never `import type` — type-only
+   imports are erased and their `design:paramtypes` metadata degrades to
+   `Object`, which breaks DI at boot. Biome's `useImportType` rule is
+   disabled for `apps/api/src` to keep this safe.
 10. No email-verification gate on registration — US-101 asks for a
     confirmation email only.
 
