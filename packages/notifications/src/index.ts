@@ -47,10 +47,23 @@ function isPreferenceEvent(type: NotificationType): type is PreferenceEventType 
 
 /**
  * Fan a business event out to in-app notifications (always), email and
- * WhatsApp (opt-out per event type, US-606). External sends are best-effort:
- * failures are logged, never thrown into the calling mutation.
+ * WhatsApp (opt-out per event type, US-606).
+ *
+ * Delivery is best-effort end to end: notify() NEVER throws. Callers invoke
+ * it after their business transaction has committed, so a notification
+ * failure must not turn an already-succeeded mutation into a 5xx (e.g. an
+ * order that was created but whose award email hiccuped). Failures are
+ * logged for the collector to alert on.
  */
 export async function notify(input: NotifyInput): Promise<void> {
+  try {
+    await fanout(input);
+  } catch (err) {
+    console.error(`[notify] fanout failed for ${input.type}:`, err);
+  }
+}
+
+async function fanout(input: NotifyInput): Promise<void> {
   let userIds = input.userIds ?? [];
   if (input.companyId) {
     const members = await prisma.companyUserRole.findMany({
@@ -88,7 +101,8 @@ export async function notify(input: NotifyInput): Promise<void> {
     : [];
   const prefByUser = new Map(prefs.map((p) => [p.userId, p]));
 
-  await Promise.all(
+  // allSettled: one recipient's provider failure never blocks the others.
+  await Promise.allSettled(
     users.map(async (user) => {
       const pref = prefByUser.get(user.id);
       const emailEnabled = pref?.email ?? true; // default all-on (opt-out model)

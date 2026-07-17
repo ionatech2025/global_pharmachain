@@ -32,6 +32,9 @@ class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
+/** Bounded so a hung provider can never stall the calling request. */
+const SEND_TIMEOUT_MS = 10_000;
+
 /** Resend HTTP API via fetch — the API key travels in a request header only. */
 class ResendEmailProvider implements EmailProvider {
   constructor(
@@ -42,6 +45,7 @@ class ResendEmailProvider implements EmailProvider {
   async send(message: EmailMessage): Promise<void> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
