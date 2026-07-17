@@ -1,4 +1,5 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from "@nestjs/common";
+import { Prisma } from "@pharmachain/db";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { logger } from "../../lib/logger";
 
@@ -8,6 +9,49 @@ interface ErrorEnvelope {
 
 function isEnvelope(value: unknown): value is ErrorEnvelope {
   return typeof value === "object" && value !== null && "error" in value;
+}
+
+/**
+ * Several flows lean on database constraints as the final concurrency guard
+ * (duplicate registration, quotation races, thread get-or-create). Those must
+ * surface as client errors, not 500s.
+ */
+function mapPrismaError(
+  err: Prisma.PrismaClientKnownRequestError,
+): { status: number; body: ErrorEnvelope } | null {
+  switch (err.code) {
+    case "P2002": {
+      const target = Array.isArray(err.meta?.target) ? err.meta.target.join(", ") : undefined;
+      return {
+        status: 409,
+        body: {
+          error: {
+            code: "CONFLICT",
+            message: "This record conflicts with one that already exists",
+            details: target ? { fields: target } : undefined,
+          },
+        },
+      };
+    }
+    case "P2025":
+      return {
+        status: 404,
+        body: { error: { code: "NOT_FOUND", message: "Not found" } },
+      };
+    // Serializable-transaction write conflict — the request is safe to retry.
+    case "P2034":
+      return {
+        status: 409,
+        body: {
+          error: {
+            code: "CONFLICT",
+            message: "The operation conflicted with a concurrent request — please retry",
+          },
+        },
+      };
+    default:
+      return null;
+  }
 }
 
 /** Normalises every failure to the { error: { code, message, details } }
@@ -36,6 +80,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
           };
       void reply.status(status).send(body);
       return;
+    }
+
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      const mapped = mapPrismaError(exception);
+      if (mapped) {
+        logger.warn("prisma constraint surfaced to client", {
+          requestId: request.requestId,
+          path: request.url,
+          code: exception.code,
+        });
+        void reply.status(mapped.status).send(mapped.body);
+        return;
+      }
     }
 
     logger.error("unhandled error", {

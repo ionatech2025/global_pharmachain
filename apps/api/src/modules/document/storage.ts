@@ -44,6 +44,39 @@ export async function presignUpload(
   };
 }
 
+const STORAGE_OP_TIMEOUT_MS = 10_000;
+
+/**
+ * Server-side existence/size/type check for a presigned upload. A presigned
+ * PUT cannot enforce the declared size, so completeUpload verifies what
+ * actually landed before the document becomes visible.
+ */
+export async function statObject(
+  key: string,
+): Promise<{ size: number; contentType: string | null } | null> {
+  const res = await client.fetch(objectUrl(key).toString(), {
+    method: "HEAD",
+    signal: AbortSignal.timeout(STORAGE_OP_TIMEOUT_MS),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`storage HEAD responded ${res.status}`);
+  return {
+    size: Number(res.headers.get("content-length") ?? "0"),
+    contentType: res.headers.get("content-type"),
+  };
+}
+
+/** Removes an object (idempotent — a missing key is not an error). */
+export async function deleteObject(key: string): Promise<void> {
+  const res = await client.fetch(objectUrl(key).toString(), {
+    method: "DELETE",
+    signal: AbortSignal.timeout(STORAGE_OP_TIMEOUT_MS),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`storage DELETE responded ${res.status}`);
+  }
+}
+
 export async function presignDownload(
   key: string,
   fileName: string,

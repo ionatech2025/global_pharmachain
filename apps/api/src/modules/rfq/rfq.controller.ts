@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
 import {
   idParamSchema,
+  type PaginationQuery,
+  paginationQuerySchema,
   type QuotationSubmit,
   quotationSubmitSchema,
   type RfqCreate,
@@ -18,7 +20,7 @@ import {
 } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import type { RfqService } from "./rfq.service";
+import { RfqService } from "./rfq.service";
 
 const quotationSortSchema = z.object({
   sort: z.enum(["price", "leadTime"]).default("price"),
@@ -32,8 +34,11 @@ export class RfqController {
 
   @RequirePermission("rfq:read")
   @Get()
-  listMine(@CurrentMembership() membership: Membership) {
-    return this.rfqService.listMine(membership);
+  listMine(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.rfqService.listMine(membership, query);
   }
 
   @RequirePermission("rfq:write")
@@ -58,8 +63,11 @@ export class RfqController {
   @RequirePermission("quotation:read")
   @RequireVerified()
   @Get("inbox")
-  inbox(@CurrentMembership() membership: Membership) {
-    return this.rfqService.inbox(membership);
+  inbox(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.rfqService.inbox(membership, query);
   }
 
   @Get(":id")

@@ -25,6 +25,23 @@ if (!parsed.success) {
   throw new Error(`Invalid API environment configuration: ${fields}`);
 }
 
+// Refuse to boot production on development defaults — a missing variable must
+// be a deploy failure, not a silent fallback to minioadmin/localhost.
+if (parsed.data.NODE_ENV === "production") {
+  const problems: string[] = [];
+  if (parsed.data.AUTH_SECRET.length < 32)
+    problems.push("AUTH_SECRET (min 32 chars in production)");
+  if (parsed.data.S3_ACCESS_KEY_ID === "minioadmin")
+    problems.push("S3_ACCESS_KEY_ID (dev default)");
+  if (parsed.data.S3_SECRET_ACCESS_KEY === "minioadmin") {
+    problems.push("S3_SECRET_ACCESS_KEY (dev default)");
+  }
+  if (parsed.data.APP_URL.startsWith("http://localhost")) problems.push("APP_URL (dev default)");
+  if (problems.length > 0) {
+    throw new Error(`Production environment uses development defaults: ${problems.join(", ")}`);
+  }
+}
+
 export const env = {
   ...parsed.data,
   corsOrigins: parsed.data.CORS_ORIGINS.split(",").map((o) => o.trim()),

@@ -17,7 +17,7 @@ import {
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
 import { clientIp } from "../../lib/context";
-import type { DocumentService } from "./document.service";
+import { DocumentService } from "./document.service";
 
 type ListQuery = z.infer<typeof documentListQuerySchema>;
 

@@ -18,7 +18,7 @@ import {
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getUsageSummary } from "../billing/usage";
-import type { CompanyService } from "./company.service";
+import { CompanyService } from "./company.service";
 
 @Controller("companies")
 export class CompanyController {

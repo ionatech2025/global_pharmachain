@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import type { DocumentRequestUpload } from "@pharmachain/core";
-import { isVerificationKind } from "@pharmachain/core";
+import { isVerificationKind, MAX_FILE_SIZE_BYTES } from "@pharmachain/core";
 import type { Document } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { recordAudit } from "../../common/audit";
 import { badRequest, forbidden, notFound } from "../../common/errors";
 import type { AuthUser, Membership } from "../../lib/context";
 import { scanUploadedObject } from "./scan";
-import { buildStorageKey, presignDownload, presignUpload } from "./storage";
+import { buildStorageKey, presignDownload, presignUpload, statObject } from "./storage";
 
 @Injectable()
 export class DocumentService {
@@ -97,6 +97,21 @@ export class DocumentService {
     if (document.uploadedById !== user.id) {
       throw forbidden("Only the uploader can complete this upload");
     }
+
+    // Trust nothing the client declared: a presigned PUT cannot cap the size,
+    // and complete can be called without any upload at all. Verify what is
+    // actually in the bucket before the document becomes visible.
+    const stored = await statObject(document.storageKey);
+    if (!stored) {
+      throw badRequest("No uploaded file found for this document — upload it, then complete");
+    }
+    if (stored.size !== document.size || stored.size > MAX_FILE_SIZE_BYTES) {
+      throw badRequest("Uploaded file does not match the declared size");
+    }
+    if (stored.contentType && stored.contentType !== document.contentType) {
+      throw badRequest("Uploaded file does not match the declared content type");
+    }
+
     const scanStatus = await scanUploadedObject(document.storageKey);
     const { updated, requeued } = await prisma.$transaction(async (tx) => {
       const updated = await tx.document.update({

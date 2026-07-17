@@ -12,14 +12,21 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
-import type { RfqRow } from "@/lib/api/types";
+import type { Paginated, RfqRow } from "@/lib/api/types";
 import { fmtDate, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "My RFQs" };
 
-export default async function RfqsPage() {
+export default async function RfqsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, Number(params.page) || 1);
   const api = await apiServer();
-  const rfqs = await api.get<RfqRow[]>("/rfqs");
+  const result = await api.get<Paginated<RfqRow>>("/rfqs", { query: { page } });
+  const rfqs = result.items;
 
   return (
     <div className="space-y-4">
@@ -39,41 +46,60 @@ export default async function RfqsPage() {
           </Button>
         </EmptyState>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Reference</TableHead>
-              <TableHead>Item</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Deadline</TableHead>
-              <TableHead>Quotes</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rfqs.map((rfq) => (
-              <TableRow key={rfq.id}>
-                <TableCell>
-                  <Link
-                    href={`/rfqs/${rfq.id}`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {rfq.refNo}
-                  </Link>
-                </TableCell>
-                <TableCell>{rfq.title}</TableCell>
-                <TableCell>
-                  {fmtNumber(rfq.quantity)} {rfq.unit}
-                </TableCell>
-                <TableCell>{fmtDate(rfq.deadline)}</TableCell>
-                <TableCell>{rfq._count.quotations}</TableCell>
-                <TableCell>
-                  <RfqStatusBadge status={rfq.status} />
-                </TableCell>
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Deadline</TableHead>
+                <TableHead>Quotes</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rfqs.map((rfq) => (
+                <TableRow key={rfq.id}>
+                  <TableCell>
+                    <Link
+                      href={`/rfqs/${rfq.id}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {rfq.refNo}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{rfq.title}</TableCell>
+                  <TableCell>
+                    {fmtNumber(rfq.quantity)} {rfq.unit}
+                  </TableCell>
+                  <TableCell>{fmtDate(rfq.deadline)}</TableCell>
+                  <TableCell>{rfq._count.quotations}</TableCell>
+                  <TableCell>
+                    <RfqStatusBadge status={rfq.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Page {result.page} of {result.totalPages} · {result.total} RFQ(s)
+            </p>
+            <div className="flex gap-2">
+              {result.page > 1 && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/rfqs?page=${result.page - 1}`}>Previous</Link>
+                </Button>
+              )}
+              {result.page < result.totalPages && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/rfqs?page=${result.page + 1}`}>Next</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

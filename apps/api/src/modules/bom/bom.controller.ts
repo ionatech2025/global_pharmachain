@@ -16,7 +16,7 @@ import {
 } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import type { BomService } from "./bom.service";
+import { BomService } from "./bom.service";
 
 const byProductQuerySchema = z.object({ productListingId: z.uuid() });
 

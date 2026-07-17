@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import type { QuotationSubmit, RfqCreate } from "@pharmachain/core";
-import { canTransitionRfq, generateRefNo } from "@pharmachain/core";
+import type { PaginationQuery, QuotationSubmit, RfqCreate } from "@pharmachain/core";
+import { canTransitionRfq, generateRefNo, paginate, skipTake } from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
-import { conflict, forbidden, limitReached, notFound } from "../../common/errors";
+import { badRequest, conflict, forbidden, limitReached, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { evaluateCompanyUsage } from "../billing/usage";
@@ -75,7 +75,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -84,6 +84,9 @@ export class RfqService {
           },
           data: { rfqId: rfq.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return { rfq, usage };
     }, SERIALIZABLE);
@@ -92,46 +95,56 @@ export class RfqService {
     return rfq;
   }
 
-  async listMine(membership: Membership) {
-    return prisma.rfq.findMany({
-      where: { buyerCompanyId: membership.companyId },
-      include: {
-        category: { select: { name: true } },
-        _count: { select: { quotations: { where: { status: { not: "SUPERSEDED" } } } } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+  async listMine(membership: Membership, query: PaginationQuery) {
+    const where = { buyerCompanyId: membership.companyId } as const;
+    const [items, total] = await prisma.$transaction([
+      prisma.rfq.findMany({
+        where,
+        include: {
+          category: { select: { name: true } },
+          _count: { select: { quotations: { where: { status: { not: "SUPERSEDED" } } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        ...skipTake(query),
+      }),
+      prisma.rfq.count({ where }),
+    ]);
+    return paginate(items, total, query);
   }
 
   /** Supplier inbox (US-402): open, before deadline, targeted at my company
    *  type, and — when the RFQ names a category — matching my published lines. */
-  async inbox(membership: Membership) {
+  async inbox(membership: Membership, query: PaginationQuery) {
     const myCategories = await prisma.listing.findMany({
       where: { companyId: membership.companyId, status: "PUBLISHED" },
       select: { categoryId: true },
       distinct: ["categoryId"],
     });
     const categoryIds = myCategories.map((l) => l.categoryId);
-    return prisma.rfq.findMany({
-      where: {
-        status: "OPEN",
-        deadline: { gt: new Date() },
-        targetCompanyType: membership.company.type,
-        buyerCompanyId: { not: membership.companyId },
-        OR: [{ categoryId: null }, { categoryId: { in: categoryIds } }],
-      },
-      include: {
-        buyerCompany: { select: { id: true, name: true, country: true } },
-        category: { select: { name: true } },
-        quotations: {
-          where: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-          select: { id: true, status: true, version: true },
+    const where = {
+      status: "OPEN",
+      deadline: { gt: new Date() },
+      targetCompanyType: membership.company.type,
+      buyerCompanyId: { not: membership.companyId },
+      OR: [{ categoryId: null }, { categoryId: { in: categoryIds } }],
+    } satisfies Prisma.RfqWhereInput;
+    const [items, total] = await prisma.$transaction([
+      prisma.rfq.findMany({
+        where,
+        include: {
+          buyerCompany: { select: { id: true, name: true, country: true } },
+          category: { select: { name: true } },
+          quotations: {
+            where: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
+            select: { id: true, status: true, version: true },
+          },
         },
-      },
-      orderBy: { deadline: "asc" },
-      take: 200,
-    });
+        orderBy: { deadline: "asc" },
+        ...skipTake(query),
+      }),
+      prisma.rfq.count({ where }),
+    ]);
+    return paginate(items, total, query);
   }
 
   async getRfq(user: AuthUser, membership: Membership | undefined, rfqId: string) {
@@ -255,12 +268,16 @@ export class RfqService {
     }
     this.assertRfqOpenForQuoting(rfq);
 
-    const existing = await prisma.quotation.findFirst({
-      where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-    });
-    if (existing) throw conflict("You already have a quotation on this RFQ — resubmit it instead");
-
     const { quotation, usage } = await prisma.$transaction(async (tx) => {
+      // Inside the serializable transaction so a concurrent submit can't slip
+      // past; the partial unique index (one live quotation per rfq+supplier)
+      // is the final backstop either way.
+      const existing = await tx.quotation.findFirst({
+        where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
+      });
+      if (existing) {
+        throw conflict("You already have a quotation on this RFQ — resubmit it instead");
+      }
       const usage = await evaluateCompanyUsage(
         tx,
         membership.companyId,
@@ -289,7 +306,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -298,6 +315,9 @@ export class RfqService {
           },
           data: { quotationId: quotation.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return { quotation, usage };
     }, SERIALIZABLE);
@@ -348,7 +368,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -357,6 +377,9 @@ export class RfqService {
           },
           data: { quotationId: next.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return next;
     });

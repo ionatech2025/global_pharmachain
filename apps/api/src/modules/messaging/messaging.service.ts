@@ -124,21 +124,30 @@ export class MessagingService {
 
   async listMessages(membership: Membership, threadId: string, after?: string) {
     const thread = await this.loadThreadForMember(membership, threadId);
-    const messages = await prisma.message.findMany({
-      where: {
-        threadId,
-        ...(after ? { createdAt: { gt: new Date(after) } } : {}),
+    const include = {
+      sender: { select: { id: true, name: true } },
+      attachments: {
+        where: { status: "ACTIVE" as const, uploadCompletedAt: { not: null } },
+        select: { id: true, fileName: true, size: true },
       },
-      include: {
-        sender: { select: { id: true, name: true } },
-        attachments: {
-          where: { status: "ACTIVE", uploadCompletedAt: { not: null } },
-          select: { id: true, fileName: true, size: true },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-    });
+    };
+    // Initial load: the LATEST window (oldest-first take would strand new
+    // messages in long threads). Polling with `after` streams what follows.
+    const messages = after
+      ? await prisma.message.findMany({
+          where: { threadId, createdAt: { gt: new Date(after) } },
+          include,
+          orderBy: { createdAt: "asc" },
+          take: 200,
+        })
+      : (
+          await prisma.message.findMany({
+            where: { threadId },
+            include,
+            orderBy: { createdAt: "desc" },
+            take: 200,
+          })
+        ).reverse();
     return { thread, messages };
   }
 
@@ -202,7 +211,7 @@ export class MessagingService {
       emailContent: sendEmail
         ? genericEventEmail({
             title: `New message on ${context}`,
-            body: `${user.name} (${membership.company.name}) wrote:<br/><em>${excerpt}</em>`,
+            body: `${user.name} (${membership.company.name}) wrote:\n"${excerpt}"`,
             url: `${env.APP_URL}/messages/${threadId}`,
             cta: "Reply",
           })

@@ -5,13 +5,19 @@ import { prisma } from "@pharmachain/db";
 import { genericEventEmail, otpEmail, passwordResetEmail, welcomeEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { recordAudit } from "../../common/audit";
-import { conflict, forbidden, unauthorized } from "../../common/errors";
+import { ApiException, conflict, forbidden, unauthorized } from "../../common/errors";
 import { env } from "../../env";
 import { hashToken, randomToken } from "../../lib/crypto";
 import { sendEmailTo } from "../shared/mailer";
 import { issueOtp, verifyOtp } from "./otp";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 60 minutes (US-206)
+
+// Per-account lockout: after 5 consecutive failures within the window the
+// account is refused before any credential check. DB-backed via LoginActivity,
+// so it holds across instances and cannot be bypassed by rotating IPs.
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOCKOUT_THRESHOLD = 5;
 
 async function hashPassword(password: string): Promise<string> {
   return Bun.password.hash(password, { algorithm: "argon2id" });
@@ -103,9 +109,34 @@ export class AuthService {
 
   // ─── Login (US-205/206 + OTP) ──────────────────────────────────────────────
 
+  /** Consecutive failures since the last success, within the lockout window. */
+  private async recentFailureCount(email: string): Promise<number> {
+    const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MS);
+    const lastSuccess = await prisma.loginActivity.findFirst({
+      where: { email, success: true },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    const since =
+      lastSuccess && lastSuccess.createdAt > windowStart ? lastSuccess.createdAt : windowStart;
+    return prisma.loginActivity.count({
+      where: { email, success: false, createdAt: { gt: since } },
+    });
+  }
+
   async login(input: LoginInput): Promise<AuthenticatedUser> {
     const email = input.email.toLowerCase();
     const method = input.otp ? "OTP" : "PASSWORD";
+
+    if ((await this.recentFailureCount(email)) >= LOCKOUT_THRESHOLD) {
+      // Not recorded as another failure — the lock expires on its own.
+      throw new ApiException(
+        429,
+        "RATE_LIMITED",
+        "Too many failed sign-in attempts. Try again later or reset your password.",
+      );
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
 
     let success = false;
@@ -272,19 +303,23 @@ export class AuthService {
         notificationPreferences: true,
       },
     });
-    const [notifications, loginActivity, messages] = await Promise.all([
-      prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      prisma.loginActivity.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      prisma.message.count({ where: { senderId: userId } }),
-    ]);
+    const EXPORT_WINDOW = 500;
+    const [notifications, notificationTotal, loginActivity, loginActivityTotal, messages] =
+      await Promise.all([
+        prisma.notification.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: EXPORT_WINDOW,
+        }),
+        prisma.notification.count({ where: { userId } }),
+        prisma.loginActivity.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: EXPORT_WINDOW,
+        }),
+        prisma.loginActivity.count({ where: { userId } }),
+        prisma.message.count({ where: { senderId: userId } }),
+      ]);
     return {
       exportedAt: new Date().toISOString(),
       profile: {
@@ -297,8 +332,13 @@ export class AuthService {
       },
       membership: user.membership,
       notificationPreferences: user.notificationPreferences,
+      // A truncated export must say so (GDPR completeness).
       notifications,
+      notificationTotal,
+      notificationsTruncated: notificationTotal > notifications.length,
       loginActivity,
+      loginActivityTotal,
+      loginActivityTruncated: loginActivityTotal > loginActivity.length,
       authoredMessagesCount: messages,
     };
   }

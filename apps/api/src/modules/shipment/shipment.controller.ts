@@ -9,7 +9,7 @@ import type { FastifyRequest } from "fastify";
 import { CurrentUser, OptionalMembership, RequireCompany, setAudit } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import type { ShipmentService } from "./shipment.service";
+import { ShipmentService } from "./shipment.service";
 
 @Controller("orders")
 export class ShipmentController {
