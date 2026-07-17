@@ -7,14 +7,14 @@ import type { DashboardSummary } from "@/lib/api/types";
 export const metadata = { title: "Dashboard" };
 
 function Stat({ label, value, href }: { label: string; value: number | string; href?: string }) {
+  // Compact tile: label and value tight together for fast scanning, not the
+  // full Card header/content padding stack.
   const body = (
-    <Card className="transition-colors hover:border-primary/40">
-      <CardHeader>
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-semibold">{value}</p>
-      </CardContent>
+    <Card className="gap-1 py-4 transition-colors hover:border-primary/40">
+      <div className="px-4">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      </div>
     </Card>
   );
   return href ? <Link href={href}>{body}</Link> : body;

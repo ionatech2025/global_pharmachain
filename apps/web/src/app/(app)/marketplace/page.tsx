@@ -151,12 +151,24 @@ export default async function MarketplacePage({
                   <TableCell className="text-muted-foreground">{l.category.name}</TableCell>
                   <TableCell className="text-muted-foreground">{l.countryOfOrigin}</TableCell>
                   <TableCell>
-                    {fmtMoney(l.price, l.currency)} / {l.unit}
-                    {convertedPrices(l.price, l.currency, rates).map((c) => (
-                      <div key={c} className="text-xs text-muted-foreground">
-                        ≈ {c}
-                      </div>
-                    ))}
+                    <div className="whitespace-nowrap font-medium tabular-nums">
+                      {fmtMoney(l.price, l.currency)}{" "}
+                      <span className="font-normal text-muted-foreground">/ {l.unit}</span>
+                    </div>
+                    {/* Conversions collapsed by default — keeps rows scannable
+                        while the FX detail stays one click away (US-905). */}
+                    {rates.length > 0 && (
+                      <details className="mt-0.5">
+                        <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground">
+                          ≈ other currencies
+                        </summary>
+                        <div className="mt-1 space-y-0.5 text-xs tabular-nums text-muted-foreground">
+                          {convertedPrices(l.price, l.currency, rates).map((c) => (
+                            <div key={c}>≈ {c}</div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </TableCell>
                   <TableCell>
                     {l.sdsMissing ? (

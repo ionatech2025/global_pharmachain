@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline · PharmaChain</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #fafafa; color: #1a1a1a; text-align: center; padding: 24px;
+      }
+      @media (prefers-color-scheme: dark) { body { background: #0b1520; color: #fafafa; } }
+      .card { max-width: 22rem; }
+      .mark { width: 56px; height: 56px; margin: 0 auto 20px; }
+      h1 { font-size: 1.15rem; margin: 0 0 8px; font-weight: 600; }
+      p { font-size: 0.9rem; opacity: 0.7; margin: 0 0 20px; line-height: 1.5; }
+      button {
+        border: none; border-radius: 10px; padding: 10px 20px; font-size: 0.9rem; font-weight: 500;
+        background: #0a4d80; color: #fff; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="6" y1="5" x2="27" y2="28" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#2f96e0" /><stop offset="1" stop-color="#0a4d80" />
+          </linearGradient>
+        </defs>
+        <path d="M27.5 16 L21.75 25.96 L10.25 25.96 L4.5 16 L10.25 6.04 L21.75 6.04 Z" fill="url(#g)" stroke="url(#g)" stroke-width="4" stroke-linejoin="round" />
+        <g stroke="#fff" stroke-width="1.7" stroke-linecap="round">
+          <path d="M16 11.4 L11.7 19.3" /><path d="M16 11.4 L20.3 19.3" /><path d="M11.7 19.3 L20.3 19.3" />
+        </g>
+        <circle cx="16" cy="11.2" r="2.6" fill="#fff" /><circle cx="11.6" cy="19.5" r="2.1" fill="#fff" /><circle cx="20.4" cy="19.5" r="2.1" fill="#fff" />
+      </svg>
+      <h1>You're offline</h1>
+      <p>PharmaChain needs a connection to load live trade data. Check your network and try again.</p>
+      <button type="button" onclick="location.reload()">Retry</button>
+    </div>
+  </body>
+</html>
