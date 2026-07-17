@@ -497,8 +497,9 @@ model Quotation {
   order           Order?
 
   // Resubmission = new row with version+1; prior row becomes SUPERSEDED
-  // inside the same transaction (partial unique indexes aren't expressible
-  // in Prisma, so uniqueness includes the version).
+  // inside the same transaction. Partial unique indexes aren't expressible in
+  // Prisma's DSL — migration 20260717090001_business_invariants additionally
+  // enforces at most one non-SUPERSEDED row per (rfqId, supplierCompanyId).
   @@unique([rfqId, supplierCompanyId, version])
   @@index([supplierCompanyId, createdAt])
   @@index([rfqId, status])
@@ -573,8 +574,9 @@ model Bom {
   createdBy      User      @relation(fields: [createdById], references: [id])
   items          BomItem[]
 
-  // One ACTIVE version per product is enforced transactionally (activate
-  // archives the prior ACTIVE row before flipping this one).
+  // One ACTIVE version per product: enforced transactionally (activate
+  // archives the prior ACTIVE row first) and by a partial unique index in
+  // migration 20260717090001_business_invariants.
   @@unique([productListingId, version])
   @@index([productListingId, status])
 }

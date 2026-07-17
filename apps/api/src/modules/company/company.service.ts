@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { CompanyProfileUpdate } from "@pharmachain/core";
 import { COMPANY_ROLE_LABELS, PARAM_KEYS, requiredVerificationKinds } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
-import { prisma } from "@pharmachain/db";
+import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { conflict, forbidden, notFound } from "../../common/errors";
@@ -11,6 +11,11 @@ import { createInviteToken, inviteEmailContent } from "../auth/invite-tokens";
 import { sendEmailTo } from "../shared/mailer";
 
 const EXPIRING_SOON_DAYS = 30;
+
+// Last-admin checks are check-then-act; serializable isolation turns a
+// concurrent demote/deactivate race into a retryable 409 (P2034) instead of
+// leaving a company with zero admins.
+const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
 
 @Injectable()
 export class CompanyService {
@@ -149,11 +154,15 @@ export class CompanyService {
     });
   }
 
-  private async assertNotLastAdmin(companyId: string, targetUserId: string) {
-    const target = await prisma.companyUserRole.findUnique({ where: { userId: targetUserId } });
+  private async assertNotLastAdmin(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    targetUserId: string,
+  ) {
+    const target = await tx.companyUserRole.findUnique({ where: { userId: targetUserId } });
     if (!target || target.companyId !== companyId) throw notFound("Member not found");
     if (target.role === "COMPANY_ADMIN") {
-      const otherAdmins = await prisma.companyUserRole.count({
+      const otherAdmins = await tx.companyUserRole.count({
         where: {
           companyId,
           role: "COMPANY_ADMIN",
@@ -169,11 +178,14 @@ export class CompanyService {
   }
 
   async updateMemberRole(companyId: string, targetUserId: string, role: CompanyRole) {
-    const target = await this.assertNotLastAdmin(companyId, targetUserId);
-    const updated = await prisma.companyUserRole.update({
-      where: { userId: targetUserId },
-      data: { role },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const target = await this.assertNotLastAdmin(tx, companyId, targetUserId);
+      const updated = await tx.companyUserRole.update({
+        where: { userId: targetUserId },
+        data: { role },
+      });
+      return { oldRole: target.role, updated };
+    }, SERIALIZABLE);
     await notify({
       userIds: [targetUserId],
       type: "ACCOUNT_UPDATE",
@@ -181,16 +193,22 @@ export class CompanyService {
       body: `Your role is now ${COMPANY_ROLE_LABELS[role]}.`,
       href: "/account",
     });
-    return { oldRole: target.role, updated };
+    return result;
   }
 
   async deactivateMember(companyId: string, targetUserId: string) {
-    await this.assertNotLastAdmin(companyId, targetUserId);
-    const user = await prisma.user.update({
-      where: { id: targetUserId },
-      // sessionVersion bump terminates active sessions immediately (US-202)
-      data: { status: "DEACTIVATED", deactivatedAt: new Date(), sessionVersion: { increment: 1 } },
-    });
+    const user = await prisma.$transaction(async (tx) => {
+      await this.assertNotLastAdmin(tx, companyId, targetUserId);
+      return tx.user.update({
+        where: { id: targetUserId },
+        // sessionVersion bump terminates active sessions immediately (US-202)
+        data: {
+          status: "DEACTIVATED",
+          deactivatedAt: new Date(),
+          sessionVersion: { increment: 1 },
+        },
+      });
+    }, SERIALIZABLE);
     await sendEmailTo(
       user.email,
       genericEventEmail({

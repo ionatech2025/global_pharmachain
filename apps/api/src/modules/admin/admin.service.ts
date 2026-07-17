@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { VerificationDecision } from "@pharmachain/core";
 import { requiredVerificationKinds } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
-import { prisma } from "@pharmachain/db";
+import { Prisma, prisma } from "@pharmachain/db";
 import {
   genericEventEmail,
   passwordResetEmail,
@@ -16,6 +16,10 @@ import { sendEmailTo } from "../shared/mailer";
 
 const THREE_YEARS_MS = 3 * 365 * 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
+
+// Serializable so concurrent role changes cannot strip a company's last
+// active admin (surfaces as a retryable 409 via the P2034 mapping).
+const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
 
 @Injectable()
 export class AdminService {
@@ -175,24 +179,24 @@ export class AdminService {
   async adminReassignRole(userId: string, role: CompanyRole) {
     const user = await this.loadUser(userId);
     if (!user.membership) throw conflict("This user has no company membership");
-    if (user.membership.role === "COMPANY_ADMIN" && role !== "COMPANY_ADMIN") {
-      const otherAdmins = await prisma.companyUserRole.count({
-        where: {
-          companyId: user.membership.companyId,
-          role: "COMPANY_ADMIN",
-          userId: { not: userId },
-          user: { status: "ACTIVE" },
-        },
-      });
-      if (otherAdmins === 0) {
-        throw forbidden("A company must keep at least one active Company Admin");
-      }
-    }
     const oldRole = user.membership.role;
-    const updated = await prisma.companyUserRole.update({
-      where: { userId },
-      data: { role },
-    });
+    const membership = user.membership;
+    const updated = await prisma.$transaction(async (tx) => {
+      if (membership.role === "COMPANY_ADMIN" && role !== "COMPANY_ADMIN") {
+        const otherAdmins = await tx.companyUserRole.count({
+          where: {
+            companyId: membership.companyId,
+            role: "COMPANY_ADMIN",
+            userId: { not: userId },
+            user: { status: "ACTIVE" },
+          },
+        });
+        if (otherAdmins === 0) {
+          throw forbidden("A company must keep at least one active Company Admin");
+        }
+      }
+      return tx.companyUserRole.update({ where: { userId }, data: { role } });
+    }, SERIALIZABLE);
     await notify({
       userIds: [userId],
       type: "ACCOUNT_UPDATE",
@@ -212,20 +216,21 @@ export class AdminService {
   async anonymizeUser(adminId: string, userId: string) {
     const user = await this.loadUser(userId);
     if (user.isSuperAdmin) throw forbidden("Super admin accounts cannot be anonymized");
-    if (user.membership?.role === "COMPANY_ADMIN") {
-      const otherAdmins = await prisma.companyUserRole.count({
-        where: {
-          companyId: user.membership.companyId,
-          role: "COMPANY_ADMIN",
-          userId: { not: userId },
-          user: { status: "ACTIVE" },
-        },
-      });
-      if (otherAdmins === 0) {
-        throw conflict("Reassign another Company Admin before anonymizing this user");
-      }
-    }
+    const membership = user.membership;
     const anonymized = await prisma.$transaction(async (tx) => {
+      if (membership?.role === "COMPANY_ADMIN") {
+        const otherAdmins = await tx.companyUserRole.count({
+          where: {
+            companyId: membership.companyId,
+            role: "COMPANY_ADMIN",
+            userId: { not: userId },
+            user: { status: "ACTIVE" },
+          },
+        });
+        if (otherAdmins === 0) {
+          throw conflict("Reassign another Company Admin before anonymizing this user");
+        }
+      }
       const anonymized = await tx.user.update({
         where: { id: userId },
         data: {
@@ -250,7 +255,7 @@ export class AdminService {
         data: { email: "anonymized", ip: null, userAgent: null },
       });
       return anonymized;
-    });
+    }, SERIALIZABLE);
     return { before: { email: user.email }, anonymized };
   }
 }

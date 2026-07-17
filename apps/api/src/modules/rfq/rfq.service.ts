@@ -4,7 +4,7 @@ import { canTransitionRfq, generateRefNo } from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
-import { conflict, forbidden, limitReached, notFound } from "../../common/errors";
+import { badRequest, conflict, forbidden, limitReached, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { evaluateCompanyUsage } from "../billing/usage";
@@ -75,7 +75,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -84,6 +84,9 @@ export class RfqService {
           },
           data: { rfqId: rfq.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return { rfq, usage };
     }, SERIALIZABLE);
@@ -255,12 +258,16 @@ export class RfqService {
     }
     this.assertRfqOpenForQuoting(rfq);
 
-    const existing = await prisma.quotation.findFirst({
-      where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-    });
-    if (existing) throw conflict("You already have a quotation on this RFQ — resubmit it instead");
-
     const { quotation, usage } = await prisma.$transaction(async (tx) => {
+      // Inside the serializable transaction so a concurrent submit can't slip
+      // past; the partial unique index (one live quotation per rfq+supplier)
+      // is the final backstop either way.
+      const existing = await tx.quotation.findFirst({
+        where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
+      });
+      if (existing) {
+        throw conflict("You already have a quotation on this RFQ — resubmit it instead");
+      }
       const usage = await evaluateCompanyUsage(
         tx,
         membership.companyId,
@@ -289,7 +296,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -298,6 +305,9 @@ export class RfqService {
           },
           data: { quotationId: quotation.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return { quotation, usage };
     }, SERIALIZABLE);
@@ -348,7 +358,7 @@ export class RfqService {
         },
       });
       if (input.attachmentDocumentIds.length > 0) {
-        await tx.document.updateMany({
+        const linked = await tx.document.updateMany({
           where: {
             id: { in: input.attachmentDocumentIds },
             ownerCompanyId: membership.companyId,
@@ -357,6 +367,9 @@ export class RfqService {
           },
           data: { quotationId: next.id },
         });
+        if (linked.count !== input.attachmentDocumentIds.length) {
+          throw badRequest("One or more attachments are invalid");
+        }
       }
       return next;
     });

@@ -20,6 +20,8 @@
     "test": "turbo run test",
     "db:generate": "bun run --filter @pharmachain/db build",
     "db:push": "bun run --filter @pharmachain/db db:push",
+    "db:migrate": "bun run --filter @pharmachain/db db:migrate",
+    "db:migrate:deploy": "bun run --filter @pharmachain/db db:migrate:deploy",
     "db:seed": "bun run --filter @pharmachain/db db:seed",
     "db:studio": "bun run --filter @pharmachain/db db:studio",
     "clean": "turbo run clean && rm -rf node_modules"

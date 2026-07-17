@@ -41,9 +41,14 @@ export async function verifyOtp(email: string, code: string): Promise<boolean> {
   if (otp.attempts >= MAX_ATTEMPTS) return false;
 
   const matches = otp.codeHash === hashOtp(code, normalized, env.AUTH_SECRET);
-  await prisma.emailOtp.update({
-    where: { id: otp.id },
-    data: matches ? { consumedAt: new Date() } : { attempts: { increment: 1 } },
+  if (!matches) {
+    await prisma.emailOtp.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
+    return false;
+  }
+  // Atomic consume — under concurrent verification only one caller wins.
+  const consumed = await prisma.emailOtp.updateMany({
+    where: { id: otp.id, consumedAt: null },
+    data: { consumedAt: new Date() },
   });
-  return matches;
+  return consumed.count === 1;
 }

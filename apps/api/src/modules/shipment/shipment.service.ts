@@ -46,12 +46,17 @@ export class ShipmentService {
     }
 
     const eta = body.eta ? new Date(body.eta) : undefined;
-    const [updated] = await prisma.$transaction([
-      prisma.order.update({
-        where: { id: order.id },
+    const updated = await prisma.$transaction(async (tx) => {
+      // Conditional on the status we validated against — a concurrent update
+      // in between surfaces as a 409 instead of silently skipping stages.
+      const transitioned = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: { status: body.status, ...(eta ? { eta } : {}) },
-      }),
-      prisma.orderStatusEvent.create({
+      });
+      if (transitioned.count === 0) {
+        throw conflict("The order status changed while you were updating it — reload and retry");
+      }
+      await tx.orderStatusEvent.create({
         data: {
           orderId: order.id,
           status: body.status,
@@ -59,8 +64,9 @@ export class ShipmentService {
           eta,
           actorUserId: user.id,
         },
-      }),
-    ]);
+      });
+      return tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    });
 
     // US-703: buyer notified on every transition (email/WhatsApp respect prefs)
     await notify({
@@ -96,8 +102,23 @@ export class ShipmentService {
     if (!isSeller && !user.isSuperAdmin) {
       throw forbidden("Only the supplier can update the ETA");
     }
+    if (isSeller && membership && membership.role === "FINANCE") {
+      throw forbidden(); // US-204: same rule as status updates
+    }
     const eta = new Date(etaIso);
-    const updated = await prisma.order.update({ where: { id: order.id }, data: { eta } });
+    // Recorded as a same-status event so buyers keep a history of ETA changes.
+    const [updated] = await prisma.$transaction([
+      prisma.order.update({ where: { id: order.id }, data: { eta } }),
+      prisma.orderStatusEvent.create({
+        data: {
+          orderId: order.id,
+          status: order.status,
+          note: "ETA updated",
+          eta,
+          actorUserId: user.id,
+        },
+      }),
+    ]);
     await notify({
       companyId: order.buyerCompanyId,
       type: "SHIPMENT_STATUS_CHANGE",
