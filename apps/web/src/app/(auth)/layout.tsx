@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <ThemeToggle />
       </div>
       <Link href="/" aria-label="Back to PharmaChain home" className="mb-6">
-        <Logo markClassName="size-9" />
+        <Logo markClassName="size-10 sm:size-12" />
       </Link>
       <div className="w-full max-w-lg">{children}</div>
       <p className="mt-6 text-xs text-muted-foreground">

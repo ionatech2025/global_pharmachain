@@ -7,6 +7,12 @@ import { useId } from "react";
  * container silhouette). Self-contained gradient so it renders identically on
  * light and dark surfaces; gradient ids are namespaced per instance so the
  * mark can appear multiple times on one page (header + footer).
+ *
+ * Rendering is instant: inline SVG (no network request, no layout shift,
+ * paints with the first HTML) and the hover effect animates only `transform`
+ * — GPU-composited, so it never triggers layout or repaint. A `group/logo`
+ * ancestor drives the hover so pointing anywhere on the lockup responds; the
+ * effect is dropped under prefers-reduced-motion.
  */
 export function LogoMark({ className }: { className?: string }) {
   const id = useId();
@@ -16,7 +22,12 @@ export function LogoMark({ className }: { className?: string }) {
       viewBox="0 0 32 32"
       role="img"
       aria-label="PharmaChain"
-      className={cn("size-8 shrink-0", className)}
+      className={cn(
+        "size-9 shrink-0 origin-center transition-transform duration-300 ease-out",
+        "group-hover/logo:scale-110 group-hover/logo:-rotate-6",
+        "motion-reduce:transition-none motion-reduce:group-hover/logo:scale-100 motion-reduce:group-hover/logo:rotate-0",
+        className,
+      )}
     >
       <defs>
         <linearGradient id={gradient} x1="6" y1="5" x2="27" y2="28" gradientUnits="userSpaceOnUse">
@@ -43,11 +54,30 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
-export function Logo({ className, markClassName }: { className?: string; markClassName?: string }) {
+export function Logo({
+  className,
+  markClassName,
+  wordClassName,
+}: {
+  className?: string;
+  markClassName?: string;
+  wordClassName?: string;
+}) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
+    <span
+      className={cn(
+        "group/logo inline-flex items-center gap-2.5 transition-[filter] duration-300",
+        "group-hover/logo:drop-shadow-[0_2px_12px_rgb(47_150_224/0.45)]",
+        className,
+      )}
+    >
       <LogoMark className={markClassName} />
-      <span className="text-lg font-semibold tracking-tight text-foreground">
+      <span
+        className={cn(
+          "text-xl font-semibold tracking-tight text-foreground sm:text-2xl",
+          wordClassName,
+        )}
+      >
         Pharma<span className="text-primary">Chain</span>
       </span>
     </span>
