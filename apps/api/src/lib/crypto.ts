@@ -1,10 +1,11 @@
 // Token/OTP primitives. Values sent to users are never stored — only their
 // SHA-256 digests, so a database leak exposes no usable secrets.
+// node:crypto (not Bun.CryptoHasher) so the API runs on Bun AND Node —
+// Vercel functions execute this code on the Node runtime.
+import { createHash } from "node:crypto";
 
 export function sha256Hex(input: string): string {
-  const hasher = new Bun.CryptoHasher("sha256");
-  hasher.update(input);
-  return hasher.digest("hex");
+  return createHash("sha256").update(input).digest("hex");
 }
 
 /** URL-safe random token (default 32 bytes ≈ 43 chars base64url). */
