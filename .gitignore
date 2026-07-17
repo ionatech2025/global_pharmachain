@@ -27,3 +27,7 @@ test-results/
 .DS_Store
 *.log
 .vercel
+
+# Vercel serverless bundle (built by vercel.json)
+apps/api/api/
+.env*

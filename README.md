@@ -151,14 +151,43 @@ Key properties:
 
 ## Deployment guide
 
-### Build artifacts
+Two supported topologies:
+
+### A. Single Vercel deployment (monorepo, web + API together)
+
+The whole product ships as **one Vercel project**: the Next.js app plus the
+NestJS API as a single serverless function mounted at `/api/backend`. Server
+code calls it same-origin — no separate API host.
+
+- `apps/api/src/serverless.ts` is the function entry: it boots the same Nest
+  app (shared `bootstrap.ts`) once per warm instance, strips the
+  `/api/backend` mount prefix, and hands the request to Fastify.
+- `apps/web/src/env.ts` resolves `API_URL` to the same deployment (explicit
+  `API_URL` → the public production alias; falls back to `VERCEL_URL`, then
+  local `:3001`). The API function and the web app **share `AUTH_SECRET`** so
+  the API can verify the Auth.js session the web app issued.
+- Passwords use `@node-rs/argon2` and hashing uses `node:crypto` (not Bun
+  APIs), so the exact same code runs on Bun locally and on Vercel's Node
+  runtime; the Prisma client is generated with a `rhel-openssl-3.0.x` engine
+  for the Lambda environment.
+
+Deploy from the repo root (`scripts/deploy-vercel.sh`): it builds the API
+bundle, runs `vercel build` for the web app, assembles the API function into
+`.vercel/output` with its native deps (Prisma engine, argon2 binary), routes
+`/api/backend/*` to it, and runs `vercel deploy --prebuilt --prod`. Because
+the API is merged via the Build Output API, use this script (or CI running
+it) rather than Vercel's git-push builds. Required project env: `AUTH_SECRET`
+(≥32 chars), `DATABASE_URL` (Neon **pooled** URL for serverless), `APP_URL`,
+and non-default `S3_*` values.
+
+### B. Split hosts (containerised API)
 
 - **API** — `docker build -f apps/api/Dockerfile -t pharmachain-api .` (multi-
   stage Bun image; Prisma engines for `debian-openssl-3.0.x` are generated in
-  the build stage).
+  the build stage). Run it anywhere that takes a container.
 - **Web** — `next.config.ts` sets `output: "standalone"`; run `bun run build`
-  and deploy `apps/web/.next/standalone` on Node ≥ 20 (or any Next-compatible
-  host). The web app only needs `API_URL`, `AUTH_SECRET`, `AUTH_URL`.
+  and deploy `apps/web/.next/standalone` on Node ≥ 20. Set `API_URL` to the
+  API's URL, plus `AUTH_SECRET`, `AUTH_URL`.
 
 ### Database migrations (production path)
 
