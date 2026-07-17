@@ -3,6 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 import { cn } from "../lib/utils";
 
+// Status variants use soft tints of the semantic tokens so light/dark stay
+// tuned from one place (globals.css) — never raw palette classes.
 const badgeVariants = cva(
   "inline-flex w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium transition-colors [&>svg]:size-3",
   {
@@ -12,10 +14,9 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground",
         destructive: "border-transparent bg-destructive text-white",
         outline: "text-foreground",
-        success:
-          "border-transparent bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-        warning:
-          "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+        success: "border-success/20 bg-success/12 text-success",
+        warning: "border-warning/25 bg-warning/12 text-warning",
+        info: "border-info/20 bg-info/12 text-info",
       },
     },
     defaultVariants: {

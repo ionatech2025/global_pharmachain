@@ -21,11 +21,7 @@ import { MemberOverrides, TierSelect, VerificationDecision } from "./review-pane
 export const metadata = { title: "Company review" };
 
 function CheckIcon({ ok }: { ok: boolean }) {
-  return ok ? (
-    <Check className="size-4 text-emerald-600" />
-  ) : (
-    <X className="size-4 text-destructive" />
-  );
+  return ok ? <Check className="size-4 text-success" /> : <X className="size-4 text-destructive" />;
 }
 
 export default async function AdminCompanyPage({ params }: { params: Promise<{ id: string }> }) {

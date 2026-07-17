@@ -6,6 +6,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * PharmaChain design tokens — OKLCH, brand hue 155 (pharma green).
+ * Two rules keep the system coherent:
+ *  1. Components consume ONLY semantic tokens (never raw palette classes),
+ *     so light/dark stay tuned together and a rebrand is a one-file change.
+ *  2. Status colors (success/warning/info/destructive) are reserved for
+ *     state, never decoration — that is what keeps them scannable.
+ */
 :root {
   --radius: 0.625rem;
   --background: oklch(0.99 0.002 145);
@@ -27,6 +35,16 @@
   --border: oklch(0.91 0.008 150);
   --input: oklch(0.91 0.008 150);
   --ring: oklch(0.55 0.1 155);
+  /* Status — AA on their tinted (12–15%) surfaces at badge sizes */
+  --success: oklch(0.48 0.12 155);
+  --warning: oklch(0.54 0.13 75);
+  --info: oklch(0.5 0.13 245);
+  /* Dashboard / data-viz series */
+  --chart-1: oklch(0.55 0.13 155);
+  --chart-2: oklch(0.6 0.12 245);
+  --chart-3: oklch(0.68 0.14 75);
+  --chart-4: oklch(0.55 0.12 300);
+  --chart-5: oklch(0.65 0.13 25);
 }
 
 .dark {
@@ -48,9 +66,21 @@
   --border: oklch(0.28 0.012 155);
   --input: oklch(0.3 0.012 155);
   --ring: oklch(0.6 0.1 155);
+  --success: oklch(0.75 0.13 155);
+  --warning: oklch(0.8 0.13 80);
+  --info: oklch(0.72 0.12 245);
+  --chart-1: oklch(0.72 0.13 155);
+  --chart-2: oklch(0.68 0.12 245);
+  --chart-3: oklch(0.8 0.13 80);
+  --chart-4: oklch(0.68 0.12 300);
+  --chart-5: oklch(0.7 0.14 25);
 }
 
 @theme inline {
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -69,6 +99,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -81,5 +119,42 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Headings never orphan a single word */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 20%, transparent);
+  }
+  /* Quiet, theme-aware scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Vestibular safety: motion is decoration, never information */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

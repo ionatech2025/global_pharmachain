@@ -33,7 +33,7 @@ function UsageCard({ title, usage }: { title: string; usage: UsageEvaluation }) 
         {usage.limited ? (
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
-              className={`h-full ${pct >= 100 ? "bg-destructive" : pct >= 80 ? "bg-amber-500" : "bg-primary"}`}
+              className={`h-full ${pct >= 100 ? "bg-destructive" : pct >= 80 ? "bg-warning" : "bg-primary"}`}
               style={{ width: `${pct}%` }}
             />
           </div>

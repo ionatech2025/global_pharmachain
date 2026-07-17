@@ -34,13 +34,13 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
         <span className="font-medium">{label}</span>
-        <span className={pct >= 80 ? "font-medium text-amber-600" : "text-muted-foreground"}>
+        <span className={pct >= 80 ? "font-medium text-warning" : "text-muted-foreground"}>
           {used} / {limit} this month
         </span>
       </div>
       <div className="h-2 rounded-full bg-muted">
         <div
-          className={`h-2 rounded-full ${pct >= 100 ? "bg-destructive" : pct >= 80 ? "bg-amber-500" : "bg-primary"}`}
+          className={`h-2 rounded-full ${pct >= 100 ? "bg-destructive" : pct >= 80 ? "bg-warning" : "bg-primary"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
