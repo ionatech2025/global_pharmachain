@@ -8,6 +8,7 @@ import { recordAudit } from "../../common/audit";
 import { ApiException, conflict, forbidden, unauthorized } from "../../common/errors";
 import { env } from "../../env";
 import { hashToken, randomToken } from "../../lib/crypto";
+import { hashPassword, verifyPassword } from "../../lib/password";
 import { sendEmailTo } from "../shared/mailer";
 import { issueOtp, verifyOtp } from "./otp";
 
@@ -18,10 +19,6 @@ const RESET_TTL_MS = 60 * 60 * 1000; // 60 minutes (US-206)
 // so it holds across instances and cannot be bypassed by rotating IPs.
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 5;
-
-async function hashPassword(password: string): Promise<string> {
-  return Bun.password.hash(password, { algorithm: "argon2id" });
-}
 
 export interface LoginInput {
   email: string;
@@ -142,7 +139,7 @@ export class AuthService {
     let success = false;
     if (user && user.status === "ACTIVE") {
       if (input.password && user.passwordHash) {
-        success = await Bun.password.verify(input.password, user.passwordHash);
+        success = await verifyPassword(input.password, user.passwordHash);
       } else if (input.otp) {
         success = await verifyOtp(email, input.otp);
       }
@@ -230,7 +227,7 @@ export class AuthService {
     newPassword: string,
   ): Promise<void> {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    const ok = user.passwordHash && (await Bun.password.verify(currentPassword, user.passwordHash));
+    const ok = user.passwordHash && (await verifyPassword(currentPassword, user.passwordHash));
     if (!ok) throw forbidden("Current password is incorrect");
     await prisma.user.update({
       where: { id: userId },

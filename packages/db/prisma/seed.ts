@@ -1,5 +1,7 @@
 // Seed for local development and demos. Idempotent — safe to re-run.
 // Run with: bun run db:seed   (requires DATABASE_URL and a pushed schema)
+import { createHash } from "node:crypto";
+import { hash as argon2Hash } from "@node-rs/argon2";
 import { generateRefNo, PARAM_DEFINITIONS } from "@pharmachain/core";
 import { prisma } from "../src/index";
 
@@ -7,8 +9,10 @@ const SUPER_ADMIN_EMAIL = process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@pharmacha
 const SUPER_ADMIN_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "admin-ChangeMe-1";
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1";
 
+// Runtime-agnostic (Bun or Node): argon2id PHC output matches what the API
+// verifies via @node-rs/argon2.
 async function hash(password: string): Promise<string> {
-  return Bun.password.hash(password, { algorithm: "argon2id" });
+  return argon2Hash(password);
 }
 
 async function seedParameters() {
@@ -146,11 +150,7 @@ async function seedDemoCompany(spec: DemoCompanySpec, verifiedById: string) {
 // EmailOtp and PasswordResetToken are deliberately never seeded — they are
 // transient security artifacts that only the live flows should create.
 
-const sha256Hex = (input: string) => {
-  const hasher = new Bun.CryptoHasher("sha256");
-  hasher.update(input);
-  return hasher.digest("hex");
-};
+const sha256Hex = (input: string) => createHash("sha256").update(input).digest("hex");
 
 /** Placeholder object keys: list/checklist UIs render fully; downloads are
  *  expected to 404 unless a real object is uploaded through the app. */
