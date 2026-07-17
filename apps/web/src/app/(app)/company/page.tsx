@@ -10,7 +10,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { VerificationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
-import type { CompanyMe } from "@/lib/api/types";
+import type { CompanyMeResponse } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
 import { ProfileForm, PublishProfileButton } from "./profile-form";
 
@@ -18,7 +18,8 @@ export const metadata = { title: "Company profile" };
 
 export default async function CompanyPage() {
   const api = await apiServer();
-  const company = await api.get<CompanyMe>("/companies/me");
+  // GET /companies/me returns { company, role } — unwrap to the flat company.
+  const { company } = await api.get<CompanyMeResponse>("/companies/me");
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">

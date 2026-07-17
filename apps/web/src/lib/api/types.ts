@@ -9,6 +9,7 @@ import type {
   BomItem,
   Category,
   Company,
+  CompanyRole,
   CompanyUserRole,
   CreditRequest,
   DataDeletionRequest,
@@ -51,6 +52,9 @@ export interface CompanyRef {
 export type CompanyMe = Jsonify<Company> & {
   _count: { members: number; listings: number };
 };
+
+/** GET /companies/me wraps the company with the caller's role. */
+export type CompanyMeResponse = { company: CompanyMe; role: CompanyRole };
 
 export type MemberRow = Jsonify<CompanyUserRole> & {
   user: {
