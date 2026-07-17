@@ -20,8 +20,8 @@ export function LogoMark({ className }: { className?: string }) {
     >
       <defs>
         <linearGradient id={gradient} x1="6" y1="5" x2="27" y2="28" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#34a873" />
-          <stop offset="1" stopColor="#14603f" />
+          <stop offset="0" stopColor="#2f96e0" />
+          <stop offset="1" stopColor="#0a4d80" />
         </linearGradient>
       </defs>
       <path
