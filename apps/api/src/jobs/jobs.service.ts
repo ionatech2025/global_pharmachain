@@ -2,11 +2,19 @@ import { Injectable } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { logger } from "../lib/logger";
 import { runDocumentExpiryJob } from "./document-expiry";
-import { runQuotationExpiryJob, runRfqAutoCloseJob, runTokenCleanupJob } from "./housekeeping";
+import {
+  runQuotationExpiryJob,
+  runRfqAutoCloseJob,
+  runTokenCleanupJob,
+  runUploadCleanupJob,
+} from "./housekeeping";
+import { withJobLock } from "./lock";
 
+/** Advisory-locked so only one instance runs a given sweep (see lock.ts). */
 async function guarded(name: string, fn: () => Promise<void>): Promise<void> {
   try {
-    await fn();
+    const ran = await withJobLock(`job:${name}`, fn);
+    if (!ran) logger.info(`job ${name} skipped — another instance holds the lock`);
   } catch (err) {
     logger.error(`job ${name} failed`, { error: String(err) });
   }
@@ -34,5 +42,10 @@ export class JobsService {
   @Cron("0 * * * *", { timeZone: "UTC" })
   tokenCleanup(): Promise<void> {
     return guarded("token-cleanup", () => runTokenCleanupJob());
+  }
+
+  @Cron("30 4 * * *", { timeZone: "UTC" })
+  uploadCleanup(): Promise<void> {
+    return guarded("upload-cleanup", () => runUploadCleanupJob());
   }
 }

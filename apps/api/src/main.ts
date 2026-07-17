@@ -13,6 +13,10 @@ async function bootstrap(): Promise<void> {
     { logger: ["error", "warn"] },
   );
 
+  // SIGTERM/SIGINT drain in-flight requests, then fire OnApplicationShutdown
+  // (Prisma disconnect in AppModule) — required for clean rolling deploys.
+  app.enableShutdownHooks();
+
   await app.register(helmet);
   app.enableCors({
     origin: env.corsOrigins,

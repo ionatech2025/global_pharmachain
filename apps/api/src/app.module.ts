@@ -1,7 +1,8 @@
-import { Module } from "@nestjs/common";
+import { Module, type OnApplicationShutdown } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { prisma } from "@pharmachain/db";
 import { AppController } from "./app.controller";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { AuthGuard } from "./common/guards/auth.guard";
@@ -61,4 +62,8 @@ import { RfqModule } from "./modules/rfq/rfq.module";
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationShutdown {
+  async onApplicationShutdown(): Promise<void> {
+    await prisma.$disconnect();
+  }
+}
