@@ -25,9 +25,12 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   // The proxy owns the client-identity headers — overwrite, never forward,
   // so a browser cannot spoof its own IP to rotate rate-limit buckets.
+  // x-proxy-secret proves they come from the web tier (the API ignores
+  // x-client-ip without it).
   const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
   headers.set("x-forwarded-for", forwardedFor);
   headers.set("x-client-ip", forwardedFor.split(",")[0]?.trim() ?? "");
+  headers.set("x-proxy-secret", process.env.AUTH_SECRET ?? "");
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   const body = hasBody ? await req.arrayBuffer() : undefined;

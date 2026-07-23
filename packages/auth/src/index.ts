@@ -25,8 +25,11 @@ async function verifyWithApi(
         // Forwarded so the API's login-activity audit AND its rate limiter see
         // the real client — without this every browser login shares the web
         // server's IP bucket and the platform-wide login throttle trips.
+        // x-proxy-secret proves these identity headers come from the web tier;
+        // the API ignores x-client-ip from anyone who cannot present it.
         "x-forwarded-for": forwardedFor,
         "x-client-ip": forwardedFor.split(",")[0]?.trim() ?? "",
+        "x-proxy-secret": process.env.AUTH_SECRET ?? "",
         "x-client-user-agent": request?.headers.get("user-agent") ?? "",
       },
       body: JSON.stringify(body),

@@ -42,7 +42,10 @@ export class AuthController {
 
   /** Internal endpoint for the web app's Auth.js authorize() callback. */
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 15 * 60 * 1000 } })
+  // 40/15 min per IP: sized for shared egress points (office NAT, CI) now that
+  // the limit is durable across instances; the 5-failure per-account lockout in
+  // AuthService remains the primary credential-stuffing control.
+  @Throttle({ default: { limit: 40, ttl: 15 * 60 * 1000 } })
   @HttpCode(200)
   @Post("login")
   login(@Body(zodPipe(loginBodySchema)) body: LoginBody, @Req() req: FastifyRequest) {

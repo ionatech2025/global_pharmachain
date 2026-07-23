@@ -222,11 +222,15 @@ apps; redirect HTTP → HTTPS and enable HSTS. With HTTPS on, Auth.js switches
 to the `__Secure-` cookie prefix automatically — the API accepts both cookie
 salts, so no extra configuration is needed.
 
-**The API must not be directly reachable from the internet.** It trusts
-`x-forwarded-for` / `x-client-ip` (set by the web tier) for rate-limit
-keying and login audit, so expose it only to the web app and the reverse
-proxy. The per-account login lockout holds even against spoofed IPs, but IP
-throttles on public endpoints assume this topology.
+The API keys rate limits and the login audit on the end-client IP forwarded
+by the web tier. That header is only honoured when the caller proves it is
+the web tier via `x-proxy-secret` (the shared `AUTH_SECRET`); anyone else
+falls back to the platform-derived address, so spoofing `x-client-ip` cannot
+rotate rate-limit buckets even when the API is reachable directly. The
+security-sensitive throttles (login, OTP, register, password reset) persist
+their counters in Postgres (`ThrottleBucket`), so they hold across serverless
+instances and restarts; the short-window default limiter is per-instance by
+design.
 
 ### Health probes
 
@@ -238,19 +242,25 @@ disconnects — safe for rolling deploys.
 
 ### Backups (required by US-1002)
 
-- **Daily** logical backup, e.g. via cron on the DB host or a sidecar:
+Automated by two GitHub Actions workflows — no manual cron required:
 
-  ```bash
-  pg_dump "$DATABASE_URL" -Fc -f "/backups/pharmachain-$(date +%F).dump"
-  find /backups -name 'pharmachain-*.dump' -mtime +30 -delete
-  ```
-
-- **Retention**: 30 days (the `find -mtime +30 -delete` line above).
-- **Restore test**: monthly, restore the latest dump into a scratch database
-  (`pg_restore -d pharmachain_restore_test …`) and run a smoke query; record
-  the result. A backup that has never been restored is not a backup.
-- **Alerting**: the backup job must alert on failure (non-zero exit → your
-  monitoring channel of choice). Silence is not success.
+- **`db-backup.yml`** — daily 02:30 UTC: `pg_dump -Fc` from a `postgres:18`
+  container, AES-256 encrypted (`BACKUP_PASSPHRASE` secret; the repo is
+  public, artifacts must never hold plaintext), uploaded as a workflow
+  artifact with **30-day retention** on GitHub's storage — separate
+  infrastructure from Neon. Failure opens a GitHub issue.
+- **`db-restore-drill.yml`** — monthly, 1st 03:30 UTC: downloads the latest
+  dump, decrypts, restores into a scratch Postgres 18 service and fails
+  unless the core tables come back with data. A backup that has never been
+  restored is not a backup. Failure opens a GitHub issue.
+- **Secrets**: `NEON_DATABASE_URL` (the **direct**, non-pooled connection
+  string — pg_dump needs session semantics PgBouncer doesn't provide) and
+  `BACKUP_PASSPHRASE` (also mirrored to a Vercel env var for custody; losing
+  it makes every backup unreadable).
+- **Restoring for real**: download the newest `db-backup-*` artifact, then
+  `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in pharmachain.dump.enc \
+  -out pharmachain.dump -pass env:BACKUP_PASSPHRASE` and
+  `pg_restore --no-owner --dbname "$TARGET_URL" pharmachain.dump`.
 - **Object storage**: enable versioning + replication on the documents bucket
   (or mirror MinIO with `mc mirror` on the same schedule).
 

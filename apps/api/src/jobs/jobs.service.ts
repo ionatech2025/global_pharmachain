@@ -5,6 +5,7 @@ import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runQuotationExpiryJob,
   runRfqAutoCloseJob,
+  runThrottleCleanupJob,
   runTokenCleanupJob,
   runUploadCleanupJob,
 } from "./housekeeping";
@@ -47,5 +48,10 @@ export class JobsService {
   @Cron("30 4 * * *", { timeZone: "UTC" })
   uploadCleanup(): Promise<void> {
     return guarded("upload-cleanup", () => runUploadCleanupJob());
+  }
+
+  @Cron("45 4 * * *", { timeZone: "UTC" })
+  throttleCleanup(): Promise<void> {
+    return guarded("throttle-cleanup", () => runThrottleCleanupJob());
   }
 }
