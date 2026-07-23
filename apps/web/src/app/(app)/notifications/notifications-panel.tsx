@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@pharmachain/ui/components/card";
+import { Switch } from "@pharmachain/ui/components/switch";
 import { cn } from "@pharmachain/ui/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -161,17 +162,15 @@ export function PreferencesPanel({ initial }: { initial: Preference[] }) {
             return (
               <div key={eventType} className="contents">
                 <span>{PREFERENCE_EVENT_LABELS[eventType as PreferenceEventType]}</span>
-                <input
-                  type="checkbox"
+                <Switch
                   aria-label={`Email for ${eventType}`}
                   checked={pref.email}
-                  onChange={() => toggle(eventType, "email")}
+                  onCheckedChange={() => toggle(eventType, "email")}
                 />
-                <input
-                  type="checkbox"
+                <Switch
                   aria-label={`WhatsApp for ${eventType}`}
                   checked={pref.whatsapp}
-                  onChange={() => toggle(eventType, "whatsapp")}
+                  onCheckedChange={() => toggle(eventType, "whatsapp")}
                 />
               </div>
             );

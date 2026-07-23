@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AttachmentPicker } from "@/components/attachment-picker";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DocumentChip } from "@/components/document-chip";
 import { QuotationStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
@@ -47,13 +48,6 @@ export function CancelRfqButton({ rfqId }: { rfqId: string }) {
   const [busy, setBusy] = useState(false);
 
   async function cancel() {
-    if (
-      !window.confirm(
-        "Cancel this RFQ? Responding suppliers will be notified; this cannot be undone.",
-      )
-    ) {
-      return;
-    }
     setBusy(true);
     try {
       await api.post(`/rfqs/${rfqId}/cancel`);
@@ -67,9 +61,18 @@ export function CancelRfqButton({ rfqId }: { rfqId: string }) {
   }
 
   return (
-    <Button variant="destructive" size="sm" onClick={cancel} disabled={busy}>
-      Cancel RFQ
-    </Button>
+    <ConfirmDialog
+      trigger={
+        <Button variant="destructive" size="sm" disabled={busy}>
+          Cancel RFQ
+        </Button>
+      }
+      title="Cancel this RFQ?"
+      description="Responding suppliers will be notified and the RFQ becomes read-only. This cannot be undone."
+      confirmLabel="Cancel RFQ"
+      destructive
+      onConfirm={cancel}
+    />
   );
 }
 
@@ -305,7 +308,6 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
 
   async function withdraw() {
     if (!existing) return;
-    if (!window.confirm("Withdraw your quotation? The buyer will be notified.")) return;
     try {
       await api.post(`/quotations/${existing.id}/withdraw`);
       toast.success("Quotation withdrawn");
@@ -353,7 +355,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
               <Label htmlFor="currency">Currency</Label>
               <select
                 id="currency"
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                 value={currency}
                 disabled={!open}
                 onChange={(e) => setCurrency(e.target.value)}
@@ -431,9 +433,18 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
                   : "Submit quotation"}
             </Button>
             {existing?.status === "ACTIVE" && open && (
-              <Button type="button" variant="outline" onClick={withdraw}>
-                Withdraw
-              </Button>
+              <ConfirmDialog
+                trigger={
+                  <Button type="button" variant="outline">
+                    Withdraw
+                  </Button>
+                }
+                title="Withdraw your quotation?"
+                description="The buyer will be notified and your offer leaves their comparison."
+                confirmLabel="Withdraw"
+                destructive
+                onConfirm={withdraw}
+              />
             )}
           </div>
         </form>

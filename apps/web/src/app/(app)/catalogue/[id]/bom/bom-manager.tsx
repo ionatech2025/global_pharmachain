@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { BomStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { BomRow } from "@/lib/api/types";
@@ -34,8 +35,6 @@ interface DraftItem {
   quantityPerUnit: string;
   unit: string;
 }
-
-const BOM_STATUS_VARIANT = { DRAFT: "secondary", ACTIVE: "success", ARCHIVED: "outline" } as const;
 
 export function BomManager({
   productListingId,
@@ -117,7 +116,7 @@ export function BomManager({
                 </div>
                 <select
                   aria-label="Material category"
-                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                  className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                   value={item.categoryId ?? ""}
                   onChange={(e) => setItem(i, { categoryId: e.target.value || undefined })}
                 >
@@ -196,10 +195,7 @@ export function BomManager({
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm">
-                Version {bom.version}{" "}
-                <Badge variant={BOM_STATUS_VARIANT[bom.status]} className="ml-1">
-                  {bom.status.toLowerCase()}
-                </Badge>
+                Version {bom.version} <BomStatusBadge status={bom.status} />
               </CardTitle>
               <CardDescription>
                 {fmtDate(bom.createdAt)} · {bom.createdBy.name}

@@ -11,18 +11,13 @@ import {
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { ListingStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { ListingRow } from "@/lib/api/types";
 import { fmtMoney } from "@/lib/format";
 import { ListingRowActions } from "./listing-actions";
 
 export const metadata = { title: "My catalogue" };
-
-const STATUS_VARIANT = {
-  DRAFT: "secondary",
-  PUBLISHED: "success",
-  DEACTIVATED: "outline",
-} as const;
 
 export default async function CataloguePage() {
   const api = await apiServer();
@@ -92,7 +87,7 @@ export default async function CataloguePage() {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={STATUS_VARIANT[l.status]}>{l.status.toLowerCase()}</Badge>
+                  <ListingStatusBadge status={l.status} />
                 </TableCell>
                 <TableCell>
                   <ListingRowActions listingId={l.id} status={l.status} kind={l.kind} />

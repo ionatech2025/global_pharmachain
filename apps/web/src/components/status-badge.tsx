@@ -81,3 +81,71 @@ export function VerificationStatusBadge({ status }: { status: VerificationStatus
     />
   );
 }
+
+// ── Consolidated lifecycles (Phase 2): one map, no per-page drift ────────────
+
+const LISTING_VARIANTS: Record<string, Variant> = {
+  DRAFT: "secondary",
+  PUBLISHED: "success",
+  DEACTIVATED: "outline",
+};
+
+export function ListingStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusBadge
+      variant={LISTING_VARIANTS[status] ?? "secondary"}
+      label={status.charAt(0) + status.slice(1).toLowerCase()}
+    />
+  );
+}
+
+const BOM_VARIANTS: Record<string, Variant> = {
+  DRAFT: "secondary",
+  ACTIVE: "success",
+  ARCHIVED: "outline",
+};
+
+export function BomStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusBadge
+      variant={BOM_VARIANTS[status] ?? "secondary"}
+      label={status.charAt(0) + status.slice(1).toLowerCase()}
+    />
+  );
+}
+
+const USER_VARIANTS: Record<string, Variant> = {
+  ACTIVE: "success",
+  INVITED: "info",
+  DEACTIVATED: "outline",
+};
+
+export function UserStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusBadge
+      variant={USER_VARIANTS[status] ?? "secondary"}
+      label={status.charAt(0) + status.slice(1).toLowerCase()}
+    />
+  );
+}
+
+const CREDIT_VARIANTS: Record<string, Variant> = {
+  PENDING_PAYMENT: "warning",
+  CONFIRMED: "success",
+  REJECTED: "destructive",
+};
+
+export function CreditStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusBadge
+      variant={CREDIT_VARIANTS[status] ?? "secondary"}
+      label={status.replaceAll("_", " ").toLowerCase()}
+    />
+  );
+}
+
+/** Tier badge for search results and company pages (US-905). */
+export function TierBadge({ tier }: { tier: string }) {
+  if (tier === "FREEMIUM") return null;
+  return <StatusBadge variant="warning" label={tier === "FEATURED" ? "Featured" : "Premium"} />;
+}

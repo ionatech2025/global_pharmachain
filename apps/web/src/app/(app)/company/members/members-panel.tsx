@@ -22,16 +22,12 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { UserStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { InviteRow, MemberRow } from "@/lib/api/types";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-
-const USER_STATUS_VARIANT = {
-  ACTIVE: "success",
-  INVITED: "warning",
-  DEACTIVATED: "outline",
-} as const;
 
 /** Invite by email with a role; links are valid for 72 hours (US-201). */
 export function InvitePanel({ invites }: { invites: InviteRow[] }) {
@@ -86,7 +82,7 @@ export function InvitePanel({ invites }: { invites: InviteRow[] }) {
           </div>
           <select
             aria-label="Role for the invited member"
-            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+            className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
             value={role}
             onChange={(e) => setRole(e.target.value as CompanyRole)}
           >
@@ -148,12 +144,6 @@ export function MembersTable({
 
   async function toggleActive(member: MemberRow) {
     const deactivating = member.user.status === "ACTIVE";
-    if (
-      deactivating &&
-      !window.confirm(`Deactivate ${member.user.name}? They are signed out immediately.`)
-    ) {
-      return;
-    }
     try {
       await api.post(
         `/companies/me/members/${member.user.id}/${deactivating ? "deactivate" : "reactivate"}`,
@@ -207,20 +197,33 @@ export function MembersTable({
               )}
             </TableCell>
             <TableCell>
-              <Badge variant={USER_STATUS_VARIANT[member.user.status]}>
-                {member.user.status.toLowerCase()}
-              </Badge>
+              <UserStatusBadge status={member.user.status} />
             </TableCell>
             <TableCell className="text-muted-foreground">
               {member.user.lastLoginAt ? fmtDateTime(member.user.lastLoginAt) : "Never"}
             </TableCell>
             {canManage && (
               <TableCell className="text-right">
-                {member.user.id !== meUserId && member.user.status !== "INVITED" && (
-                  <Button size="sm" variant="ghost" onClick={() => toggleActive(member)}>
-                    {member.user.status === "ACTIVE" ? "Deactivate" : "Reactivate"}
-                  </Button>
-                )}
+                {member.user.id !== meUserId &&
+                  member.user.status !== "INVITED" &&
+                  (member.user.status === "ACTIVE" ? (
+                    <ConfirmDialog
+                      trigger={
+                        <Button size="sm" variant="ghost">
+                          Deactivate
+                        </Button>
+                      }
+                      title={`Deactivate ${member.user.name}?`}
+                      description="They are signed out immediately and can no longer log in. Their history stays attributed to them."
+                      confirmLabel="Deactivate"
+                      destructive
+                      onConfirm={() => toggleActive(member)}
+                    />
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(member)}>
+                      Reactivate
+                    </Button>
+                  ))}
               </TableCell>
             )}
           </TableRow>

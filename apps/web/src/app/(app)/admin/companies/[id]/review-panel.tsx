@@ -37,6 +37,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UserStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { MemberRow } from "@/lib/api/types";
@@ -141,12 +142,6 @@ export function TierSelect({ companyId, tier }: { companyId: string; tier: Subsc
   );
 }
 
-const USER_STATUS_VARIANT = {
-  ACTIVE: "success",
-  INVITED: "warning",
-  DEACTIVATED: "outline",
-} as const;
-
 type OverrideAction =
   | { kind: "reset-password" }
   | { kind: "deactivate" }
@@ -220,9 +215,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
               </TableCell>
               <TableCell>{COMPANY_ROLE_LABELS[member.role]}</TableCell>
               <TableCell>
-                <Badge variant={USER_STATUS_VARIANT[member.user.status]}>
-                  {member.user.status.toLowerCase()}
-                </Badge>
+                <UserStatusBadge status={member.user.status} />
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
