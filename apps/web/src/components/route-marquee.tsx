@@ -5,12 +5,14 @@
  * under prefers-reduced-motion. Decorative — hidden from assistive tech.
  */
 const LANES = [
-  { route: "Kampala → Nairobi", note: "API · 500 kg", state: "in transit" },
   { route: "Mumbai → Kampala", note: "Excipients · 2 t", state: "at port" },
-  { route: "Dar es Salaam → Kigali", note: "Syrups · pallet", state: "delivered" },
-  { route: "Guangzhou → Mombasa", note: "Packaging · 3 t", state: "in transit" },
-  { route: "Nairobi → Kampala", note: "GMP audit docs", state: "verified" },
-  { route: "Kigali → Dar es Salaam", note: "IV fluids · 1.5 t", state: "pickup scheduled" },
+  { route: "Shanghai → Mombasa", note: "Packaging · 3 t", state: "in transit" },
+  { route: "Hyderabad → Lagos", note: "API · 1.2 t", state: "in transit" },
+  { route: "Frankfurt → Nairobi", note: "GMP audit docs", state: "verified" },
+  { route: "Rotterdam → Dar es Salaam", note: "IV fluids · 1.5 t", state: "pickup scheduled" },
+  { route: "São Paulo → Accra", note: "Syrups · pallet", state: "delivered" },
+  { route: "Singapore → Djibouti", note: "Cold chain · 800 kg", state: "in transit" },
+  { route: "Kampala → Juba", note: "Finished packs · 40 plt", state: "delivered" },
 ];
 
 const STATE_TONE: Record<string, string> = {

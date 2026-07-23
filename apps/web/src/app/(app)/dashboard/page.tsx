@@ -16,7 +16,7 @@ function Stat({ label, value, href }: { label: string; value: number | string; h
     <Card className="gap-1 py-4 transition-colors hover:border-primary/40">
       <div className="px-4">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-display mt-1 text-[1.6rem] tabular-nums">{value}</p>
       </div>
     </Card>
   );

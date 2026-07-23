@@ -99,6 +99,7 @@
     var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji";
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-anton), var(--font-geist-sans), ui-sans-serif, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -254,7 +255,17 @@
   }
 
   /* ── Marketing surfaces (landing + auth) ─────────────────────────────
-     Letter-spaced micro-label above display headlines. Colour is set at the
+     Condensed display headline setting (Anton): uppercase, tight leading,
+     a whisper of tracking for legibility at poster sizes. Sizes are set at
+     the use site; this fixes everything else so headlines stay consistent. */
+  .text-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+    line-height: 0.96;
+    letter-spacing: 0.012em;
+  }
+  /* Letter-spaced micro-label above display headlines. Colour is set at the
      use site (text-primary on light, white/70 on the azure panel). */
   .eyebrow {
     display: inline-flex;
@@ -273,6 +284,18 @@
       radial-gradient(120% 90% at 88% -12%, oklch(0.78 0.1 228 / 0.95), transparent 52%),
       radial-gradient(130% 120% at -12% 112%, oklch(0.28 0.13 262), transparent 62%),
       linear-gradient(140deg, oklch(0.6 0.15 245), oklch(0.46 0.18 254) 55%, oklch(0.38 0.16 258));
+  }
+  /* Brand-fixed daylight-sky panel (hero, auth aside): bright hazy sky with
+     soft cloud glows up top, deepening to open-air azure at the base — the
+     Olympus-style atmospheric canvas. Identical in both themes; content on it
+     uses the .sky-scope token re-pin (ink text, frosted cards). */
+  .bg-panel-sky {
+    background:
+      radial-gradient(85% 55% at 12% 4%, oklch(0.99 0.004 228 / 0.92), transparent 58%),
+      radial-gradient(60% 42% at 78% 12%, oklch(0.975 0.014 226 / 0.8), transparent 64%),
+      radial-gradient(50% 38% at 42% 30%, oklch(0.96 0.02 230 / 0.5), transparent 70%),
+      radial-gradient(130% 95% at 55% 118%, oklch(0.52 0.14 250 / 0.9), transparent 72%),
+      linear-gradient(178deg, oklch(0.89 0.035 228), oklch(0.74 0.085 238) 56%, oklch(0.6 0.13 247));
   }
   /* Fine blueprint grid over azure panels, fading toward the bottom */
   .bg-panel-grid {
@@ -408,6 +431,30 @@
   box-shadow:
     0 10px 32px -18px oklch(0 0 0 / 0.6),
     inset 0 1px 0 oklch(1 0 0 / 0.07);
+}
+
+/*
+ * Token re-pin for content sitting ON the daylight-sky panel: deep-ink text
+ * (the Olympus treatment — near-black type over open sky), ink-tinted globe
+ * line-work, and ink-solid primary so default Buttons render as the dark
+ * pill CTA the reference uses. Frosted .glass-card re-pins its own set and
+ * stays legible on top of this.
+ */
+.sky-scope {
+  color: oklch(0.19 0.026 256);
+  --foreground: oklch(0.19 0.026 256);
+  --muted-foreground: oklch(0.3 0.03 254 / 0.82);
+  --primary: oklch(0.22 0.032 256);
+  --primary-accent: oklch(0.22 0.032 256);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.3 0.05 252);
+  --border: oklch(0.25 0.04 252 / 0.25);
+  --globe-line: oklch(0.26 0.055 252 / 0.5);
+  --globe-line-soft: oklch(0.26 0.055 252 / 0.24);
+  --globe-halo: oklch(0.3 0.07 252 / 0.18);
+  --background: oklch(0.78 0.07 236);
+  --info: oklch(0.36 0.06 240);
+  --success: oklch(0.4 0.1 155);
 }
 
 /*

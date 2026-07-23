@@ -31,7 +31,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
-            B2B pharmaceutical sourcing ·{" "}
+            Global pharmaceutical sourcing ·{" "}
             <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
               Privacy policy
             </Link>
