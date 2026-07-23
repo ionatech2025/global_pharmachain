@@ -1,0 +1,59 @@
+name: db-backup
+
+# Daily logical backup of the production database (US-1002): pg_dump from the
+# postgres:18 image (client must match the server major), encrypted before
+# upload because this repository is public, kept 30 days on GitHub's artifact
+# storage — infrastructure separate from the primary (Neon). A failed run
+# opens a GitHub issue so failures are impossible to miss.
+on:
+  schedule:
+    - cron: "30 2 * * *" # daily, 02:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    container: postgres:18
+    steps:
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          pg_dump --format=custom --no-owner --file=/tmp/pharmachain.dump "$DATABASE_URL"
+          ls -l /tmp/pharmachain.dump
+      - name: Encrypt dump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          apt-get update -qq && apt-get install -y -qq openssl >/dev/null
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in /tmp/pharmachain.dump -out /tmp/pharmachain.dump.enc \
+            -pass env:BACKUP_PASSPHRASE
+          rm /tmp/pharmachain.dump
+      - name: Upload artifact (30-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: /tmp/pharmachain.dump.enc
+          retention-days: 30
+          if-no-files-found: error
+
+  alert-on-failure:
+    needs: dump
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue about the failed backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Database backup failed ($(date -u +%F))" \
+            --body "The scheduled db-backup run failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+Until a run succeeds, the newest restorable dump is one day older than it should be (US-1002)."

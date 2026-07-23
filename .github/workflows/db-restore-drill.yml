@@ -1,0 +1,99 @@
+name: db-restore-drill
+
+# Monthly proof that backups actually restore (US-1002): download the most
+# recent encrypted dump, decrypt it, restore into a scratch Postgres 18, and
+# fail loudly unless the core tables come back with data. A failed drill opens
+# a GitHub issue.
+on:
+  schedule:
+    - cron: "30 3 1 * *" # monthly, 1st at 03:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    container: postgres:18
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: restore_drill
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Find the latest successful backup run
+        id: find
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "db-backup.yml",
+              status: "success",
+              per_page: 1,
+            });
+            const run = runs.data.workflow_runs[0];
+            if (!run) core.setFailed("no successful db-backup run found");
+            else {
+              core.info(`latest backup: run ${run.id} (${run.created_at})`);
+              core.setOutput("run_id", String(run.id));
+            }
+      - name: Download the encrypted dump
+        uses: actions/download-artifact@v4
+        with:
+          pattern: db-backup-*
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: /tmp/backup
+      - name: Decrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          apt-get update -qq && apt-get install -y -qq openssl >/dev/null
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in /tmp/backup/pharmachain.dump.enc -out /tmp/pharmachain.dump \
+            -pass env:BACKUP_PASSPHRASE
+      - name: Restore into scratch Postgres
+        env:
+          TARGET: postgresql://postgres:postgres@postgres:5432/restore_drill
+        run: pg_restore --no-owner --exit-on-error --dbname "$TARGET" /tmp/pharmachain.dump
+      - name: Verify restored data
+        env:
+          TARGET: postgresql://postgres:postgres@postgres:5432/restore_drill
+        run: |
+          for t in Company User Rfq Order AuditLog; do
+            n=$(psql "$TARGET" -Atc "SELECT count(*) FROM \"$t\"")
+            echo "$t: $n rows"
+            if [ "$n" -le 0 ]; then
+              echo "::error::restore drill: table $t restored empty"
+              exit 1
+            fi
+          done
+          echo "Restore drill passed — backup from the latest run is restorable."
+
+  alert-on-failure:
+    needs: restore
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue about the failed drill
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Backup restore drill failed ($(date -u +%F))" \
+            --body "The monthly restore drill failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+The most recent backup may not be restorable — investigate before relying on it (US-1002)."
