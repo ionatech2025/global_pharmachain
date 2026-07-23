@@ -52,8 +52,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          body=$(printf '%s\n\n%s' \
+            "The scheduled db-backup run failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            "Until a run succeeds, the newest restorable dump is one day older than it should be (US-1002).")
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Database backup failed ($(date -u +%F))" \
-            --body "The scheduled db-backup run failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-
-Until a run succeeds, the newest restorable dump is one day older than it should be (US-1002)."
+            --body "$body"

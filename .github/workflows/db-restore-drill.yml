@@ -92,8 +92,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          body=$(printf '%s\n\n%s' \
+            "The monthly restore drill failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            "The most recent backup may not be restorable — investigate before relying on it (US-1002).")
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Backup restore drill failed ($(date -u +%F))" \
-            --body "The monthly restore drill failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-
-The most recent backup may not be restorable — investigate before relying on it (US-1002)."
+            --body "$body"
