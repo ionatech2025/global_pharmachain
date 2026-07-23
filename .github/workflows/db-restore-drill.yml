@@ -66,7 +66,9 @@ jobs:
       - name: Restore into scratch Postgres
         env:
           TARGET: postgresql://postgres:postgres@postgres:5432/restore_drill
-        run: pg_restore --no-owner --exit-on-error --dbname "$TARGET" /tmp/pharmachain.dump
+        # --no-acl also here so dumps taken before the pg_dump flag change
+        # (which may still carry Neon role grants) remain drillable.
+        run: pg_restore --no-owner --no-acl --exit-on-error --dbname "$TARGET" /tmp/pharmachain.dump
       - name: Verify restored data
         env:
           TARGET: postgresql://postgres:postgres@postgres:5432/restore_drill
