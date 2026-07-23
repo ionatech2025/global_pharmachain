@@ -1,10 +1,11 @@
-import { LISTING_KINDS } from "@pharmachain/core";
+import { LISTING_KINDS, orderStatusIndex, requiredShipmentDocKinds } from "@pharmachain/core";
 import type { ListingKind, Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notificationProviders, notify, runOutboxRetryJob } from "@pharmachain/notifications";
 import { env } from "../env";
 import { logger } from "../lib/logger";
+import { shipmentPartyUserIds } from "../lib/shipment-access";
 import { deleteObject } from "../modules/document/storage";
 
 /** RFQs past their deadline auto-close (US-402); buyers are told. */
@@ -195,6 +196,124 @@ export async function runSavedSearchAlertJob(now = new Date()): Promise<void> {
     alerted += 1;
   }
   if (alerted > 0) logger.info("saved-search alert job done", { alerted });
+}
+
+/**
+ * Phase 2 §4 alerts engine: shipments past their ETA, shipments deep in the
+ * lifecycle missing required documents, and a daily approvals digest for the
+ * platform team. Each order alerts at most once per 24h (dedupe columns).
+ */
+export async function runLogisticsAlertsJob(now = new Date()): Promise<void> {
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  // 1) Delayed past ETA (buyer, seller and logistics parties all hear it)
+  const delayed = await prisma.order.findMany({
+    where: {
+      eta: { lt: now },
+      status: { notIn: ["DELIVERED", "DELIVERY_CONFIRMED"] },
+      OR: [{ lastDelayAlertAt: null }, { lastDelayAlertAt: { lt: dayAgo } }],
+    },
+    select: {
+      id: true,
+      orderNo: true,
+      eta: true,
+      buyerCompanyId: true,
+      sellerCompanyId: true,
+    },
+    take: 200,
+  });
+  for (const order of delayed) {
+    await notify({
+      userIds: await shipmentPartyUserIds(order),
+      type: "SHIPMENT_DELAYED",
+      title: `Order ${order.orderNo} is past its ETA`,
+      body: `Estimated delivery was ${order.eta?.toDateString()}. Update the ETA or record a delay note.`,
+      href: `/orders/${order.id}`,
+      emailContent: genericEventEmail({
+        title: `Shipment delayed — order ${order.orderNo}`,
+        body: `The shipment is past its estimated delivery (${order.eta?.toDateString()}).`,
+        url: `${env.APP_URL}/orders/${order.id}`,
+        cta: "Open the shipment",
+      }),
+      whatsappText: `PharmaChain: order ${order.orderNo} is past its ETA.`,
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { lastDelayAlertAt: now } });
+  }
+
+  // 2) Missing shipment documents once the goods are moving internationally
+  const inLifecycle = await prisma.order.findMany({
+    where: {
+      status: { notIn: ["DELIVERED", "DELIVERY_CONFIRMED"] },
+      OR: [{ lastDocAlertAt: null }, { lastDocAlertAt: { lt: dayAgo } }],
+    },
+    select: {
+      id: true,
+      orderNo: true,
+      status: true,
+      freightMode: true,
+      dangerousGoods: true,
+      phytoRequired: true,
+      buyerCompanyId: true,
+      sellerCompanyId: true,
+    },
+    take: 300,
+  });
+  let docAlerts = 0;
+  for (const order of inLifecycle) {
+    if (orderStatusIndex(order.status) < orderStatusIndex("AT_PORT_OF_ORIGIN")) continue;
+    const required = requiredShipmentDocKinds(order);
+    const present = await prisma.document.findMany({
+      where: {
+        orderId: order.id,
+        kind: { in: required },
+        status: "ACTIVE",
+        uploadCompletedAt: { not: null },
+      },
+      select: { kind: true },
+      distinct: ["kind"],
+    });
+    const missing = required.filter((k) => !present.some((d) => d.kind === k));
+    if (missing.length === 0) continue;
+    await notify({
+      userIds: await shipmentPartyUserIds(order),
+      type: "DOCUMENT_MISSING",
+      title: `Order ${order.orderNo}: ${missing.length} shipment document(s) missing`,
+      body: `Still needed: ${missing.join(", ").replaceAll("_", " ").toLowerCase()}.`,
+      href: `/orders/${order.id}`,
+      emailContent: genericEventEmail({
+        title: `Missing shipment documents — order ${order.orderNo}`,
+        body: `The shipment has entered international transit but is missing: ${missing.join(", ")}.`,
+        url: `${env.APP_URL}/orders/${order.id}`,
+        cta: "Upload documents",
+      }),
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { lastDocAlertAt: now } });
+    docAlerts += 1;
+  }
+
+  // 3) Pending-approval digest for the platform team
+  const [pendingVerifications, pendingCredits, escalatedDisputes] = await prisma.$transaction([
+    prisma.company.count({ where: { verificationStatus: "PENDING_VERIFICATION" } }),
+    prisma.creditRequest.count({ where: { status: "PENDING_PAYMENT" } }),
+    prisma.dispute.count({ where: { status: "ESCALATED" } }),
+  ]);
+  if (pendingVerifications + pendingCredits + escalatedDisputes > 0) {
+    const superAdmins = await prisma.user.findMany({
+      where: { isSuperAdmin: true, status: "ACTIVE" },
+      select: { id: true },
+    });
+    await notify({
+      userIds: superAdmins.map((u) => u.id),
+      type: "APPROVAL_PENDING",
+      title: "Approvals waiting on the platform team",
+      body: `${pendingVerifications} verification(s), ${pendingCredits} credit request(s), ${escalatedDisputes} escalated dispute(s).`,
+      href: "/admin/verification",
+    });
+  }
+
+  if (delayed.length + docAlerts > 0) {
+    logger.info("logistics alerts job done", { delayed: delayed.length, docAlerts });
+  }
 }
 
 /** Drops rate-limit buckets whose window and block have both long passed. */

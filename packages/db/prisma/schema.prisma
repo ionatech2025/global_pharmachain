@@ -19,6 +19,9 @@ enum CompanyType {
   RAW_MATERIAL_MANUFACTURER
   FINISHED_PRODUCT_MANUFACTURER
   SUPPLIER
+  FREIGHT_FORWARDER
+  CLEARING_AGENT
+  TRANSPORTER
 }
 
 enum VerificationStatus {
@@ -79,6 +82,16 @@ enum DocumentKind {
   CERTIFICATE_OF_ANALYSIS
   QUALITY_CERTIFICATE
   SHIPPING_INSTRUCTIONS
+  BILL_OF_LADING
+  AIR_WAYBILL
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  CERTIFICATE_OF_ORIGIN
+  CUSTOMS_DECLARATION
+  DANGEROUS_GOODS_DECLARATION
+  PHYTOSANITARY_CERTIFICATE
+  TAX_WORKSHEET
+  PROOF_OF_DELIVERY_PHOTO
   SDS
   RFQ_ATTACHMENT
   QUOTATION_ATTACHMENT
@@ -120,8 +133,40 @@ enum OrderStatus {
   PICKUP_SCHEDULED
   GOODS_COLLECTED
   IN_TRANSIT
-  AT_PORT
+  AT_PORT_OF_ORIGIN
+  CUSTOMS_ORIGIN
+  DEPARTED
+  AT_PORT_OF_DESTINATION
+  CUSTOMS_DESTINATION
+  INLAND_TRANSPORT
+  OUT_FOR_DELIVERY
   DELIVERED
+  DELIVERY_CONFIRMED
+}
+
+enum FreightMode {
+  SEA
+  AIR
+  LAND
+  MULTIMODAL
+}
+
+enum LogisticsRole {
+  FORWARDER
+  CLEARING_AGENT
+  TRANSPORTER
+}
+
+enum AppointmentStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum DisputeStatus {
+  OPEN
+  ESCALATED
+  RESOLVED
+  WITHDRAWN
 }
 
 enum BomStatus {
@@ -144,6 +189,13 @@ enum NotificationType {
   TIER_CHANGE
   ACCOUNT_UPDATE
   DATA_REQUEST
+  SHIPMENT_DELAYED
+  CUSTOMS_ALERT
+  DELIVERY_FAILED
+  DOCUMENT_MISSING
+  DISPUTE_UPDATE
+  APPROVAL_PENDING
+  PAYMENT_OVERDUE
 }
 
 enum AnnouncementAudience {
@@ -214,6 +266,8 @@ model Company {
   threadsAsSupplier      MessageThread[]   @relation("ThreadSupplier")
   creditRequests         CreditRequest[]
   announcementsTargeted  Announcement[]
+  shipmentAppointments   ShipmentAppointment[]
+  disputesRaised         Dispute[]
 
   @@index([verificationStatus])
   @@index([type, verificationStatus])
@@ -261,6 +315,11 @@ model User {
   announcementsCreated    Announcement[]
   creditRequestsMade      CreditRequest[]
   dataDeletionRequests    DataDeletionRequest[]
+  driverProfile           DriverProfile?
+  appointmentsMade        ShipmentAppointment[]
+  locationsRecorded       ShipmentLocation[]
+  podsCaptured            ProofOfDelivery[]
+  disputesRaised          Dispute[]
 }
 
 // One membership per user in Phase 1 (US-201: an email active in another
@@ -534,6 +593,17 @@ model Order {
   eta            DateTime?
   forwarderName  String?
   forwarderEmail String?
+  // Phase 2 logistics metadata (managed by seller/appointed forwarder)
+  freightMode         FreightMode?
+  coldChain           Boolean      @default(false)
+  dispatchDate        DateTime?
+  deliveryConfirmedAt DateTime?
+  // Hazard/phyto flags detected at order creation drive the document prompts
+  dangerousGoods      Boolean      @default(false)
+  phytoRequired       Boolean      @default(false)
+  // Alert-engine dedupe markers (one delay/doc alert per day per order)
+  lastDelayAlertAt    DateTime?
+  lastDocAlertAt      DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -545,19 +615,27 @@ model Order {
   statusEvents  OrderStatusEvent[]
   documents     Document[]
   thread        MessageThread?
+  appointments  ShipmentAppointment[]
+  locations     ShipmentLocation[]
+  pod           ProofOfDelivery?
+  disputes      Dispute[]
 
   @@index([buyerCompanyId, createdAt])
   @@index([sellerCompanyId, createdAt])
   @@index([status])
+  @@index([eta, status])
 }
 
 // Shipment-stage history (US-702): every transition with note and ETA.
+// Rows with `exception` set annotate the CURRENT stage (delay, customs
+// rejection, failed delivery attempt) instead of moving it.
 model OrderStatusEvent {
   id          String      @id @default(uuid(7)) @db.Uuid
   orderId     String      @db.Uuid
   status      OrderStatus
   note        String?
   eta         DateTime?
+  exception   String?
   actorUserId String      @db.Uuid
   createdAt   DateTime    @default(now())
 
@@ -565,6 +643,105 @@ model OrderStatusEvent {
   actor User  @relation(fields: [actorUserId], references: [id])
 
   @@index([orderId, createdAt])
+}
+
+// ─── Phase 2: logistics operations ───────────────────────────────────────────
+
+// Buyer appoints one forwarder and one clearing agent (and a transporter for
+// road legs) per shipment; the appointee's staff gain access to exactly that
+// shipment. One ACTIVE row per (order, role) — enforced by a partial unique
+// index in the Phase 2 migration.
+model ShipmentAppointment {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  orderId       String            @db.Uuid
+  role          LogisticsRole
+  companyId     String            @db.Uuid
+  appointedById String            @db.Uuid
+  status        AppointmentStatus @default(ACTIVE)
+  revokedAt     DateTime?
+  createdAt     DateTime          @default(now())
+
+  order       Order   @relation(fields: [orderId], references: [id])
+  company     Company @relation(fields: [companyId], references: [id])
+  appointedBy User    @relation(fields: [appointedById], references: [id])
+
+  @@index([orderId, role, status])
+  @@index([companyId, status, createdAt])
+}
+
+// Driver profile for transporter staff (delivery instructions reach them
+// through the normal notification fan-out to their user account).
+model DriverProfile {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  userId           String   @unique @db.Uuid
+  licenceNo        String
+  vehicleReg       String
+  vehicleType      String?
+  coldChainCapable Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// GPS pings recorded by the transporter/forwarder on road legs (Phase 2 §3:
+// location updates at least every 6 hours while a road leg is active).
+model ShipmentLocation {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  orderId      String   @db.Uuid
+  lat          Decimal  @db.Decimal(9, 6)
+  lng          Decimal  @db.Decimal(9, 6)
+  note         String?
+  recordedById String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id])
+  recordedBy User  @relation(fields: [recordedById], references: [id])
+
+  @@index([orderId, createdAt])
+}
+
+// Proof of delivery: signature (typed + optional drawn) and/or photo
+// document, captured once per order at the delivery stages.
+model ProofOfDelivery {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  orderId         String   @unique @db.Uuid
+  signedByName    String
+  signatureData   String?
+  photoDocumentId String?  @db.Uuid
+  note            String?
+  capturedById    String   @db.Uuid
+  capturedAt      DateTime @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id])
+  capturedBy User  @relation(fields: [capturedById], references: [id])
+}
+
+// Exception & dispute management (Phase 2 §4): a party raises a complaint
+// against a shipment, may escalate to platform admin; the full trail is
+// audited and every update notifies the parties.
+model Dispute {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  orderId           String        @db.Uuid
+  raisedByCompanyId String        @db.Uuid
+  raisedById        String        @db.Uuid
+  subject           String
+  body              String
+  legalReference    String?
+  status            DisputeStatus @default(OPEN)
+  escalatedAt       DateTime?
+  resolvedAt        DateTime?
+  resolvedById      String?       @db.Uuid
+  resolution        String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order    Order   @relation(fields: [orderId], references: [id])
+  raisedBy User    @relation(fields: [raisedById], references: [id])
+  company  Company @relation(fields: [raisedByCompanyId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
 }
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────

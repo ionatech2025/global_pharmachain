@@ -4,6 +4,7 @@ import { logger } from "../lib/logger";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runDsrSlaJob,
+  runLogisticsAlertsJob,
   runOutboxJob,
   runQuotationExpiryJob,
   runRfqAutoCloseJob,
@@ -71,5 +72,10 @@ export class JobsService {
   @Cron("0 6 * * *", { timeZone: "UTC" })
   savedSearchAlerts(): Promise<void> {
     return guarded("saved-search-alerts", () => runSavedSearchAlertJob());
+  }
+
+  @Cron("30 6 * * *", { timeZone: "UTC" })
+  logisticsAlerts(): Promise<void> {
+    return guarded("logistics-alerts", () => runLogisticsAlertsJob());
   }
 }

@@ -13,6 +13,7 @@ export * from "./schemas/catalogue";
 export * from "./schemas/common";
 export * from "./schemas/company";
 export * from "./schemas/document";
+export * from "./schemas/logistics";
 export * from "./schemas/messaging";
 export * from "./schemas/notification";
 export * from "./schemas/order";

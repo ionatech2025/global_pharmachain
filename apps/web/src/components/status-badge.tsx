@@ -48,8 +48,15 @@ const ORDER_VARIANTS: Record<OrderStatus, Variant> = {
   PICKUP_SCHEDULED: "info",
   GOODS_COLLECTED: "info",
   IN_TRANSIT: "info",
-  AT_PORT: "info",
+  AT_PORT_OF_ORIGIN: "info",
+  CUSTOMS_ORIGIN: "warning",
+  DEPARTED: "info",
+  AT_PORT_OF_DESTINATION: "info",
+  CUSTOMS_DESTINATION: "warning",
+  INLAND_TRANSPORT: "info",
+  OUT_FOR_DELIVERY: "info",
   DELIVERED: "success",
+  DELIVERY_CONFIRMED: "success",
 };
 
 const VERIFICATION_VARIANTS: Record<VerificationStatus, Variant> = {

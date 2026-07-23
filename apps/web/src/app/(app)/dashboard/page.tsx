@@ -1,3 +1,5 @@
+import type { AuthenticatedUser } from "@pharmachain/auth";
+import { isLogisticsCompanyType } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { Package, Search, Send } from "lucide-react";
@@ -53,7 +55,43 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
 
 export default async function DashboardPage() {
   const api = await apiServer();
-  const summary = await api.get<DashboardSummary>("/dashboard/summary");
+  const [summary, me] = await Promise.all([
+    api.get<DashboardSummary>("/dashboard/summary"),
+    api.get<AuthenticatedUser>("/auth/me"),
+  ]);
+
+  // Logistics companies (Phase 2) work appointed shipments, not the market.
+  if (me.membership && isLogisticsCompanyType(me.membership.companyType)) {
+    const shipments = await api.get<{ total: number }>("/shipments?page=1&pageSize=1");
+    const c = summary.company;
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Dashboard" description="Your appointed shipments at a glance.">
+          <DashboardRefresh />
+        </PageHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href="/shipments">
+              <Search className="size-3.5" /> Open shipments workspace
+            </Link>
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Active appointments" value={shipments.total} href="/shipments" />
+          <Stat
+            label="Expiring documents (30d)"
+            value={c?.expiringDocuments ?? 0}
+            href="/company/verification"
+          />
+          <Stat
+            label="Unread notifications"
+            value={c?.unreadNotifications ?? 0}
+            href="/notifications"
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (summary.scope === "platform" && summary.platform) {
     const p = summary.platform;

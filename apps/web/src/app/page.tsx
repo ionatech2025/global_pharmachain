@@ -39,7 +39,7 @@ const NAV_LINKS = [
 ];
 
 const STATS = [
-  { value: "6", label: "Forward-only shipment stages, each with notes and ETAs" },
+  { value: "13", label: "Forward-only shipment stages, from confirmation to the door" },
   { value: "100%", label: "Of actions recorded on the immutable audit trail" },
   { value: "9", label: "Display currencies across one global marketplace" },
   { value: "0", label: "Email chains or spreadsheets needed per deal" },
@@ -61,6 +61,11 @@ const AUDIENCES = [
     title: "Suppliers & distributors",
     body: "Quote fast, win orders and keep buyers updated at every stage — from factory gate to the door.",
   },
+  {
+    icon: Truck,
+    title: "Logistics partners",
+    body: "Forwarders, clearing agents and transporters run appointed shipments — customs documents, GPS tracking and proof of delivery in one place.",
+  },
 ];
 
 const FEATURES = [
@@ -80,7 +85,7 @@ const FEATURES = [
     icon: Truck,
     tag: "Logistics",
     title: "Shipment tracking",
-    body: "Six forward-only stages with notes and ETAs; the buyer is notified on every transition.",
+    body: "Thirteen forward-only stages with GPS checkpoints and proof of delivery; every party is notified on each transition.",
   },
   {
     icon: FileText,
@@ -279,7 +284,7 @@ export default async function LandingPage() {
                   on any continent.
                 </p>
               </div>
-              <div className="mt-12 grid gap-4 md:grid-cols-3">
+              <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {AUDIENCES.map((audience) => (
                   <div
                     key={audience.title}

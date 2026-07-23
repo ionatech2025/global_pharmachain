@@ -62,10 +62,18 @@ export class MessagingService {
 
   async lookupOrCreateThread(membership: Membership, lookup: ThreadLookup) {
     const parties = await this.resolveParties(membership, lookup);
-    if (
-      parties.buyerCompanyId !== membership.companyId &&
-      parties.supplierCompanyId !== membership.companyId
-    ) {
+    const isPairwiseParty =
+      parties.buyerCompanyId === membership.companyId ||
+      parties.supplierCompanyId === membership.companyId;
+    // Appointed logistics companies may open the order thread (Phase 2 §2).
+    const isAppointed =
+      !isPairwiseParty &&
+      parties.orderId !== undefined &&
+      (await prisma.shipmentAppointment.findFirst({
+        where: { orderId: parties.orderId, companyId: membership.companyId, status: "ACTIVE" },
+        select: { id: true },
+      })) !== null;
+    if (!isPairwiseParty && !isAppointed) {
       throw forbidden();
     }
 
@@ -91,11 +99,20 @@ export class MessagingService {
         order: { select: { id: true, orderNo: true, title: true } },
       },
     });
-    if (
-      !thread ||
-      (thread.buyerCompanyId !== membership.companyId &&
-        thread.supplierCompanyId !== membership.companyId)
-    ) {
+    if (!thread) throw notFound("Thread not found");
+    const isPairwiseParty =
+      thread.buyerCompanyId === membership.companyId ||
+      thread.supplierCompanyId === membership.companyId;
+    // Phase 2 §2: appointed logistics companies join the ORDER thread so
+    // clearing agents/forwarders can message buyers in shipment context.
+    const isAppointed =
+      !isPairwiseParty &&
+      thread.orderId !== null &&
+      (await prisma.shipmentAppointment.findFirst({
+        where: { orderId: thread.orderId, companyId: membership.companyId, status: "ACTIVE" },
+        select: { id: true },
+      })) !== null;
+    if (!isPairwiseParty && !isAppointed) {
       throw notFound("Thread not found");
     }
     return thread;
@@ -104,7 +121,15 @@ export class MessagingService {
   async listThreads(membership: Membership) {
     return prisma.messageThread.findMany({
       where: {
-        OR: [{ buyerCompanyId: membership.companyId }, { supplierCompanyId: membership.companyId }],
+        OR: [
+          { buyerCompanyId: membership.companyId },
+          { supplierCompanyId: membership.companyId },
+          {
+            order: {
+              appointments: { some: { companyId: membership.companyId, status: "ACTIVE" } },
+            },
+          },
+        ],
       },
       include: {
         buyerCompany: { select: { id: true, name: true } },
@@ -242,16 +267,27 @@ export class MessagingService {
       return message;
     });
 
-    const otherCompanyId =
-      thread.buyerCompanyId === membership.companyId
-        ? thread.supplierCompanyId
-        : thread.buyerCompanyId;
+    // Recipients: the other pairwise party — and on order threads, every
+    // appointed logistics company too (multi-party shipment conversation).
+    const recipientCompanyIds = new Set<string>([thread.buyerCompanyId, thread.supplierCompanyId]);
+    if (thread.orderId) {
+      const appointments = await prisma.shipmentAppointment.findMany({
+        where: { orderId: thread.orderId, status: "ACTIVE" },
+        select: { companyId: true },
+      });
+      for (const a of appointments) recipientCompanyIds.add(a.companyId);
+    }
+    recipientCompanyIds.delete(membership.companyId);
+    const recipients = await prisma.companyUserRole.findMany({
+      where: { companyId: { in: [...recipientCompanyIds] }, user: { status: "ACTIVE" } },
+      select: { userId: true },
+    });
     const context =
       thread.order?.orderNo ?? thread.quotation?.refNo ?? thread.rfq?.refNo ?? "conversation";
     const excerpt = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
     await notify({
-      companyId: otherCompanyId,
+      userIds: recipients.map((r) => r.userId),
       type: "NEW_MESSAGE",
       title: `New message on ${context}`,
       body: `${user.name} (${membership.company.name}): ${excerpt}`,
