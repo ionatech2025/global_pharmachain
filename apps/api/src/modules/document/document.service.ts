@@ -1,10 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import type { DocumentRequestUpload } from "@pharmachain/core";
-import { isVerificationKind, MAX_FILE_SIZE_BYTES } from "@pharmachain/core";
+import { DOCUMENT_KIND_LABELS, isVerificationKind, MAX_FILE_SIZE_BYTES } from "@pharmachain/core";
 import type { Document } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
+import { genericEventEmail } from "@pharmachain/email";
+import { notify } from "@pharmachain/notifications";
 import { recordAudit } from "../../common/audit";
 import { badRequest, forbidden, notFound } from "../../common/errors";
+import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { scanUploadedObject } from "./scan";
 import { buildStorageKey, presignDownload, presignUpload, statObject } from "./storage";
@@ -147,6 +150,39 @@ export class DocumentService {
         },
       );
     }
+    // US-501/606: an order document is shared material — tell the other party
+    // it exists instead of leaving them to discover it on the order page.
+    if (document.orderId) {
+      const order = await prisma.order.findUnique({
+        where: { id: document.orderId },
+        select: { id: true, orderNo: true, buyerCompanyId: true, sellerCompanyId: true },
+      });
+      if (order) {
+        const counterpartId =
+          order.buyerCompanyId === membership.companyId
+            ? order.sellerCompanyId
+            : order.buyerCompanyId;
+        const recipients = await prisma.user.findMany({
+          where: { status: "ACTIVE", membership: { companyId: counterpartId } },
+          select: { id: true },
+        });
+        const kindLabel = DOCUMENT_KIND_LABELS[document.kind] ?? document.kind;
+        await notify({
+          userIds: recipients.map((u) => u.id),
+          type: "DOCUMENT_UPLOADED",
+          title: "Document uploaded",
+          body: `${membership.company.name} added a ${kindLabel} to order ${order.orderNo}.`,
+          href: `/orders/${order.id}`,
+          emailContent: genericEventEmail({
+            title: "New order document",
+            body: `${membership.company.name} uploaded a ${kindLabel} to order ${order.orderNo}.`,
+            url: `${env.APP_URL}/orders/${order.id}`,
+            cta: "Open the order",
+          }),
+          whatsappText: `PharmaChain: new ${kindLabel} on order ${order.orderNo}.`,
+        });
+      }
+    }
     return updated;
   }
 
@@ -241,6 +277,14 @@ export class DocumentService {
       allowed =
         document.order.buyerCompanyId === companyId || document.order.sellerCompanyId === companyId;
       auditAccess = allowed; // non-owner party download (US-903)
+    } else if (document.kind === "COMPANY_LOGO") {
+      // US-301: the logo is a public profile asset — viewable by any
+      // authenticated user once the owning company's profile is live.
+      const owner = await prisma.company.findUnique({
+        where: { id: document.ownerCompanyId },
+        select: { verificationStatus: true, profileStatus: true },
+      });
+      allowed = owner?.verificationStatus === "VERIFIED" && owner?.profileStatus === "PUBLISHED";
     } else if (document.listing && document.kind === "SDS") {
       // US-303: SDS downloadable by any authenticated buyer on a published listing
       allowed =

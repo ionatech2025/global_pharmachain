@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@pharmachain/ui/components/table";
 import { Scale, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,10 +28,14 @@ export interface CompareItem {
   id: string;
   name: string;
   company: string;
+  companyId?: string;
+  verified?: boolean;
   price: string;
   origin: string;
   packaging: string;
   certifications: string;
+  shelfLife?: string;
+  storage?: string;
 }
 
 const KEY = "pharmachain.compare";
@@ -108,17 +113,50 @@ export function CompareTray() {
                 <TableRow>
                   <TableHead>Field</TableHead>
                   {items.map((i) => (
-                    <TableHead key={i.id}>{i.name}</TableHead>
+                    <TableHead key={i.id}>
+                      <span className="flex items-center gap-1">
+                        {i.name}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-5"
+                          aria-label={`Remove ${i.name} from comparison`}
+                          onClick={() => save(load().filter((x) => x.id !== i.id))}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </span>
+                    </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(
                   [
-                    ["Supplier", (i: CompareItem) => i.company],
+                    [
+                      "Supplier",
+                      (i: CompareItem) =>
+                        i.companyId ? (
+                          <Link
+                            href={`/companies/${i.companyId}`}
+                            className="underline-offset-2 hover:underline"
+                          >
+                            {i.company}
+                            {i.verified && (
+                              <Badge variant="success" className="ml-1.5 align-middle">
+                                Verified
+                              </Badge>
+                            )}
+                          </Link>
+                        ) : (
+                          i.company
+                        ),
+                    ],
                     ["Price", (i: CompareItem) => i.price],
                     ["Origin", (i: CompareItem) => i.origin],
                     ["Packaging", (i: CompareItem) => i.packaging],
+                    ["Shelf life", (i: CompareItem) => i.shelfLife || "—"],
+                    ["Storage", (i: CompareItem) => i.storage || "—"],
                     ["Certifications", (i: CompareItem) => i.certifications || "—"],
                   ] as const
                 ).map(([label, pick]) => (

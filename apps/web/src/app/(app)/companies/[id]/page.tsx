@@ -1,3 +1,4 @@
+import { COMPANY_TYPE_LABELS, type CompanyType } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { ShieldCheck } from "lucide-react";
@@ -20,6 +21,7 @@ interface PublicCompany {
   countriesOfOperation: string[];
   displayedCertifications: string[];
   verifiedAt: string | null;
+  logoDocumentId: string | null;
   _count: { listings: number };
 }
 
@@ -35,19 +37,47 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
     throw err;
   }
 
+  // US-301: render the uploaded logo via a short-lived signed URL.
+  let logoUrl: string | null = null;
+  if (company.logoDocumentId) {
+    try {
+      const { url } = await api.get<{ url: string }>(
+        `/documents/${company.logoDocumentId}/download-url`,
+      );
+      logoUrl = url;
+    } catch {
+      logoUrl = null;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader title={company.name} description={company.country}>
-        <Badge variant="success">
-          <ShieldCheck className="size-3" /> Verified
-          {company.verifiedAt ? ` · ${fmtDate(company.verifiedAt)}` : ""}
-        </Badge>
-        {company.subscriptionTier !== "FREEMIUM" && (
-          <Badge variant="warning">
-            {company.subscriptionTier === "FEATURED" ? "Featured supplier" : "Premium supplier"}
-          </Badge>
+      <div className="flex items-start gap-4">
+        {logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={`${company.name} logo`}
+            className="mt-1 size-16 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+          />
         )}
-      </PageHeader>
+        <div className="flex-1">
+          <PageHeader
+            title={company.name}
+            description={`${COMPANY_TYPE_LABELS[company.type as CompanyType] ?? company.type} · ${company.country}`}
+          >
+            <Badge variant="success">
+              <ShieldCheck className="size-3" /> Verified
+              {company.verifiedAt ? ` · ${fmtDate(company.verifiedAt)}` : ""}
+            </Badge>
+            {company.subscriptionTier !== "FREEMIUM" && (
+              <Badge variant="warning">
+                {company.subscriptionTier === "FEATURED" ? "Featured supplier" : "Premium supplier"}
+              </Badge>
+            )}
+          </PageHeader>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>

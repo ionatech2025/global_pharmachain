@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { apiServer } from "@/lib/api/server";
 import type { Paginated, RfqInboxRow } from "@/lib/api/types";
 import { fmtDate, fmtNumber } from "@/lib/format";
@@ -87,23 +88,13 @@ export default async function QuotesPage({
               ))}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Page {result.page} of {result.totalPages} · {result.total} open RFQ(s)
-            </p>
-            <div className="flex gap-2">
-              {result.page > 1 && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/quotes?page=${result.page - 1}`}>Previous</Link>
-                </Button>
-              )}
-              {result.page < result.totalPages && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/quotes?page=${result.page + 1}`}>Next</Link>
-                </Button>
-              )}
-            </div>
-          </div>
+          <PaginationNav
+            page={result.page}
+            totalPages={result.totalPages}
+            total={result.total}
+            noun="open RFQ(s)"
+            basePath="/quotes"
+          />
         </>
       )}
     </div>

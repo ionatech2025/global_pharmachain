@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@pharmachain/ui/components/table";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
@@ -48,6 +48,22 @@ export function CreditRequestPanel({
   const [kind, setKind] = useState<CreditKind>("RFQ");
   const [count, setCount] = useState("5");
   const [busy, setBusy] = useState(false);
+  // US-907: the configured fee is displayed at the point of request.
+  const [fees, setFees] = useState<{ rfq: string; quotation: string; currency: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    api
+      .get<{ rfq: string; quotation: string; currency: string }>("/billing/credit-fees")
+      .then(setFees)
+      .catch(() => setFees(null));
+  }, []);
+  const feePerCredit = fees ? (kind === "RFQ" ? fees.rfq : fees.quotation) : null;
+  const parsedCount = Number.parseInt(count, 10);
+  const feeDue =
+    feePerCredit !== null && Number.isFinite(parsedCount) && parsedCount > 0
+      ? (Number.parseFloat(feePerCredit) * parsedCount).toFixed(2)
+      : null;
 
   async function request(e: React.FormEvent) {
     e.preventDefault();
@@ -105,6 +121,16 @@ export function CreditRequestPanel({
             <Button type="submit" disabled={busy}>
               {busy ? "Submitting…" : "Request credits"}
             </Button>
+            {fees && feeDue && (
+              <p className="w-full text-xs text-muted-foreground">
+                Fee due:{" "}
+                <span className="font-medium text-foreground">
+                  {fmtMoney(feeDue, fees.currency)}
+                </span>{" "}
+                ({fmtMoney(feePerCredit ?? "0", fees.currency)} per credit) — payable off-platform,
+                confirmed by the platform team.
+              </p>
+            )}
           </form>
         )}
 

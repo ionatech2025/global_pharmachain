@@ -1,6 +1,6 @@
 "use client";
 
-import { CURRENCIES } from "@pharmachain/core";
+import { CURRENCIES, type ParamType, validateParamValue } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
@@ -56,33 +56,56 @@ export function ParametersPanel({ parameters }: { parameters: SystemParameterRow
         <CardTitle className="text-sm">System parameters</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {parameters.map((param) => (
-          <div key={param.key} className="flex flex-wrap items-center gap-2">
-            <div className="min-w-64 flex-1">
-              <p className="font-mono text-xs font-medium">{param.key}</p>
-              <p className="text-xs text-muted-foreground">
-                {param.description} ({param.type})
-              </p>
+        {parameters.map((param) => {
+          const draft = drafts[param.key];
+          // US-904: invalid values are rejected inline, before the server sees them.
+          const invalid =
+            draft !== undefined &&
+            draft !== param.value &&
+            !validateParamValue(param.type as ParamType, draft);
+          return (
+            <div key={param.key} className="flex flex-wrap items-center gap-2">
+              <div className="min-w-64 flex-1">
+                <p className="font-mono text-xs font-medium">{param.key}</p>
+                <p className="text-xs text-muted-foreground">
+                  {param.description} ({param.type})
+                </p>
+              </div>
+              <div className="grid gap-1">
+                <Input
+                  className="w-40"
+                  inputMode={param.type === "currency" ? "text" : "numeric"}
+                  aria-invalid={invalid || undefined}
+                  aria-label={`Value for ${param.key}`}
+                  value={draft ?? param.value}
+                  onChange={(e) => setDrafts((prev) => ({ ...prev, [param.key]: e.target.value }))}
+                />
+                {invalid && (
+                  <p className="text-xs text-destructive">
+                    {param.type === "currency"
+                      ? "Three-letter ISO code, e.g. USD"
+                      : param.type === "csv-int"
+                        ? "Comma-separated positive integers, e.g. 60,30,7"
+                        : "Must be a non-negative number"}
+                  </p>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  busyKey === param.key ||
+                  drafts[param.key] === undefined ||
+                  drafts[param.key] === param.value ||
+                  invalid
+                }
+                onClick={() => save(param)}
+              >
+                Save
+              </Button>
             </div>
-            <Input
-              className="w-40"
-              value={drafts[param.key] ?? param.value}
-              onChange={(e) => setDrafts((prev) => ({ ...prev, [param.key]: e.target.value }))}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={
-                busyKey === param.key ||
-                drafts[param.key] === undefined ||
-                drafts[param.key] === param.value
-              }
-              onClick={() => save(param)}
-            >
-              Save
-            </Button>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

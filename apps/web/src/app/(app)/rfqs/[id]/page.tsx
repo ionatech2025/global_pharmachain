@@ -90,7 +90,13 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="lg:col-span-2">
           {rfq.viewerIsBuyer ? (
-            <BuyerQuotations rfqId={rfq.id} rfqStatus={rfq.status} initial={quotations} />
+            <BuyerQuotations
+              rfqId={rfq.id}
+              rfqStatus={rfq.status}
+              quantity={rfq.quantity}
+              unit={rfq.unit}
+              initial={quotations}
+            />
           ) : (
             <SupplierQuotePanel rfq={rfq} />
           )}

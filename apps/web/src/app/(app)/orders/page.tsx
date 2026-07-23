@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { OrderStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { OrderRow, Paginated } from "@/lib/api/types";
@@ -101,9 +102,14 @@ export default async function OrdersPage({
               ))}
             </TableBody>
           </Table>
-          <p className="text-xs text-muted-foreground">
-            Page {orders.page} of {orders.totalPages} · {orders.total} order(s)
-          </p>
+          <PaginationNav
+            page={orders.page}
+            totalPages={orders.totalPages}
+            total={orders.total}
+            noun="order(s)"
+            basePath="/orders"
+            params={{ role: params.role }}
+          />
         </>
       )}
     </div>

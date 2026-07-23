@@ -60,6 +60,7 @@ test.describe("Register flow (creates real data)", () => {
     await page.getByLabel("Country").fill("Uganda");
     await page.getByLabel("Registration number").fill(`RT-${tag}`);
     await page.getByLabel("Registered address").fill("1 Verification Way, Kampala");
+    await page.getByLabel("Contact phone").fill("+256700000001");
     await page.getByLabel("Full name").fill("Route Tester");
     await page.getByLabel("Work email").fill(`route.${tag.toLowerCase()}@example.com`);
     await page.getByLabel("Password").fill("Route-Test-Pass-1");

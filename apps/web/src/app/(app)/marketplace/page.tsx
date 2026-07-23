@@ -13,6 +13,7 @@ import Link from "next/link";
 import { CompareButton, CompareTray } from "@/components/compare";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { apiServer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
 import { convertedPrices, fmtMoney } from "@/lib/format";
@@ -189,6 +190,10 @@ export default async function MarketplacePage({
                         origin: l.countryOfOrigin,
                         packaging: `${l.packagingType} · ${l.packSize}`,
                         certifications: l.certifications.join(", "),
+                        companyId: l.company?.id,
+                        verified: true,
+                        shelfLife: l.shelfLifeMonths ? `${l.shelfLifeMonths} months` : undefined,
+                        storage: l.storageConditions ?? undefined,
                       }}
                     />
                   </TableCell>
@@ -196,9 +201,20 @@ export default async function MarketplacePage({
               ))}
             </TableBody>
           </Table>
-          <p className="text-xs text-muted-foreground">
-            Page {results.page} of {results.totalPages} · {results.total} listing(s)
-          </p>
+          <PaginationNav
+            page={results.page}
+            totalPages={results.totalPages}
+            total={results.total}
+            noun="listing(s)"
+            basePath="/marketplace"
+            params={{
+              q: params.q,
+              categoryId: params.categoryId,
+              kind: params.kind,
+              country: params.country,
+              sort: params.sort,
+            }}
+          />
         </>
       )}
       <CompareTray />

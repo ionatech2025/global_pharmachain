@@ -16,7 +16,8 @@ export const registerSchema = z.object({
     country: z.string().min(2).max(56),
     registrationNumber: z.string().min(2).max(64),
     address: z.string().min(4).max(240),
-    contactPhone: z.string().max(32).optional(),
+    // US-101 lists Phone among the captured registration fields.
+    contactPhone: z.string().min(7, "At least 7 digits").max(32),
   }),
   admin: z.object({
     name: z.string().min(2).max(80),
