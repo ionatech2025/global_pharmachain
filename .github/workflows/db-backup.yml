@@ -22,7 +22,10 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: |
-          pg_dump --format=custom --no-owner --file=/tmp/pharmachain.dump "$DATABASE_URL"
+          # --no-owner/--no-acl: the dump must restore into any vanilla
+          # Postgres; Neon-managed roles (cloud_admin, neon_superuser) and
+          # their default-privilege grants don't exist outside Neon.
+          pg_dump --format=custom --no-owner --no-acl --file=/tmp/pharmachain.dump "$DATABASE_URL"
           ls -l /tmp/pharmachain.dump
       - name: Encrypt dump
         env:
