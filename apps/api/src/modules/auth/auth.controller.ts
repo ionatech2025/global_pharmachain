@@ -26,6 +26,10 @@ const loginBodySchema = z.object({
     .string()
     .regex(/^\d{6}$/)
     .optional(),
+  totpCode: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
 });
 type LoginBody = z.infer<typeof loginBodySchema>;
 
@@ -114,6 +118,44 @@ export class AuthController {
   ) {
     await this.authService.changePassword(user.id, body.currentPassword, body.newPassword);
     setAudit(req, { action: "user.password-change", entityType: "User", entityId: user.id });
+    return { ok: true };
+  }
+
+  @HttpCode(200)
+  @Post("me/totp/setup")
+  setupTotp(@CurrentUser() user: AuthUser) {
+    return this.authService.setupTotp(user.id);
+  }
+
+  @HttpCode(200)
+  @Post("me/totp/enable")
+  async enableTotp(
+    @CurrentUser() user: AuthUser,
+    @Body(zodPipe(z.object({ code: z.string().regex(/^\d{6}$/) }))) body: { code: string },
+    @Req() req: FastifyRequest,
+  ) {
+    await this.authService.enableTotp(user.id, body.code);
+    setAudit(req, { action: "user.totp-enable", entityType: "User", entityId: user.id });
+    return { ok: true };
+  }
+
+  @HttpCode(200)
+  @Post("me/totp/disable")
+  async disableTotp(
+    @CurrentUser() user: AuthUser,
+    @Body(
+      zodPipe(
+        z.object({
+          password: z.string().min(1).max(72),
+          code: z.string().regex(/^\d{6}$/),
+        }),
+      ),
+    )
+    body: { password: string; code: string },
+    @Req() req: FastifyRequest,
+  ) {
+    await this.authService.disableTotp(user.id, body.password, body.code);
+    setAudit(req, { action: "user.totp-disable", entityType: "User", entityId: user.id });
     return { ok: true };
   }
 

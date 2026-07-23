@@ -54,11 +54,19 @@ export function createAuthConfig(opts: { apiUrl: string }): NextAuthConfig {
       Credentials({
         id: "credentials",
         name: "Email and password",
-        credentials: { email: {}, password: {} },
+        credentials: { email: {}, password: {}, totpCode: {} },
         authorize: async (credentials, request) => {
-          const { email, password } = credentials as { email?: string; password?: string };
+          const { email, password, totpCode } = credentials as {
+            email?: string;
+            password?: string;
+            totpCode?: string;
+          };
           if (!email || !password) return null;
-          return verifyWithApi(opts.apiUrl, { email, password }, request);
+          return verifyWithApi(
+            opts.apiUrl,
+            totpCode ? { email, password, totpCode } : { email, password },
+            request,
+          );
         },
       }),
       Credentials({

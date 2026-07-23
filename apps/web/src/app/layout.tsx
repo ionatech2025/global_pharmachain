@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/providers";
 import { ServiceWorker } from "@/components/service-worker";
 
 // Self-hosted via next/font: same-origin, preloaded, size-adjusted fallback —
@@ -60,7 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${fontSans.variable} ${fontMono.variable}`}
     >
       <body className="min-h-screen font-sans antialiased">
-        <Providers>{children}</Providers>
+        {children}
         <ServiceWorker />
       </body>
     </html>

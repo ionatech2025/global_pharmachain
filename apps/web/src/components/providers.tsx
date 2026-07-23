@@ -6,7 +6,14 @@ import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { ApiClientError } from "@/lib/api/http";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode;
+  /** CSP nonce for next-themes' inline bootstrap script (set on CSP'd routes). */
+  nonce?: string;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -27,7 +34,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      nonce={nonce}
+    >
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster richColors position="top-right" />

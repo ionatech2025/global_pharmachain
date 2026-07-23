@@ -16,7 +16,7 @@ import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
-import { errorMessage } from "@/lib/api/http";
+import { ApiClientError, errorMessage } from "@/lib/api/http";
 
 function LoginForm() {
   const router = useRouter();
@@ -26,6 +26,10 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  // Second factor: revealed only after the API answers TOTP_REQUIRED for a
+  // correct password (deferred item: TOTP 2FA).
+  const [totpNeeded, setTotpNeeded] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function requestOtp() {
@@ -47,10 +51,29 @@ function LoginForm() {
     try {
       const result =
         mode === "password"
-          ? await signIn("credentials", { email, password, redirect: false })
+          ? await signIn("credentials", {
+              email,
+              password,
+              ...(totpNeeded ? { totpCode } : {}),
+              redirect: false,
+            })
           : await signIn("otp", { email, otp, redirect: false });
       if (result?.error) {
-        toast.error("Invalid email or password");
+        // Only a FAILED sign-in pays for a probe: it distinguishes "second
+        // factor needed" from bad credentials without doubling the API calls
+        // of every ordinary login.
+        if (mode === "password" && !totpNeeded) {
+          try {
+            await api.post("/auth/login", { email, password });
+          } catch (err) {
+            if (err instanceof ApiClientError && err.code === "TOTP_REQUIRED") {
+              setTotpNeeded(true);
+              toast.info("Enter the 6-digit code from your authenticator app");
+              return;
+            }
+          }
+        }
+        toast.error(totpNeeded ? "Invalid verification code" : "Invalid email or password");
         return;
       }
       router.push("/dashboard");
@@ -113,6 +136,22 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              {totpNeeded && (
+                <div className="mt-2 grid gap-2">
+                  <Label htmlFor="totpCode">Authenticator code</Label>
+                  <Input
+                    id="totpCode"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    required
+                    autoComplete="one-time-code"
+                    placeholder="6-digit code"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid gap-2">

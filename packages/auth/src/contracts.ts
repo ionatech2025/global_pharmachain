@@ -13,6 +13,7 @@ export interface AuthenticatedUser {
   name: string;
   isSuperAdmin: boolean;
   sessionVersion: number;
+  totpEnabled?: boolean;
   membership: {
     companyId: string;
     companyName: string;

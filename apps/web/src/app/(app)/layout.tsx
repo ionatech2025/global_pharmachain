@@ -1,7 +1,9 @@
 import type { AuthenticatedUser } from "@pharmachain/auth";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { AppShell } from "@/components/app-shell";
+import { Providers } from "@/components/providers";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
 import type { AnnouncementRow } from "@/lib/api/types";
@@ -10,6 +12,7 @@ import type { AnnouncementRow } from "@/lib/api/types";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session) redirect("/login");
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   const api = await apiServer();
   try {
@@ -19,9 +22,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       api.get<AnnouncementRow[]>("/announcements/active"),
     ]);
     return (
-      <AppShell me={me} announcements={announcements}>
-        {children}
-      </AppShell>
+      <Providers nonce={nonce}>
+        <AppShell me={me} announcements={announcements}>
+          {children}
+        </AppShell>
+      </Providers>
     );
   } catch (err) {
     if (err instanceof ApiClientError && err.status === 401) {

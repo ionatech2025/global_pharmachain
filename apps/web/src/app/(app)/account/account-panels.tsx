@@ -246,12 +246,150 @@ function DataPrivacyCard() {
   );
 }
 
-export function AccountPanels() {
+export function AccountPanels({ totpEnabled }: { totpEnabled: boolean }) {
   return (
     <div className="space-y-4">
       <ChangePasswordCard />
+      <TotpCard initiallyEnabled={totpEnabled} />
       <WhatsappCard />
       <DataPrivacyCard />
     </div>
+  );
+}
+
+/** TOTP second factor (deferred item): setup → confirm a live code → enabled;
+ *  disabling requires password + a current code. */
+function TotpCard({ initiallyEnabled }: { initiallyEnabled: boolean }) {
+  const [enabled, setEnabled] = useState(initiallyEnabled);
+  const [setup, setSetup] = useState<{ secret: string; otpauth: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function startSetup() {
+    setBusy(true);
+    try {
+      setSetup(await api.post<{ secret: string; otpauth: string }>("/auth/me/totp/setup"));
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enable(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/auth/me/totp/enable", { code });
+      setEnabled(true);
+      setSetup(null);
+      setCode("");
+      toast.success("Two-factor authentication is on — you'll be asked for a code at sign-in");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disable(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/auth/me/totp/disable", { password, code });
+      setEnabled(false);
+      setPassword("");
+      setCode("");
+      toast.success("Two-factor authentication is off");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Two-factor authentication</CardTitle>
+        <CardDescription>
+          {enabled
+            ? "On — sign-in asks for a 6-digit code from your authenticator app."
+            : "Add a 6-digit authenticator code on top of your password."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!enabled && !setup && (
+          <Button onClick={startSetup} disabled={busy}>
+            {busy ? "Preparing…" : "Set up authenticator"}
+          </Button>
+        )}
+        {!enabled && setup && (
+          <form onSubmit={enable} className="grid gap-3">
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">1. Add PharmaChain to your authenticator app</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter this key manually (Google Authenticator, 1Password, Authy…):
+              </p>
+              <code className="mt-1 block break-all text-xs select-all">{setup.secret}</code>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Or paste the full URI: <code className="break-all select-all">{setup.otpauth}</code>
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-40">
+                <Label htmlFor="totp-enable-code">2. Enter the current code</Label>
+                <Input
+                  id="totp-enable-code"
+                  className="mt-1"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={busy || code.length !== 6}>
+                Turn on
+              </Button>
+            </div>
+          </form>
+        )}
+        {enabled && (
+          <form onSubmit={disable} className="flex flex-wrap items-end gap-2">
+            <div className="min-w-44 flex-1">
+              <Label htmlFor="totp-disable-password">Password</Label>
+              <Input
+                id="totp-disable-password"
+                className="mt-1"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="w-36">
+              <Label htmlFor="totp-disable-code">Current code</Label>
+              <Input
+                id="totp-disable-code"
+                className="mt-1"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </div>
+            <Button type="submit" variant="destructive" disabled={busy}>
+              Turn off
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -9,6 +9,7 @@ import { ApiException, badRequest, conflict, forbidden, unauthorized } from "../
 import { env } from "../../env";
 import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
 import { hashPassword, verifyPassword } from "../../lib/password";
+import { generateTotpSecret, otpauthUri, verifyTotp } from "../../lib/totp";
 import { sendEmailTo } from "../shared/mailer";
 import { issueOtp, verifyOtp } from "./otp";
 
@@ -24,6 +25,7 @@ export interface LoginInput {
   email: string;
   password?: string;
   otp?: string;
+  totpCode?: string;
   ip?: string;
   userAgent?: string;
 }
@@ -41,6 +43,7 @@ export class AuthService {
       name: user.name,
       isSuperAdmin: user.isSuperAdmin,
       sessionVersion: user.sessionVersion,
+      totpEnabled: Boolean(user.totpEnabledAt),
       membership: user.membership
         ? {
             companyId: user.membership.companyId,
@@ -145,6 +148,25 @@ export class AuthService {
       }
     }
 
+    // Second factor (deferred item: TOTP 2FA). The challenge response is not
+    // a failed attempt — the password was right — so it is thrown before the
+    // activity insert and never feeds the lockout counter. A WRONG code is a
+    // real failure and counts.
+    let totpFailed = false;
+    if (success && user?.totpEnabledAt && user.totpSecret) {
+      if (!input.totpCode) {
+        throw new ApiException(
+          401,
+          "TOTP_REQUIRED",
+          "Enter the 6-digit code from your authenticator app",
+        );
+      }
+      if (!verifyTotp(user.totpSecret, input.totpCode)) {
+        success = false;
+        totpFailed = true;
+      }
+    }
+
     await prisma.loginActivity.create({
       data: {
         userId: user?.id,
@@ -156,8 +178,12 @@ export class AuthService {
       },
     });
 
-    // Generic error — never reveal which factor failed (US-206)
-    if (!success || !user) throw unauthorized("Invalid email or password");
+    // Generic error — never reveal which factor failed (US-206). The TOTP
+    // stage is only reachable with a correct password, so its message may be
+    // specific.
+    if (!success || !user) {
+      throw unauthorized(totpFailed ? "Invalid verification code" : "Invalid email or password");
+    }
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     return this.buildAuthenticatedUser(user.id);
@@ -371,6 +397,41 @@ export class AuthService {
         entityId: request.id,
       },
     );
+  }
+
+  // ─── TOTP second factor (deferred item) ────────────────────────────────────
+
+  async setupTotp(userId: string): Promise<{ secret: string; otpauth: string }> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.totpEnabledAt) throw conflict("Two-factor authentication is already enabled");
+    const secret = generateTotpSecret();
+    // Pending until enableTotp proves the authenticator produces valid codes.
+    await prisma.user.update({ where: { id: userId }, data: { totpSecret: secret } });
+    return { secret, otpauth: otpauthUri(secret, user.email) };
+  }
+
+  async enableTotp(userId: string, code: string): Promise<void> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.totpEnabledAt) throw conflict("Two-factor authentication is already enabled");
+    if (!user.totpSecret) throw badRequest("Start setup first");
+    if (!verifyTotp(user.totpSecret, code)) throw badRequest("That code doesn't match — try again");
+    await prisma.user.update({ where: { id: userId }, data: { totpEnabledAt: new Date() } });
+  }
+
+  async disableTotp(userId: string, password: string, code: string): Promise<void> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.totpEnabledAt || !user.totpSecret) {
+      throw badRequest("Two-factor authentication is not enabled");
+    }
+    // Both factors again: a hijacked session alone must not be able to strip 2FA.
+    if (!user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
+      throw unauthorized("Invalid password");
+    }
+    if (!verifyTotp(user.totpSecret, code)) throw unauthorized("Invalid verification code");
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totpSecret: null, totpEnabledAt: null },
+    });
   }
 
   async setWhatsappNumber(userId: string, number: string): Promise<void> {
