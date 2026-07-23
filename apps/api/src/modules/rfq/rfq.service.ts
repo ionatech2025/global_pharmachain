@@ -452,6 +452,33 @@ export class RfqService {
       throw conflict(`An RFQ in status ${quotation.rfq.status} cannot be awarded`);
     }
 
+    // Phase 2 §2: detect hazard-classified goods (GHS on the seller's
+    // matching catalogue listings) and phyto-relevant categories at order
+    // creation — they drive the DGD / Phytosanitary Certificate prompts on
+    // the shipment document checklist.
+    const matchingListings = await prisma.listing.findMany({
+      where: {
+        companyId: quotation.supplierCompanyId,
+        status: { not: "DEACTIVATED" },
+        ...(quotation.rfq.categoryId ? { categoryId: quotation.rfq.categoryId } : {}),
+      },
+      select: {
+        ghsClassification: true,
+        category: { select: { slug: true, name: true } },
+      },
+      take: 25,
+    });
+    const dangerousGoods = matchingListings.some(
+      (l) => l.ghsClassification && l.ghsClassification.trim().length > 0,
+    );
+    const PHYTO_PATTERN = /herbal|botanic|plant|phyto/i;
+    const phytoRequired =
+      PHYTO_PATTERN.test(quotation.rfq.title) ||
+      matchingListings.some(
+        (l) =>
+          PHYTO_PATTERN.test(l.category?.slug ?? "") || PHYTO_PATTERN.test(l.category?.name ?? ""),
+      );
+
     const order = await prisma.$transaction(async (tx) => {
       // Conditional transition — safe under concurrent accept attempts
       const rfqUpdate = await tx.rfq.updateMany({
@@ -474,6 +501,8 @@ export class RfqService {
           unitPrice: quotation.unitPrice,
           currency: quotation.currency,
           totalAmount: quotation.totalPrice,
+          dangerousGoods,
+          phytoRequired,
         },
       });
       await tx.orderStatusEvent.create({

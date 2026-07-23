@@ -1,10 +1,15 @@
 import type { AuthenticatedUser } from "@pharmachain/auth";
 import {
   DOCUMENT_KIND_LABELS,
+  type DocumentKind,
+  FREIGHT_MODE_LABELS,
+  LOGISTICS_ROLE_LABELS,
   ORDER_DOCUMENT_KINDS,
   ORDER_STATUS_LABELS,
   ORDER_STATUSES,
   orderStatusIndex,
+  SHIPMENT_EXCEPTION_LABELS,
+  type ShipmentException,
 } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import {
@@ -15,7 +20,7 @@ import {
   CardTitle,
 } from "@pharmachain/ui/components/card";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { Check } from "lucide-react";
+import { Check, Snowflake } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
@@ -26,6 +31,16 @@ import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
 import type { DocumentRow, OrderDetail } from "@/lib/api/types";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNumber } from "@/lib/format";
+import {
+  AppointPartnerButton,
+  DisputeButtons,
+  DisputeList,
+  ExceptionButton,
+  FreightButton,
+  LocationsCard,
+  PodButton,
+  RevokeAppointmentButton,
+} from "./logistics-panels";
 import { EtaButton, MessageCounterpartyButton, StatusUpdateButton } from "./panels";
 
 export const metadata = { title: "Order" };
@@ -104,7 +119,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     api.get<DocumentRow[]>(`/orders/${id}/documents`),
     api.get<AuthenticatedUser>("/auth/me"),
   ]);
-  const canUpdateShipment = order.viewerIsSeller || me.isSuperAdmin;
+  const role = order.viewerRole;
+  // Phase 2 §1–3: seller + forwarder run the lifecycle; transporter and
+  // clearing agent drive their own legs; buyer confirms final receipt.
+  const canUpdateShipment =
+    role === "seller" ||
+    role === "admin" ||
+    role === "FORWARDER" ||
+    role === "TRANSPORTER" ||
+    role === "CLEARING_AGENT" ||
+    (role === "buyer" && order.status === "DELIVERED");
+  const canManageFreight = role === "seller" || role === "FORWARDER" || role === "admin";
+  const canRecordLocation =
+    role === "seller" || role === "FORWARDER" || role === "TRANSPORTER" || role === "admin";
+  const canCapturePod =
+    !order.pod &&
+    canRecordLocation &&
+    ["OUT_FOR_DELIVERY", "DELIVERED", "DELIVERY_CONFIRMED"].includes(order.status);
   const counterparty = order.viewerIsSeller ? order.buyerCompany : order.sellerCompany;
   const lastEvent = order.statusEvents[0];
   // Earliest event per stage = the date each checkpoint was reached.
@@ -113,12 +144,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     if (!reachedAt[event.status]) reachedAt[event.status] = event.createdAt;
   }
   const delayed = order.eta
-    ? new Date(order.eta) < new Date() && order.status !== "DELIVERED"
+    ? new Date(order.eta) < new Date() &&
+      order.status !== "DELIVERED" &&
+      order.status !== "DELIVERY_CONFIRMED"
     : false;
   const documentsByKind = ORDER_DOCUMENT_KINDS.map((kind) => ({
     kind,
     docs: documents.filter((d) => d.kind === kind),
   })).filter((g) => g.docs.length > 0);
+  const podPhotoDocs = documents
+    .filter((d) => d.kind === "PROOF_OF_DELIVERY_PHOTO" && d.status === "ACTIVE")
+    .map((d) => ({ id: d.id, fileName: d.fileName }));
+  const missingDocs = order.documentChecklist.filter((c) => !c.present);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -127,9 +164,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         description={`${order.title} · from RFQ ${order.rfq.refNo}`}
       >
         <div className="flex items-center gap-2">
+          {order.coldChain && (
+            <Badge variant="info">
+              <Snowflake className="size-3" /> Cold chain
+            </Badge>
+          )}
           <OrderStatusBadge status={order.status} />
-          {(order.viewerIsBuyer || order.viewerIsSeller) && (
-            <MessageCounterpartyButton orderId={order.id} counterpartyName={counterparty.name} />
+          {role !== "admin" && (
+            <MessageCounterpartyButton
+              orderId={order.id}
+              counterpartyName={order.viewerIsBuyer ? counterparty.name : order.buyerCompany.name}
+            />
           )}
         </div>
       </PageHeader>
@@ -141,22 +186,158 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <CardDescription className="flex flex-wrap items-center gap-1.5">
               <span>
                 {order.eta ? `ETA ${fmtDate(order.eta)}` : "ETA not yet available"}
+                {order.freightMode ? ` · ${FREIGHT_MODE_LABELS[order.freightMode]}` : ""}
                 {lastEvent ? ` · last updated ${fmtDateTime(lastEvent.createdAt)}` : ""}
               </span>
               {delayed && <Badge variant="destructive">Past ETA</Badge>}
             </CardDescription>
           </div>
-          {canUpdateShipment && (
-            <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            {canManageFreight && <FreightButton order={order} />}
+            {(role === "seller" || role === "FORWARDER" || role === "admin") && (
               <EtaButton order={order} />
+            )}
+            {role !== "buyer" && role !== "admin" && <ExceptionButton orderId={order.id} />}
+            {canUpdateShipment && (
               <StatusUpdateButton order={order} isSuperAdmin={me.isSuperAdmin} />
-            </div>
-          )}
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <ShipmentTracker status={order.status} reachedAt={reachedAt} />
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Logistics partners (Phase 2 §2) */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm">Logistics partners</CardTitle>
+              <CardDescription>
+                Appointed by the buyer; each partner sees exactly this shipment.
+              </CardDescription>
+            </div>
+            {order.viewerIsBuyer && <AppointPartnerButton orderId={order.id} />}
+          </CardHeader>
+          <CardContent>
+            {order.appointments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No forwarder, clearing agent or transporter appointed yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {order.appointments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                    <div>
+                      <p className="font-medium">{a.company.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {LOGISTICS_ROLE_LABELS[a.role]} · since {fmtDate(a.createdAt)}
+                      </p>
+                    </div>
+                    {order.viewerIsBuyer && (
+                      <RevokeAppointmentButton orderId={order.id} appointment={a} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Document checklist (Phase 2 §2) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Shipment document checklist</CardTitle>
+            <CardDescription>
+              {order.dangerousGoods
+                ? "Hazard-classified goods detected — a Dangerous Goods Declaration is required."
+                : order.phytoRequired
+                  ? "This category requires a Phytosanitary Certificate."
+                  : "Required before customs, based on freight mode and cargo."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-1.5 sm:grid-cols-2">
+              {order.documentChecklist.map((item) => (
+                <li key={item.kind} className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      "flex size-5 items-center justify-center rounded-full border",
+                      item.present
+                        ? "border-success bg-success text-white"
+                        : "border-border text-transparent",
+                    )}
+                  >
+                    <Check className="size-3" />
+                  </span>
+                  <span className={item.present ? "" : "text-muted-foreground"}>
+                    {DOCUMENT_KIND_LABELS[item.kind as DocumentKind] ?? item.kind}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {missingDocs.length > 0 && (
+              <p className="mt-3 text-xs text-warning">
+                {missingDocs.length} document(s) still needed — upload them below.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* GPS tracking + POD (Phase 2 §3) */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Route tracking</CardTitle>
+            <CardDescription>
+              GPS positions on road legs, with historical playback. Updates expected at least every
+              6 hours while moving.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LocationsCard order={order} canRecord={canRecordLocation} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm">Proof of delivery</CardTitle>
+              <CardDescription>Photo and/or signature, captured at the door.</CardDescription>
+            </div>
+            {canCapturePod && <PodButton order={order} photoDocs={podPhotoDocs} />}
+          </CardHeader>
+          <CardContent>
+            {order.pod ? (
+              <div className="space-y-2 text-sm">
+                <p>
+                  Received by <span className="font-medium">{order.pod.signedByName}</span>
+                  {" · "}
+                  {fmtDateTime(order.pod.capturedAt)} · recorded by {order.pod.capturedBy.name}
+                </p>
+                {order.pod.signatureData && (
+                  // biome-ignore lint/performance/noImgElement: inline data-URI signature — next/image adds nothing
+                  <img
+                    src={order.pod.signatureData}
+                    alt={`Signature of ${order.pod.signedByName}`}
+                    className="h-20 rounded-lg border bg-white"
+                  />
+                )}
+                {order.pod.photoDocumentId && (
+                  <DocumentChip id={order.pod.photoDocumentId} fileName="Delivery photo" />
+                )}
+                {order.pod.note && <p className="text-muted-foreground">{order.pod.note}</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Not captured yet — available once the shipment is out for delivery.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -225,9 +406,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </summary>
                 <ol className="mt-3 space-y-3">
                   {[...order.statusEvents].reverse().map((event) => (
-                    <li key={event.id} className="border-l-2 border-border pl-3 text-sm">
+                    <li
+                      key={event.id}
+                      className={cn(
+                        "border-l-2 pl-3 text-sm",
+                        event.exception ? "border-warning" : "border-border",
+                      )}
+                    >
                       <div className="flex flex-wrap items-center gap-2">
-                        <OrderStatusBadge status={event.status} />
+                        {event.exception ? (
+                          <Badge variant="warning">
+                            {SHIPMENT_EXCEPTION_LABELS[event.exception as ShipmentException] ??
+                              event.exception}
+                          </Badge>
+                        ) : (
+                          <OrderStatusBadge status={event.status} />
+                        )}
                         <span className="text-xs text-muted-foreground">
                           {fmtDateTime(event.createdAt)} · {event.actor.name}
                         </span>
@@ -297,6 +491,26 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Exceptions & disputes (Phase 2 §4) */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm">Disputes & complaints</CardTitle>
+            <CardDescription>
+              Formal complaints on this shipment, escalatable to the platform team; the full trail
+              is audited.
+            </CardDescription>
+          </div>
+          {role !== "admin" && <DisputeButtons orderId={order.id} />}
+        </CardHeader>
+        <CardContent>
+          <DisputeList
+            disputes={order.disputes}
+            viewerCompanyId={me.membership?.companyId ?? null}
+          />
         </CardContent>
       </Card>
     </div>

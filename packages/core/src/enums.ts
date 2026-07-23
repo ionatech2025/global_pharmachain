@@ -7,6 +7,9 @@ export const COMPANY_TYPES = [
   "RAW_MATERIAL_MANUFACTURER",
   "FINISHED_PRODUCT_MANUFACTURER",
   "SUPPLIER",
+  "FREIGHT_FORWARDER",
+  "CLEARING_AGENT",
+  "TRANSPORTER",
 ] as const;
 export type CompanyType = (typeof COMPANY_TYPES)[number];
 
@@ -14,7 +17,24 @@ export const COMPANY_TYPE_LABELS: Record<CompanyType, string> = {
   RAW_MATERIAL_MANUFACTURER: "Raw Material Manufacturer",
   FINISHED_PRODUCT_MANUFACTURER: "Finished Product Manufacturer",
   SUPPLIER: "Supplier",
+  FREIGHT_FORWARDER: "Freight Forwarder",
+  CLEARING_AGENT: "Clearing Agent",
+  TRANSPORTER: "Transporter",
 };
+
+// Logistics service providers (Phase 2): they register and verify like any
+// company but operate on shipments they are appointed to, never on the
+// marketplace itself.
+export const LOGISTICS_COMPANY_TYPES = [
+  "FREIGHT_FORWARDER",
+  "CLEARING_AGENT",
+  "TRANSPORTER",
+] as const satisfies readonly CompanyType[];
+export type LogisticsCompanyType = (typeof LOGISTICS_COMPANY_TYPES)[number];
+
+export function isLogisticsCompanyType(type: CompanyType): type is LogisticsCompanyType {
+  return (LOGISTICS_COMPANY_TYPES as readonly string[]).includes(type);
+}
 
 export const VERIFICATION_STATUSES = [
   "PENDING_VERIFICATION",
@@ -77,6 +97,17 @@ export const DOCUMENT_KINDS = [
   "CERTIFICATE_OF_ANALYSIS",
   "QUALITY_CERTIFICATE",
   "SHIPPING_INSTRUCTIONS",
+  // Logistics & customs documents (Phase 2), versioned like everything else
+  "BILL_OF_LADING",
+  "AIR_WAYBILL",
+  "COMMERCIAL_INVOICE",
+  "PACKING_LIST",
+  "CERTIFICATE_OF_ORIGIN",
+  "CUSTOMS_DECLARATION",
+  "DANGEROUS_GOODS_DECLARATION",
+  "PHYTOSANITARY_CERTIFICATE",
+  "TAX_WORKSHEET",
+  "PROOF_OF_DELIVERY_PHOTO",
   // Catalogue / misc
   "SDS",
   "RFQ_ATTACHMENT",
@@ -99,6 +130,16 @@ export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
   CERTIFICATE_OF_ANALYSIS: "Certificate of Analysis",
   QUALITY_CERTIFICATE: "Quality Certificate",
   SHIPPING_INSTRUCTIONS: "Shipping Instructions",
+  BILL_OF_LADING: "Bill of Lading",
+  AIR_WAYBILL: "Air Waybill",
+  COMMERCIAL_INVOICE: "Commercial Invoice",
+  PACKING_LIST: "Packing List",
+  CERTIFICATE_OF_ORIGIN: "Certificate of Origin",
+  CUSTOMS_DECLARATION: "Customs Declaration",
+  DANGEROUS_GOODS_DECLARATION: "Dangerous Goods Declaration",
+  PHYTOSANITARY_CERTIFICATE: "Phytosanitary Certificate",
+  TAX_WORKSHEET: "Tax Worksheet",
+  PROOF_OF_DELIVERY_PHOTO: "Proof of Delivery (photo)",
   SDS: "Safety Data Sheet (SDS/MSDS)",
   RFQ_ATTACHMENT: "RFQ attachment",
   QUOTATION_ATTACHMENT: "Quotation attachment",
@@ -140,13 +181,23 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   ACCEPTED: "Accepted",
 };
 
+// Full 13-stage shipment lifecycle (Phase 2). The Phase 1 six-stage data
+// migrated losslessly: AT_PORT → AT_PORT_OF_DESTINATION (the stage it sat
+// between IN_TRANSIT and DELIVERED), everything else 1:1.
 export const ORDER_STATUSES = [
   "ORDER_CONFIRMED",
   "PICKUP_SCHEDULED",
   "GOODS_COLLECTED",
   "IN_TRANSIT",
-  "AT_PORT",
+  "AT_PORT_OF_ORIGIN",
+  "CUSTOMS_ORIGIN",
+  "DEPARTED",
+  "AT_PORT_OF_DESTINATION",
+  "CUSTOMS_DESTINATION",
+  "INLAND_TRANSPORT",
+  "OUT_FOR_DELIVERY",
   "DELIVERED",
+  "DELIVERY_CONFIRMED",
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
@@ -155,8 +206,62 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PICKUP_SCHEDULED: "Pickup scheduled",
   GOODS_COLLECTED: "Goods collected",
   IN_TRANSIT: "In transit",
-  AT_PORT: "At port",
+  AT_PORT_OF_ORIGIN: "At port of origin",
+  CUSTOMS_ORIGIN: "Customs (origin)",
+  DEPARTED: "Departed",
+  AT_PORT_OF_DESTINATION: "At port of destination",
+  CUSTOMS_DESTINATION: "Customs (destination)",
+  INLAND_TRANSPORT: "Inland transport",
+  OUT_FOR_DELIVERY: "Out for delivery",
   DELIVERED: "Delivered",
+  DELIVERY_CONFIRMED: "Delivery confirmed",
+};
+
+export const FREIGHT_MODES = ["SEA", "AIR", "LAND", "MULTIMODAL"] as const;
+export type FreightMode = (typeof FREIGHT_MODES)[number];
+
+export const FREIGHT_MODE_LABELS: Record<FreightMode, string> = {
+  SEA: "Sea freight",
+  AIR: "Air freight",
+  LAND: "Road / land",
+  MULTIMODAL: "Multimodal",
+};
+
+// Per-shipment appointments a buyer makes (one active per role).
+export const LOGISTICS_ROLES = ["FORWARDER", "CLEARING_AGENT", "TRANSPORTER"] as const;
+export type LogisticsRole = (typeof LOGISTICS_ROLES)[number];
+
+export const LOGISTICS_ROLE_LABELS: Record<LogisticsRole, string> = {
+  FORWARDER: "Freight forwarder",
+  CLEARING_AGENT: "Clearing agent",
+  TRANSPORTER: "Transporter",
+};
+
+export const LOGISTICS_ROLE_COMPANY_TYPE: Record<LogisticsRole, CompanyType> = {
+  FORWARDER: "FREIGHT_FORWARDER",
+  CLEARING_AGENT: "CLEARING_AGENT",
+  TRANSPORTER: "TRANSPORTER",
+};
+
+// Recordable shipment exceptions (Phase 2 alerts engine). They annotate the
+// timeline at the current stage rather than moving it.
+export const SHIPMENT_EXCEPTIONS = ["DELAYED", "CUSTOMS_REJECTED", "DELIVERY_FAILED"] as const;
+export type ShipmentException = (typeof SHIPMENT_EXCEPTIONS)[number];
+
+export const SHIPMENT_EXCEPTION_LABELS: Record<ShipmentException, string> = {
+  DELAYED: "Delay reported",
+  CUSTOMS_REJECTED: "Customs rejection",
+  DELIVERY_FAILED: "Delivery attempt failed",
+};
+
+export const DISPUTE_STATUSES = ["OPEN", "ESCALATED", "RESOLVED", "WITHDRAWN"] as const;
+export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
+
+export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
+  OPEN: "Open",
+  ESCALATED: "Escalated to platform",
+  RESOLVED: "Resolved",
+  WITHDRAWN: "Withdrawn",
 };
 
 export const BOM_STATUSES = ["DRAFT", "ACTIVE", "ARCHIVED"] as const;
@@ -176,6 +281,14 @@ export const NOTIFICATION_TYPES = [
   "TIER_CHANGE",
   "ACCOUNT_UPDATE",
   "DATA_REQUEST",
+  // Phase 2 alerts engine
+  "SHIPMENT_DELAYED",
+  "CUSTOMS_ALERT",
+  "DELIVERY_FAILED",
+  "DOCUMENT_MISSING",
+  "DISPUTE_UPDATE",
+  "APPROVAL_PENDING",
+  "PAYMENT_OVERDUE",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -187,6 +300,11 @@ export const PREFERENCE_EVENT_TYPES = [
   "SHIPMENT_STATUS_CHANGE",
   "DOCUMENT_UPLOADED",
   "DOCUMENT_EXPIRY",
+  "SHIPMENT_DELAYED",
+  "CUSTOMS_ALERT",
+  "DELIVERY_FAILED",
+  "DOCUMENT_MISSING",
+  "DISPUTE_UPDATE",
 ] as const satisfies readonly NotificationType[];
 export type PreferenceEventType = (typeof PREFERENCE_EVENT_TYPES)[number];
 
@@ -197,6 +315,11 @@ export const PREFERENCE_EVENT_LABELS: Record<PreferenceEventType, string> = {
   SHIPMENT_STATUS_CHANGE: "Shipment status changes",
   DOCUMENT_UPLOADED: "Document uploaded to an order",
   DOCUMENT_EXPIRY: "Compliance document expiring",
+  SHIPMENT_DELAYED: "Shipment delayed past ETA",
+  CUSTOMS_ALERT: "Customs alerts and rejections",
+  DELIVERY_FAILED: "Failed delivery attempts",
+  DOCUMENT_MISSING: "Missing shipment documents",
+  DISPUTE_UPDATE: "Dispute and complaint updates",
 };
 
 export const ANNOUNCEMENT_AUDIENCES = ["ALL", "ROLE", "COMPANY"] as const;

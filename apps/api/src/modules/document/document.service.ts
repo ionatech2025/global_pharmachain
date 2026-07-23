@@ -25,7 +25,21 @@ export class DocumentService {
     }
     if (input.orderId) {
       const order = await prisma.order.findUnique({ where: { id: input.orderId } });
-      if (!order || (order.buyerCompanyId !== companyId && order.sellerCompanyId !== companyId)) {
+      // Phase 2 §2: appointed logistics companies (clearing agents uploading
+      // customs declarations, forwarders attaching transport docs) share the
+      // order document space with the two trade parties.
+      const appointed =
+        order &&
+        order.buyerCompanyId !== companyId &&
+        order.sellerCompanyId !== companyId &&
+        (await prisma.shipmentAppointment.findFirst({
+          where: { orderId: order.id, companyId, status: "ACTIVE" },
+          select: { id: true },
+        }));
+      if (
+        !order ||
+        (order.buyerCompanyId !== companyId && order.sellerCompanyId !== companyId && !appointed)
+      ) {
         throw notFound("Order not found");
       }
     }
@@ -150,20 +164,26 @@ export class DocumentService {
         },
       );
     }
-    // US-501/606: an order document is shared material — tell the other party
-    // it exists instead of leaving them to discover it on the order page.
+    // US-501/606: an order document is shared material — tell every OTHER
+    // shipment party (trade parties + appointed logistics companies) it
+    // exists instead of leaving them to discover it on the order page.
     if (document.orderId) {
       const order = await prisma.order.findUnique({
         where: { id: document.orderId },
         select: { id: true, orderNo: true, buyerCompanyId: true, sellerCompanyId: true },
       });
       if (order) {
-        const counterpartId =
-          order.buyerCompanyId === membership.companyId
-            ? order.sellerCompanyId
-            : order.buyerCompanyId;
+        const appointments = await prisma.shipmentAppointment.findMany({
+          where: { orderId: order.id, status: "ACTIVE" },
+          select: { companyId: true },
+        });
+        const partyCompanyIds = [
+          order.buyerCompanyId,
+          order.sellerCompanyId,
+          ...appointments.map((a) => a.companyId),
+        ].filter((id) => id !== membership.companyId);
         const recipients = await prisma.user.findMany({
-          where: { status: "ACTIVE", membership: { companyId: counterpartId } },
+          where: { status: "ACTIVE", membership: { companyId: { in: partyCompanyIds } } },
           select: { id: true },
         });
         const kindLabel = DOCUMENT_KIND_LABELS[document.kind] ?? document.kind;
@@ -219,14 +239,22 @@ export class DocumentService {
     });
   }
 
-  /** Order-scoped document list — both parties see the same set (US-502). */
+  /** Order-scoped document list — both parties and the appointed logistics
+   *  companies see the same set (US-502, Phase 2 §2). */
   async listOrderDocuments(membership: Membership, orderId: string) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
-    if (
-      !order ||
-      (order.buyerCompanyId !== membership.companyId &&
-        order.sellerCompanyId !== membership.companyId)
-    ) {
+    const isParty =
+      order &&
+      (order.buyerCompanyId === membership.companyId ||
+        order.sellerCompanyId === membership.companyId);
+    const appointed =
+      order &&
+      !isParty &&
+      (await prisma.shipmentAppointment.findFirst({
+        where: { orderId, companyId: membership.companyId, status: "ACTIVE" },
+        select: { id: true },
+      }));
+    if (!order || (!isParty && !appointed)) {
       throw notFound("Order not found");
     }
     return prisma.document.findMany({
@@ -275,7 +303,15 @@ export class DocumentService {
       allowed = true;
     } else if (companyId && document.order) {
       allowed =
-        document.order.buyerCompanyId === companyId || document.order.sellerCompanyId === companyId;
+        document.order.buyerCompanyId === companyId ||
+        document.order.sellerCompanyId === companyId ||
+        // Phase 2 §2: appointed logistics companies read the order documents
+        Boolean(
+          await prisma.shipmentAppointment.findFirst({
+            where: { orderId: document.order.id, companyId, status: "ACTIVE" },
+            select: { id: true },
+          }),
+        );
       auditAccess = allowed; // non-owner party download (US-903)
     } else if (document.kind === "COMPANY_LOGO") {
       // US-301: the logo is a public profile asset — viewable by any

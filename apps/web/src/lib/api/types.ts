@@ -106,6 +106,57 @@ export type OrderRow = Jsonify<Order> & {
   rfq: { refNo: string };
 };
 
+export type ShipmentViewerRole =
+  | "buyer"
+  | "seller"
+  | "admin"
+  | "FORWARDER"
+  | "CLEARING_AGENT"
+  | "TRANSPORTER";
+
+export type AppointmentRow = {
+  id: string;
+  role: "FORWARDER" | "CLEARING_AGENT" | "TRANSPORTER";
+  status: string;
+  createdAt: string;
+  company: CompanyRef & { country?: string };
+};
+
+export type DisputeRow = {
+  id: string;
+  orderId: string;
+  subject: string;
+  body: string;
+  legalReference: string | null;
+  status: "OPEN" | "ESCALATED" | "RESOLVED" | "WITHDRAWN";
+  resolution: string | null;
+  createdAt: string;
+  escalatedAt: string | null;
+  resolvedAt: string | null;
+  company: CompanyRef;
+  order?: { id: string; orderNo: string; title: string };
+  raisedBy?: { name: string; email: string };
+};
+
+export type LocationRow = {
+  id: string;
+  lat: string;
+  lng: string;
+  note: string | null;
+  createdAt: string;
+  recordedBy: { name: string };
+};
+
+export type PodRow = {
+  id: string;
+  signedByName: string;
+  signatureData: string | null;
+  photoDocumentId: string | null;
+  note: string | null;
+  capturedAt: string;
+  capturedBy: { name: string };
+};
+
 export type OrderDetail = Jsonify<Order> & {
   buyerCompany: CompanyRef;
   sellerCompany: CompanyRef;
@@ -113,8 +164,23 @@ export type OrderDetail = Jsonify<Order> & {
   quotation: { id: string; refNo: string; leadTimeDays: number; validUntil: string };
   statusEvents: Array<Jsonify<OrderStatusEvent> & { actor: { name: string } }>;
   thread: { id: string } | null;
+  appointments: AppointmentRow[];
+  pod: (PodRow & { capturedBy: { name: string } }) | null;
+  disputes: DisputeRow[];
+  viewerRole: ShipmentViewerRole;
   viewerIsSeller: boolean;
   viewerIsBuyer: boolean;
+  documentChecklist: Array<{ kind: string; present: boolean }>;
+};
+
+export type AppointedShipmentRow = {
+  id: string;
+  role: "FORWARDER" | "CLEARING_AGENT" | "TRANSPORTER";
+  createdAt: string;
+  order: Jsonify<Order> & {
+    buyerCompany: CompanyRef & { country?: string };
+    sellerCompany: CompanyRef & { country?: string };
+  };
 };
 
 export type DocumentRow = Jsonify<Document> & {

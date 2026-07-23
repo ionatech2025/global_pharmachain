@@ -4,6 +4,8 @@ import {
   type OrderStatusUpdate,
   orderEtaSchema,
   orderStatusUpdateSchema,
+  type ShipmentExceptionInput,
+  shipmentExceptionSchema,
 } from "@pharmachain/core";
 import type { FastifyRequest } from "fastify";
 import { CurrentUser, OptionalMembership, RequireCompany, setAudit } from "../../common/decorators";
@@ -41,6 +43,27 @@ export class ShipmentController {
       ...(correction && body.note ? { reason: body.note } : {}),
     });
     return updated;
+  }
+
+  /** Phase 2 §4: delay / customs-rejection / failed-delivery annotations. */
+  @RequireCompany()
+  @HttpCode(201)
+  @Post(":id/exceptions")
+  async recordException(
+    @CurrentUser() user: AuthUser,
+    @OptionalMembership() membership: Membership | undefined,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(shipmentExceptionSchema)) body: ShipmentExceptionInput,
+    @Req() req: FastifyRequest,
+  ) {
+    const event = await this.shipmentService.recordException(user, membership, params.id, body);
+    setAudit(req, {
+      action: "order.exception",
+      entityType: "Order",
+      entityId: params.id,
+      newValues: { kind: body.kind, note: body.note },
+    });
+    return event;
   }
 
   @RequireCompany()

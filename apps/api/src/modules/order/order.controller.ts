@@ -1,5 +1,11 @@
 import { Controller, Get, Param, Query } from "@nestjs/common";
-import { idParamSchema, paginate, paginationQuerySchema, skipTake } from "@pharmachain/core";
+import {
+  idParamSchema,
+  paginate,
+  paginationQuerySchema,
+  requiredShipmentDocKinds,
+  skipTake,
+} from "@pharmachain/core";
 import type { Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { z } from "zod";
@@ -12,6 +18,7 @@ import {
 import { notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
+import { resolveShipmentRole } from "../../lib/shipment-access";
 import { DocumentService } from "../document/document.service";
 
 const orderListQuerySchema = paginationQuerySchema.extend({
@@ -74,18 +81,44 @@ export class OrderController {
           orderBy: { createdAt: "desc" },
         },
         thread: { select: { id: true } },
+        appointments: {
+          where: { status: "ACTIVE" },
+          include: { company: { select: { id: true, name: true, country: true } } },
+        },
+        pod: { include: { capturedBy: { select: { name: true } } } },
+        disputes: {
+          include: { company: { select: { id: true, name: true } } },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
     if (!order) throw notFound("Order not found");
-    const isParty =
-      membership !== undefined &&
-      (order.buyerCompanyId === membership.companyId ||
-        order.sellerCompanyId === membership.companyId);
-    if (!isParty && !user.isSuperAdmin) throw notFound("Order not found");
+    // Phase 2 §2: appointed logistics companies see exactly this shipment.
+    const viewerRole = await resolveShipmentRole(user, membership, order);
+    if (!viewerRole) throw notFound("Order not found");
+
+    // Phase 2 §2: document checklist — which required kinds are present.
+    const requiredKinds = requiredShipmentDocKinds(order);
+    const present = await prisma.document.findMany({
+      where: {
+        orderId: order.id,
+        kind: { in: requiredKinds },
+        status: "ACTIVE",
+        uploadCompletedAt: { not: null },
+      },
+      select: { kind: true },
+      distinct: ["kind"],
+    });
+    const presentKinds = new Set(present.map((d) => d.kind));
     return {
       ...order,
+      viewerRole,
       viewerIsSeller: membership?.companyId === order.sellerCompanyId,
       viewerIsBuyer: membership?.companyId === order.buyerCompanyId,
+      documentChecklist: requiredKinds.map((kind) => ({
+        kind,
+        present: presentKinds.has(kind),
+      })),
     };
   }
 

@@ -22,7 +22,9 @@ import { BomModule } from "./modules/bom/bom.module";
 import { CatalogueModule } from "./modules/catalogue/catalogue.module";
 import { CompanyModule } from "./modules/company/company.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { DisputeModule } from "./modules/dispute/dispute.module";
 import { DocumentModule } from "./modules/document/document.module";
+import { LogisticsModule } from "./modules/logistics/logistics.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { OrderModule } from "./modules/order/order.module";
@@ -46,6 +48,8 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     CatalogueModule,
     RfqModule,
     OrderModule,
+    LogisticsModule,
+    DisputeModule,
     DocumentModule,
     BomModule,
     MessagingModule,
