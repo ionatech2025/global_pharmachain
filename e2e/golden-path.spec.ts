@@ -11,25 +11,64 @@ import { type Browser, expect, type Page, test } from "@playwright/test";
 const BUYER_EMAIL = "ops@nilepharma.demo";
 const SELLER_EMAIL = "ops@kampalafinechem.demo";
 const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1";
+const ADMIN_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "admin-ChangeMe-1";
 
 const RUN_TAG = `E2E-${Date.now().toString(36).toUpperCase()}`;
 const RFQ_TITLE = `Ibuprofen BP (API) — 250 kg ${RUN_TAG}`;
 
-async function signIn(browser: Browser, email: string): Promise<Page> {
+async function signIn(browser: Browser, email: string, password = PASSWORD): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
   return page;
+}
+
+/** Request a paid credit as the company admin, returning the request id. */
+async function requestCredit(
+  browser: Browser,
+  email: string,
+  kind: "RFQ" | "QUOTATION",
+): Promise<string> {
+  const page = await signIn(browser, email);
+  const res = await page.request.post("/api/backend/billing/credit-requests", {
+    data: { kind, count: 2 },
+  });
+  expect(res.ok(), `credit request (${kind}) for ${email}`).toBeTruthy();
+  const body = await res.json();
+  await page.context().close();
+  return body.id as string;
 }
 
 test.describe
   .serial("Phase 1 golden path", () => {
     let rfqUrl: string;
     let orderUrl: string;
+
+    test("credit top-up keeps the demo inside its freemium allowance (US-907)", async ({
+      browser,
+    }) => {
+      // Each run consumes one RFQ and one quotation from the shared demo
+      // companies' monthly freemium allowance, so repeated runs would dry it
+      // up mid-month and fail at "Publish RFQ". Buying credits through the
+      // real US-907 flow is both the fix and a live test of that flow:
+      // company admin requests → PENDING_PAYMENT → super admin confirms →
+      // the current month's limit rises immediately.
+      const rfqCreditId = await requestCredit(browser, "admin@nilepharma.demo", "RFQ");
+      const quoteCreditId = await requestCredit(browser, "admin@kampalafinechem.demo", "QUOTATION");
+
+      const admin = await signIn(browser, "admin@pharmachain.local", ADMIN_PASSWORD);
+      for (const id of [rfqCreditId, quoteCreditId]) {
+        const res = await admin.request.post(`/api/backend/admin/credit-requests/${id}/decide`, {
+          data: { decision: "CONFIRM" },
+        });
+        expect(res.ok(), `confirm credit request ${id}`).toBeTruthy();
+      }
+      await admin.context().close();
+    });
 
     test("buyer signs in and raises an RFQ", async ({ browser }) => {
       const page = await signIn(browser, BUYER_EMAIL);

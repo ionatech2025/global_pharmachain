@@ -66,6 +66,28 @@ test.describe("Register flow (creates real data)", () => {
     await page.getByRole("button", { name: /register company/i }).click();
     await expect(page).toHaveURL(/\/login\?registered=1/, { timeout: 30_000 });
     await page.context().close();
+
+    // Teardown: the registration above is real, so retire it from the
+    // production verification queue with an audited rejection — which also
+    // exercises the US-103 reject path against the deployed stack.
+    const admin = await signIn(browser, "admin@pharmachain.local", ADMIN_PW);
+    const list = await admin.request.get(
+      `/api/backend/admin/companies?q=${encodeURIComponent(`Route Test Pharma ${tag}`)}`,
+    );
+    expect(list.ok()).toBeTruthy();
+    const items = (await list.json()).items ?? [];
+    expect(items).toHaveLength(1);
+    const rejected = await admin.request.post(
+      `/api/backend/admin/companies/${items[0].id}/verify`,
+      {
+        data: {
+          decision: "REJECT",
+          reason: "Automated e2e registration record — not a real company (test cleanup).",
+        },
+      },
+    );
+    expect(rejected.ok()).toBeTruthy();
+    await admin.context().close();
   });
 });
 

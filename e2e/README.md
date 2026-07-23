@@ -32,6 +32,18 @@ seeded demo users (`ops@nilepharma.demo` / `ops@kampalafinechem.demo`,
 password from `SEED_DEMO_PASSWORD`, default per `.env.example`). Set
 `E2E_BASE_URL` to point at a different web origin.
 
+Two suites need extra environment against a deployed stack:
+
+- `E2E_PROXY_SECRET` (= the deployment's `AUTH_SECRET`) lets the throttle
+  spec pin fresh client IPs through the trusted-proxy header the way the web
+  tier does; without it the deterministic throttle test skips (the
+  spoof-rejection test still runs).
+- The golden path tops up the demo companies' freemium allowance through the
+  real US-907 credit flow (company admin requests, super admin confirms), so
+  repeated runs never dry up the monthly RFQ/quotation limits; the register
+  test retires its created company from the verification queue with an
+  audited rejection.
+
 ## Coverage notes
 
 - The flow exercises auth, RBAC-gated navigation, marketplace data, the RFQ
