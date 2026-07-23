@@ -22,7 +22,7 @@ export default async function AccountPage() {
               : ""
         }`}
       />
-      <AccountPanels />
+      <AccountPanels totpEnabled={Boolean(me.totpEnabled)} />
     </div>
   );
 }
