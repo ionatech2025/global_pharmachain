@@ -745,6 +745,19 @@ model DataDeletionRequest {
 
 // Insert-only at the application layer; no update/delete paths exist in the
 // API. For defence in depth, production migrations can additionally
+// Shared rate-limit state for the security-sensitive throttles (login, OTP,
+// register, password reset). In-memory counters are per-instance and therefore
+// ineffective on serverless; long-window limits live here instead. Short-window
+// burst limits stay in-memory by design — see HybridThrottlerStorage.
+model ThrottleBucket {
+  key          String    @id
+  count        Int
+  expiresAt    DateTime
+  blockedUntil DateTime?
+
+  @@index([expiresAt])
+}
+
 // REVOKE UPDATE, DELETE on this table from the app role.
 model AuditLog {
   id          String   @id @default(uuid(7)) @db.Uuid

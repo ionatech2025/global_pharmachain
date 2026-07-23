@@ -11,6 +11,7 @@ import { MembershipGuard } from "./common/guards/membership.guard";
 import { PolicyGuard } from "./common/guards/policy.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+import { HybridThrottlerStorage } from "./common/throttler-storage";
 import { env } from "./env";
 import { JobsModule } from "./jobs/jobs.module";
 import { AdminModule } from "./modules/admin/admin.module";
@@ -29,9 +30,12 @@ import { RfqModule } from "./modules/rfq/rfq.module";
 
 @Module({
   imports: [
-    // Global default rate limit; auth endpoints tighten it per-route.
+    // Global default rate limit; auth endpoints tighten it per-route. Long-window
+    // (security) throttles persist in Postgres so they hold across serverless
+    // instances; the short-window default stays in per-instance memory.
     ThrottlerModule.forRoot({
       throttlers: [{ name: "default", ttl: 60_000, limit: 300 }],
+      storage: new HybridThrottlerStorage(),
     }),
     ScheduleModule.forRoot(),
     // Cron jobs run in-process unless a dedicated worker handles them.

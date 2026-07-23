@@ -84,6 +84,18 @@ export async function runUploadCleanupJob(now = new Date()): Promise<void> {
   logger.info("upload cleanup job done", { removed: ids.length });
 }
 
+/** Drops rate-limit buckets whose window and block have both long passed. */
+export async function runThrottleCleanupJob(now = new Date()): Promise<void> {
+  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const result = await prisma.throttleBucket.deleteMany({
+    where: {
+      expiresAt: { lt: cutoff },
+      OR: [{ blockedUntil: null }, { blockedUntil: { lt: cutoff } }],
+    },
+  });
+  if (result.count > 0) logger.info("throttle cleanup job done", { removed: result.count });
+}
+
 /** Clears consumed/expired short-lived credentials. */
 export async function runTokenCleanupJob(now = new Date()): Promise<void> {
   const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
