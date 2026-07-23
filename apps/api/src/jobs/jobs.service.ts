@@ -3,6 +3,7 @@ import { Cron } from "@nestjs/schedule";
 import { logger } from "../lib/logger";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
+  runDsrSlaJob,
   runQuotationExpiryJob,
   runRfqAutoCloseJob,
   runThrottleCleanupJob,
@@ -53,5 +54,10 @@ export class JobsService {
   @Cron("45 4 * * *", { timeZone: "UTC" })
   throttleCleanup(): Promise<void> {
     return guarded("throttle-cleanup", () => runThrottleCleanupJob());
+  }
+
+  @Cron("15 5 * * *", { timeZone: "UTC" })
+  dsrSla(): Promise<void> {
+    return guarded("dsr-sla", () => runDsrSlaJob());
   }
 }

@@ -95,7 +95,7 @@ export function StatusUpdateButton({
             {isSuperAdmin ? (
               <select
                 id="status"
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as OrderStatus)}
               >

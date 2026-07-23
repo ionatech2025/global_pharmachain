@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
 
 // Defence-in-depth headers on every web route (the API function already sets
-// its own via helmet). Vercel adds HSTS; these cover the rest. No script-src
-// CSP: Next injects inline bootstrap scripts that would need per-request
-// nonces (a middleware concern) — instead we lock down the injection vectors
-// that don't require nonces (framing, object/base, sniffing).
+// its own via helmet). HSTS is set here as well as at the Vercel edge so the
+// policy survives a move to any other host. No script-src CSP: Next injects
+// inline bootstrap scripts that would need per-request nonces (a middleware
+// concern) — instead we lock down the injection vectors that don't require
+// nonces (framing, object/base, sniffing).
 const SECURITY_HEADERS = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

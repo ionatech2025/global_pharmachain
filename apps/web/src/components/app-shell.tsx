@@ -139,7 +139,7 @@ export function AppShell({
         Skip to content
       </a>
 
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 lg:flex">
         <Link href="/dashboard" className="px-4 py-4">
           <Logo markClassName="size-8" />
         </Link>
@@ -148,7 +148,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <header className="glass-nav sticky top-0 z-40 flex h-14 items-center gap-2 rounded-none border-x-0 border-t-0 px-4">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button

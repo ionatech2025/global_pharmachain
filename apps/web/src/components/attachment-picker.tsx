@@ -4,7 +4,7 @@ import type { DocumentKind } from "@pharmachain/core";
 import { ALLOWED_MIMES, MAX_FILE_SIZE_BYTES } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Input } from "@pharmachain/ui/components/input";
-import { Paperclip, X } from "lucide-react";
+import { AlertCircle, Loader2, Paperclip, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/api/http";
@@ -37,6 +37,9 @@ export function AttachmentPicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
+  // US-602: per-file progress & failure state, not just a global busy flag.
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -51,14 +54,18 @@ export function AttachmentPicker({
       return;
     }
     setBusy(true);
+    setUploading(file.name);
+    setFailed(null);
     try {
       const doc = await uploadDocument({ file, kind });
       setItems((prev) => [...prev, doc]);
       onChange([...value, doc.id]);
     } catch (err) {
+      setFailed(file.name);
       toast.error(errorMessage(err));
     } finally {
       setBusy(false);
+      setUploading(null);
     }
   }
 
@@ -69,7 +76,7 @@ export function AttachmentPicker({
 
   return (
     <div className="grid gap-2">
-      {items.length > 0 && (
+      {(items.length > 0 || uploading || failed) && (
         <ul className="grid gap-1">
           {items.map((i) => (
             <li key={i.id} className="flex items-center gap-2 text-sm">
@@ -86,6 +93,20 @@ export function AttachmentPicker({
               </Button>
             </li>
           ))}
+          {uploading && (
+            <li className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              <span className="flex-1 truncate">{uploading}</span>
+              <span className="text-xs">uploading…</span>
+            </li>
+          )}
+          {failed && (
+            <li className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="size-3.5" />
+              <span className="flex-1 truncate">{failed}</span>
+              <span className="text-xs">failed — pick it again to retry</span>
+            </li>
+          )}
         </ul>
       )}
       <Input

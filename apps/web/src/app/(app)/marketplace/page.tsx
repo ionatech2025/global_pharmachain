@@ -62,6 +62,7 @@ export default async function MarketplacePage({
         <div className="min-w-56 flex-1">
           <Input
             name="q"
+            aria-label="Search products"
             placeholder="Product or chemical name, CAS number…"
             defaultValue={params.q}
           />
@@ -70,7 +71,7 @@ export default async function MarketplacePage({
           name="categoryId"
           aria-label="Filter by category"
           defaultValue={params.categoryId ?? ""}
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="">All categories</option>
           {categories.map((c) => (
@@ -83,7 +84,7 @@ export default async function MarketplacePage({
           name="kind"
           aria-label="Filter by listing kind"
           defaultValue={params.kind ?? ""}
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="">Raw materials & products</option>
           <option value="RAW_MATERIAL">Raw materials</option>
@@ -91,6 +92,7 @@ export default async function MarketplacePage({
         </select>
         <Input
           name="country"
+          aria-label="Country of origin"
           placeholder="Country of origin"
           defaultValue={params.country}
           className="w-40"
@@ -99,7 +101,7 @@ export default async function MarketplacePage({
           name="sort"
           aria-label="Sort results"
           defaultValue={params.sort ?? "relevance"}
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="relevance">Sort: relevance</option>
           <option value="company">Sort: company name</option>
@@ -108,6 +110,8 @@ export default async function MarketplacePage({
           Search
         </Button>
       </form>
+
+      <FilterChips params={params} categories={categories} />
 
       {results.items.length === 0 ? (
         <EmptyState
@@ -218,6 +222,52 @@ export default async function MarketplacePage({
         </>
       )}
       <CompareTray />
+    </div>
+  );
+}
+
+/** Applied-filter chips: each removes its own param; Clear all resets. */
+function FilterChips({ params, categories }: { params: SearchParams; categories: CategoryRow[] }) {
+  const active: Array<{ key: keyof SearchParams; label: string }> = [];
+  if (params.q) active.push({ key: "q", label: `"${params.q}"` });
+  if (params.categoryId) {
+    const name = categories.find((c) => c.id === params.categoryId)?.name ?? "Category";
+    active.push({ key: "categoryId", label: name });
+  }
+  if (params.kind)
+    active.push({ key: "kind", label: params.kind.replaceAll("_", " ").toLowerCase() });
+  if (params.country) active.push({ key: "country", label: params.country });
+  if (active.length === 0) return null;
+
+  const hrefWithout = (key: keyof SearchParams) => {
+    const search = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v && k !== key && k !== "page") search.set(k, v);
+    }
+    const qs = search.toString();
+    return qs ? `/marketplace?${qs}` : "/marketplace";
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">Filters:</span>
+      {active.map((f) => (
+        <Link
+          key={f.key}
+          href={hrefWithout(f.key)}
+          className="inline-flex items-center gap-1 rounded-full border bg-card px-2.5 py-0.5 text-xs font-medium transition-colors hover:border-destructive/40 hover:text-destructive"
+          aria-label={`Remove filter ${f.label}`}
+        >
+          {f.label}
+          <span aria-hidden>×</span>
+        </Link>
+      ))}
+      <Link
+        href="/marketplace"
+        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+      >
+        Clear all
+      </Link>
     </div>
   );
 }

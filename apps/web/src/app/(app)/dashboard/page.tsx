@@ -1,5 +1,8 @@
+import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
+import { Package, Search, Send } from "lucide-react";
 import Link from "next/link";
+import { DashboardRefresh } from "@/components/dashboard-refresh";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
 import type { DashboardSummary } from "@/lib/api/types";
@@ -80,16 +83,50 @@ export default async function DashboardPage() {
 
   const c = summary.company;
   if (!c) return null;
+  // Role-aware home: selling tiles only when the company actually sells (or
+  // drafts listings), buying tiles only when it buys — a pure buyer no longer
+  // stares at "Orders as supplier: 0" (and vice versa). New companies with no
+  // activity see both sides plus the CTAs to start.
+  const sells = c.publishedListings + c.draftListings + c.ordersAsSeller + c.activeQuotations > 0;
+  const buys = c.openRfqs + c.ordersAsBuyer > 0;
+  const fresh = !sells && !buys;
   return (
     <div className="space-y-4">
-      <PageHeader title="Dashboard" description="Your company's activity at a glance." />
+      <PageHeader title="Dashboard" description="Your company's activity at a glance.">
+        <DashboardRefresh />
+      </PageHeader>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm">
+          <Link href="/rfqs/new">
+            <Send className="size-3.5" /> Raise an RFQ
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/catalogue">
+            <Package className="size-3.5" /> Add a listing
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/marketplace">
+            <Search className="size-3.5" /> Browse the marketplace
+          </Link>
+        </Button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Published listings" value={c.publishedListings} href="/catalogue" />
-        <Stat label="Draft listings" value={c.draftListings} href="/catalogue" />
-        <Stat label="Open RFQs (buying)" value={c.openRfqs} href="/rfqs" />
-        <Stat label="Active quotations" value={c.activeQuotations} href="/quotes" />
-        <Stat label="Orders as buyer" value={c.ordersAsBuyer} href="/orders?role=buyer" />
-        <Stat label="Orders as supplier" value={c.ordersAsSeller} href="/orders?role=seller" />
+        {(sells || fresh) && (
+          <>
+            <Stat label="Published listings" value={c.publishedListings} href="/catalogue" />
+            <Stat label="Draft listings" value={c.draftListings} href="/catalogue" />
+            <Stat label="Active quotations" value={c.activeQuotations} href="/quotes" />
+            <Stat label="Orders as supplier" value={c.ordersAsSeller} href="/orders?role=seller" />
+          </>
+        )}
+        {(buys || fresh) && (
+          <>
+            <Stat label="Open RFQs (buying)" value={c.openRfqs} href="/rfqs" />
+            <Stat label="Orders as buyer" value={c.ordersAsBuyer} href="/orders?role=buyer" />
+          </>
+        )}
         <Stat
           label="Expiring documents (30d)"
           value={c.expiringDocuments}

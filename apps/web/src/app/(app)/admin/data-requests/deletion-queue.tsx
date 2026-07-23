@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
@@ -29,11 +30,7 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function anonymize(request: DeletionRequestRow) {
-    const reason = window.prompt(
-      `Anonymize ${request.user.email}? This is irreversible.\nEnter a reason (min 5 characters):`,
-      `GDPR deletion request of ${fmtDate(request.createdAt)}`,
-    );
+  async function anonymize(request: DeletionRequestRow, reason?: string) {
     if (!reason || reason.trim().length < 5) return;
     setBusyId(request.id);
     try {
@@ -81,14 +78,19 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
                 )}
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={busyId === request.id}
-                  onClick={() => anonymize(request)}
-                >
-                  Anonymize
-                </Button>
+                <ConfirmDialog
+                  trigger={
+                    <Button size="sm" variant="destructive" disabled={busyId === request.id}>
+                      Anonymize
+                    </Button>
+                  }
+                  title={`Anonymize ${request.user.email}?`}
+                  description="Irreversible: personal data is tombstoned, sessions revoked, the account deactivated. Audit and financial records are retained as required."
+                  confirmLabel="Anonymize"
+                  destructive
+                  reasonLabel="Reason (recorded in the audit log)"
+                  onConfirm={(reason) => anonymize(request, reason)}
+                />
               </TableCell>
             </TableRow>
           );

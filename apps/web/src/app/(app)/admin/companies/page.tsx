@@ -40,7 +40,13 @@ export default async function AdminCompaniesPage({
         description="All registered companies; open one to manage verification, tier and members."
       >
         <form method="GET" action="/admin/companies">
-          <Input name="q" placeholder="Search by name…" defaultValue={params.q} className="w-56" />
+          <Input
+            name="q"
+            aria-label="Search companies"
+            placeholder="Search by name…"
+            defaultValue={params.q}
+            className="w-56"
+          />
         </form>
       </PageHeader>
 

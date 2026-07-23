@@ -84,6 +84,47 @@ export async function runUploadCleanupJob(now = new Date()): Promise<void> {
   logger.info("upload cleanup job done", { removed: ids.length });
 }
 
+/**
+ * US-1003: the 30-day data-subject-request SLA is enforced server-side, not
+ * just painted in the admin UI — approaching (≤7 days left) and overdue
+ * requests page the super admins daily until actioned.
+ */
+export async function runDsrSlaJob(now = new Date()): Promise<void> {
+  const slaDays = 30;
+  const warnAt = new Date(now.getTime() - (slaDays - 7) * 24 * 60 * 60 * 1000);
+  const pending = await prisma.dataDeletionRequest.findMany({
+    where: { status: "PENDING", createdAt: { lt: warnAt } },
+    include: { user: { select: { email: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (pending.length === 0) return;
+  const superAdmins = await prisma.user.findMany({
+    where: { isSuperAdmin: true, status: "ACTIVE" },
+    select: { id: true },
+  });
+  const overdue = pending.filter(
+    (r) => now.getTime() - r.createdAt.getTime() > slaDays * 24 * 60 * 60 * 1000,
+  );
+  const summary =
+    overdue.length > 0
+      ? `${overdue.length} deletion request(s) are PAST the ${slaDays}-day SLA`
+      : `${pending.length} deletion request(s) are within 7 days of the ${slaDays}-day SLA`;
+  await notify({
+    userIds: superAdmins.map((u) => u.id),
+    type: "DATA_REQUEST",
+    title: overdue.length > 0 ? "GDPR SLA breached" : "GDPR SLA approaching",
+    body: `${summary}. Oldest: ${pending[0]?.user.email ?? "?"} (${pending[0]?.createdAt.toDateString()}).`,
+    href: "/admin/data-requests",
+    emailContent: genericEventEmail({
+      title: "Data deletion requests need action",
+      body: `${summary}. Process them in the data-requests queue.`,
+      url: `${env.APP_URL}/admin/data-requests`,
+      cta: "Open the queue",
+    }),
+  });
+  logger.info("dsr sla job done", { pending: pending.length, overdue: overdue.length });
+}
+
 /** Drops rate-limit buckets whose window and block have both long passed. */
 export async function runThrottleCleanupJob(now = new Date()): Promise<void> {
   const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);

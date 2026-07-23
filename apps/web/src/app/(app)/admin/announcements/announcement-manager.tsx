@@ -29,6 +29,7 @@ import { Textarea } from "@pharmachain/ui/components/textarea";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { AdminAnnouncementRow } from "@/lib/api/types";
@@ -110,9 +111,6 @@ export function AnnouncementManager({
   }
 
   async function retract(id: string) {
-    if (!window.confirm("Retract this announcement? It disappears for all users immediately.")) {
-      return;
-    }
     try {
       await api.post(`/admin/announcements/${id}/retract`);
       toast.success("Announcement retracted");
@@ -158,7 +156,7 @@ export function AnnouncementManager({
                 <Label htmlFor="audience">Audience</Label>
                 <select
                   id="audience"
-                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                  className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                   value={audience}
                   onChange={(e) => setAudience(e.target.value as AnnouncementAudience)}
                 >
@@ -174,7 +172,7 @@ export function AnnouncementManager({
                   <Label htmlFor="targetRole">Role</Label>
                   <select
                     id="targetRole"
-                    className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                    className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value as CompanyRole)}
                   >
@@ -191,7 +189,7 @@ export function AnnouncementManager({
                   <Label htmlFor="targetCompanyId">Company</Label>
                   <select
                     id="targetCompanyId"
-                    className="h-9 w-64 rounded-md border border-input bg-transparent px-2 text-sm"
+                    className="w-64 h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
                     required
                     value={targetCompanyId}
                     onChange={(e) => setTargetCompanyId(e.target.value)}
@@ -260,9 +258,18 @@ export function AnnouncementManager({
                 <Button size="sm" variant="outline" onClick={() => openEdit(a)}>
                   Edit
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => retract(a.id)}>
-                  Retract
-                </Button>
+                <ConfirmDialog
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      Retract
+                    </Button>
+                  }
+                  title="Retract this announcement?"
+                  description="It disappears for all users immediately and cannot be re-published."
+                  confirmLabel="Retract"
+                  destructive
+                  onConfirm={() => retract(a.id)}
+                />
               </div>
             )}
           </CardHeader>

@@ -22,16 +22,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CreditStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { CreditRequestRow } from "@/lib/api/types";
 import { fmtDate, fmtMoney } from "@/lib/format";
-
-const CREDIT_STATUS_VARIANT = {
-  PENDING_PAYMENT: "warning",
-  CONFIRMED: "success",
-  REJECTED: "destructive",
-} as const;
 
 /** Manual billing flow (US-907): request credits → pay off-platform → the
  *  platform team confirms receipt, raising this month's effective limit. */
@@ -99,7 +94,7 @@ export function CreditRequestPanel({
           <form onSubmit={request} className="flex flex-wrap items-end gap-2">
             <select
               aria-label="Credit type"
-              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+              className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
               value={kind}
               onChange={(e) => setKind(e.target.value as CreditKind)}
             >
@@ -153,11 +148,9 @@ export function CreditRequestPanel({
                   <TableCell>{fmtDate(c.createdAt)}</TableCell>
                   <TableCell>{c.kind === "RFQ" ? "RFQ" : "Quotation"}</TableCell>
                   <TableCell>{c.count}</TableCell>
-                  <TableCell>{fmtMoney(c.fee, "USD")}</TableCell>
+                  <TableCell>{fmtMoney(c.fee, c.currency)}</TableCell>
                   <TableCell>
-                    <Badge variant={CREDIT_STATUS_VARIANT[c.status]}>
-                      {c.status.toLowerCase().replace("_", " ")}
-                    </Badge>
+                    <CreditStatusBadge status={c.status} />
                   </TableCell>
                 </TableRow>
               ))}

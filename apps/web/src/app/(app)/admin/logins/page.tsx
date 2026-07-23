@@ -40,6 +40,7 @@ export default async function AdminLoginsPage({
         <form method="GET" action="/admin/logins">
           <Input
             name="email"
+            aria-label="Filter by email"
             placeholder="Filter by email…"
             defaultValue={params.email}
             className="w-56"

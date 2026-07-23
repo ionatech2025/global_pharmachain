@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
@@ -23,11 +24,7 @@ export function CreditQueue({ requests }: { requests: AdminCreditRequestRow[] })
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function decide(id: string, decision: "CONFIRM" | "REJECT") {
-    const note =
-      decision === "REJECT"
-        ? (window.prompt("Reason shown to the company (optional):") ?? undefined)
-        : undefined;
+  async function decide(id: string, decision: "CONFIRM" | "REJECT", note?: string) {
     setBusyId(id);
     try {
       await api.post(`/admin/credit-requests/${id}/decide`, { decision, note });
@@ -73,7 +70,7 @@ export function CreditQueue({ requests }: { requests: AdminCreditRequestRow[] })
             </TableCell>
             <TableCell>{request.kind}</TableCell>
             <TableCell>{request.count}</TableCell>
-            <TableCell className="font-medium">{fmtMoney(request.fee, "USD")}</TableCell>
+            <TableCell className="font-medium">{fmtMoney(request.fee, request.currency)}</TableCell>
             <TableCell className="space-x-1 text-right">
               <Button
                 size="sm"
@@ -82,14 +79,19 @@ export function CreditQueue({ requests }: { requests: AdminCreditRequestRow[] })
               >
                 Confirm payment
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busyId === request.id}
-                onClick={() => decide(request.id, "REJECT")}
-              >
-                Reject
-              </Button>
+              <ConfirmDialog
+                trigger={
+                  <Button size="sm" variant="outline" disabled={busyId === request.id}>
+                    Reject
+                  </Button>
+                }
+                title="Reject this credit request?"
+                description="The company is notified with your reason and keeps its current limit."
+                confirmLabel="Reject request"
+                destructive
+                reasonLabel="Reason shown to the company"
+                onConfirm={(reason) => decide(request.id, "REJECT", reason)}
+              />
             </TableCell>
           </TableRow>
         ))}

@@ -13,6 +13,7 @@ import { Label } from "@pharmachain/ui/components/label";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 
@@ -165,13 +166,6 @@ function DataPrivacyCard() {
   }
 
   async function requestDeletion() {
-    if (
-      !window.confirm(
-        "Request deletion of your account? The platform team processes requests within 30 days; your account is then anonymized and deactivated.",
-      )
-    ) {
-      return;
-    }
     setRequesting(true);
     try {
       await api.post("/auth/me/deletion-request");
@@ -195,9 +189,18 @@ function DataPrivacyCard() {
         <Button variant="outline" onClick={exportData} disabled={exporting}>
           {exporting ? "Preparing…" : "Download my data (JSON)"}
         </Button>
-        <Button variant="destructive" onClick={requestDeletion} disabled={requesting}>
-          Request account deletion
-        </Button>
+        <ConfirmDialog
+          trigger={
+            <Button variant="destructive" disabled={requesting}>
+              Request account deletion
+            </Button>
+          }
+          title="Request account deletion?"
+          description="The platform team processes requests within 30 days; your account is then anonymized and deactivated. Records the law requires us to keep (audit and financial history) are retained."
+          confirmLabel="Request deletion"
+          destructive
+          onConfirm={requestDeletion}
+        />
       </CardContent>
     </Card>
   );
