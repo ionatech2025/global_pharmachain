@@ -252,6 +252,42 @@
   .animate-globe-sheen {
     animation: orbit-spin 20s linear infinite;
   }
+
+  /* ── Marketing surfaces (landing + auth) ─────────────────────────────
+     Letter-spaced micro-label above display headlines. Colour is set at the
+     use site (text-primary on light, white/70 on the azure panel). */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  /* Brand-fixed vivid azure panel (hero visual, auth aside, CTA band).
+     Like the logo, it renders identically in both themes — bright sky
+     top-right falling to deep ink bottom-left. */
+  .bg-panel-azure {
+    background:
+      radial-gradient(120% 90% at 88% -12%, oklch(0.78 0.1 228 / 0.95), transparent 52%),
+      radial-gradient(130% 120% at -12% 112%, oklch(0.28 0.13 262), transparent 62%),
+      linear-gradient(140deg, oklch(0.6 0.15 245), oklch(0.46 0.18 254) 55%, oklch(0.38 0.16 258));
+  }
+  /* Fine blueprint grid over azure panels, fading toward the bottom */
+  .bg-panel-grid {
+    background-image:
+      linear-gradient(oklch(1 0 0 / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(130% 110% at 50% 0%, black 35%, transparent 88%);
+  }
+  /* Gentle vertical bob for floating vignette cards (stagger via inline
+     animation-delay). Neutralised by the reduced-motion kill switch. */
+  .animate-float {
+    will-change: transform;
+    animation: float-y 7s ease-in-out infinite;
+  }
 }
 
 @keyframes aurora-drift {
@@ -320,6 +356,73 @@
   50% {
     transform: rotateX(3deg) rotateY(12deg);
   }
+}
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/*
+ * Frosted white vignette cards that sit ON the azure panel. Brand-fixed like
+ * the panel itself (light glass in both themes — the reference language), so
+ * the semantic tokens the contents consume are re-pinned here: descendants
+ * can keep using text-muted-foreground / text-primary / bg-primary etc. and
+ * stay legible regardless of the site theme.
+ */
+.glass-card {
+  border: 1px solid oklch(1 0 0 / 0.55);
+  background: oklch(0.99 0 0 / 0.85);
+  box-shadow:
+    0 18px 44px -18px oklch(0.22 0.1 256 / 0.55),
+    inset 0 1px 0 oklch(1 0 0 / 0.75);
+  backdrop-filter: blur(14px);
+  color: var(--foreground);
+  --foreground: oklch(0.18 0.015 255);
+  --muted-foreground: oklch(0.46 0.02 252);
+  --border: oklch(0.55 0.04 250 / 0.22);
+  --primary: oklch(0.45 0.13 250);
+  --primary-accent: oklch(0.45 0.13 250);
+  --primary-foreground: oklch(0.985 0 0);
+  --success: oklch(0.48 0.12 155);
+  --info: oklch(0.5 0.1 200);
+}
+
+/*
+ * Theme-aware frosted shell for the floating pill nav. Highlight is a white
+ * inner hairline in light, a faint one in dark (overridden below).
+ */
+.glass-nav {
+  border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
+  background: color-mix(in oklch, var(--background) 78%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 10px 32px -18px oklch(0.25 0.06 255 / 0.4),
+    inset 0 1px 0 oklch(1 0 0 / 0.45);
+}
+.dark .glass-nav {
+  box-shadow:
+    0 10px 32px -18px oklch(0 0 0 / 0.6),
+    inset 0 1px 0 oklch(1 0 0 / 0.07);
+}
+
+/*
+ * Inside azure panels the hero globe swaps its azure line-work for white
+ * (azure-on-azure would vanish): re-pin the wireframe + node/star tokens the
+ * globe consumes. Glass cards nested deeper re-pin their own set above.
+ */
+.panel-globe-scope {
+  --globe-line: oklch(1 0 0 / 0.6);
+  --globe-line-soft: oklch(1 0 0 / 0.28);
+  --globe-halo: oklch(1 0 0 / 0.32);
+  --primary: oklch(1 0 0 / 0.95);
+  --info: oklch(0.92 0.06 220);
+  --muted-foreground: oklch(1 0 0 / 0.6);
+  --background: oklch(0.5 0.16 252);
 }
 
 /*
