@@ -220,9 +220,9 @@ export function BomManager({
               </TableHeader>
               <TableBody>
                 {bom.items.map((item) => {
-                  const openRfq = item.rfqs.find(
-                    (r) => r.status === "OPEN" || r.status === "AWARDED",
-                  );
+                  // Line coverage at a glance: sourced (awarded) beats in-progress.
+                  const awardedRfq = item.rfqs.find((r) => r.status === "AWARDED");
+                  const openRfq = awardedRfq ?? item.rfqs.find((r) => r.status === "OPEN");
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.materialName}</TableCell>
@@ -235,7 +235,11 @@ export function BomManager({
                       <TableCell>
                         {openRfq ? (
                           <Link href={`/rfqs/${openRfq.id}`}>
-                            <Badge variant="warning">RFQ in progress · {openRfq.refNo}</Badge>
+                            {awardedRfq ? (
+                              <Badge variant="success">Sourced · {awardedRfq.refNo}</Badge>
+                            ) : (
+                              <Badge variant="warning">RFQ in progress · {openRfq.refNo}</Badge>
+                            )}
                           </Link>
                         ) : (
                           <Button asChild size="sm" variant="ghost">

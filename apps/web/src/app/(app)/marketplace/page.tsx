@@ -111,6 +111,8 @@ export default async function MarketplacePage({
         </Button>
       </form>
 
+      <FilterChips params={params} categories={categories} />
+
       {results.items.length === 0 ? (
         <EmptyState
           title="No matches found"
@@ -220,6 +222,52 @@ export default async function MarketplacePage({
         </>
       )}
       <CompareTray />
+    </div>
+  );
+}
+
+/** Applied-filter chips: each removes its own param; Clear all resets. */
+function FilterChips({ params, categories }: { params: SearchParams; categories: CategoryRow[] }) {
+  const active: Array<{ key: keyof SearchParams; label: string }> = [];
+  if (params.q) active.push({ key: "q", label: `"${params.q}"` });
+  if (params.categoryId) {
+    const name = categories.find((c) => c.id === params.categoryId)?.name ?? "Category";
+    active.push({ key: "categoryId", label: name });
+  }
+  if (params.kind)
+    active.push({ key: "kind", label: params.kind.replaceAll("_", " ").toLowerCase() });
+  if (params.country) active.push({ key: "country", label: params.country });
+  if (active.length === 0) return null;
+
+  const hrefWithout = (key: keyof SearchParams) => {
+    const search = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v && k !== key && k !== "page") search.set(k, v);
+    }
+    const qs = search.toString();
+    return qs ? `/marketplace?${qs}` : "/marketplace";
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">Filters:</span>
+      {active.map((f) => (
+        <Link
+          key={f.key}
+          href={hrefWithout(f.key)}
+          className="inline-flex items-center gap-1 rounded-full border bg-card px-2.5 py-0.5 text-xs font-medium transition-colors hover:border-destructive/40 hover:text-destructive"
+          aria-label={`Remove filter ${f.label}`}
+        >
+          {f.label}
+          <span aria-hidden>×</span>
+        </Link>
+      ))}
+      <Link
+        href="/marketplace"
+        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+      >
+        Clear all
+      </Link>
     </div>
   );
 }

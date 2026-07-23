@@ -174,56 +174,81 @@ export function BuyerQuotations({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quotations.map((q) => (
-                <TableRow key={q.id} className={q.status !== "ACTIVE" ? "opacity-60" : ""}>
-                  <TableCell>
-                    <Link
-                      href={`/companies/${q.supplierCompany.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {q.supplierCompany.name}
-                    </Link>
-                    {q.version > 1 && (
-                      <Badge variant="outline" className="ml-2">
-                        v{q.version}
-                      </Badge>
-                    )}
-                    {q.documents.length > 0 && (
-                      <div className="mt-1 space-y-0.5">
-                        {q.documents.map((d) => (
-                          <DocumentChip key={d.id} id={d.id} fileName={d.fileName} />
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{fmtMoney(q.unitPrice, q.currency)}</TableCell>
-                  <TableCell className="font-medium">
-                    {fmtMoney(q.totalPrice, q.currency)}
-                  </TableCell>
-                  <TableCell>{q.leadTimeDays} days</TableCell>
-                  <TableCell>{fmtDate(q.validUntil)}</TableCell>
-                  <TableCell>
-                    <QuotationStatusBadge status={q.status} />
-                  </TableCell>
-                  <TableCell className="space-x-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Message supplier"
-                      onClick={() =>
-                        openThread(router, { rfqId, supplierCompanyId: q.supplierCompany.id })
-                      }
-                    >
-                      <MessageSquare className="size-4" />
-                    </Button>
-                    {canAward && q.status === "ACTIVE" && (
-                      <Button size="sm" onClick={() => setAccepting(q)}>
-                        Accept
+              {quotations.map((q) => {
+                // Decision support: flag the best active offer per column.
+                const active = quotations.filter((x) => x.status === "ACTIVE");
+                const bestPrice =
+                  q.status === "ACTIVE" &&
+                  active.length > 1 &&
+                  Number.parseFloat(q.totalPrice) ===
+                    Math.min(...active.map((x) => Number.parseFloat(x.totalPrice)));
+                const fastest =
+                  q.status === "ACTIVE" &&
+                  active.length > 1 &&
+                  q.leadTimeDays === Math.min(...active.map((x) => x.leadTimeDays));
+                return (
+                  <TableRow key={q.id} className={q.status !== "ACTIVE" ? "opacity-60" : ""}>
+                    <TableCell>
+                      <Link
+                        href={`/companies/${q.supplierCompany.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {q.supplierCompany.name}
+                      </Link>
+                      {q.version > 1 && (
+                        <Badge variant="outline" className="ml-2">
+                          v{q.version}
+                        </Badge>
+                      )}
+                      {q.documents.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {q.documents.map((d) => (
+                            <DocumentChip key={d.id} id={d.id} fileName={d.fileName} />
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{fmtMoney(q.unitPrice, q.currency)}</TableCell>
+                    <TableCell className="font-medium">
+                      {fmtMoney(q.totalPrice, q.currency)}
+                      {bestPrice && (
+                        <Badge variant="success" className="ml-1.5">
+                          Best price
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {q.leadTimeDays} days
+                      {fastest && (
+                        <Badge variant="info" className="ml-1.5">
+                          Fastest
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{fmtDate(q.validUntil)}</TableCell>
+                    <TableCell>
+                      <QuotationStatusBadge status={q.status} />
+                    </TableCell>
+                    <TableCell className="space-x-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Message supplier"
+                        onClick={() =>
+                          openThread(router, { rfqId, supplierCompanyId: q.supplierCompany.id })
+                        }
+                      >
+                        <MessageSquare className="size-4" />
                       </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {canAward && q.status === "ACTIVE" && (
+                        <Button size="sm" onClick={() => setAccepting(q)}>
+                          Accept
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

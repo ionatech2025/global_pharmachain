@@ -30,8 +30,15 @@ import { EtaButton, MessageCounterpartyButton, StatusUpdateButton } from "./pane
 
 export const metadata = { title: "Order" };
 
-/** Six-stage visual progress tracker with the current stage highlighted (US-702). */
-function ShipmentTracker({ status }: { status: OrderDetail["status"] }) {
+/** Six-stage visual progress tracker with the current stage highlighted and
+ *  the date each checkpoint was reached under its node (US-702). */
+function ShipmentTracker({
+  status,
+  reachedAt,
+}: {
+  status: OrderDetail["status"];
+  reachedAt: Partial<Record<OrderDetail["status"], string>>;
+}) {
   const current = orderStatusIndex(status);
   return (
     <ol className="flex flex-wrap items-start gap-y-4">
@@ -73,6 +80,9 @@ function ShipmentTracker({ status }: { status: OrderDetail["status"] }) {
           >
             {ORDER_STATUS_LABELS[stage]}
           </span>
+          {reachedAt[stage] && (
+            <span className="text-[10px] text-muted-foreground">{fmtDate(reachedAt[stage])}</span>
+          )}
         </li>
       ))}
     </ol>
@@ -97,6 +107,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canUpdateShipment = order.viewerIsSeller || me.isSuperAdmin;
   const counterparty = order.viewerIsSeller ? order.buyerCompany : order.sellerCompany;
   const lastEvent = order.statusEvents[0];
+  // Earliest event per stage = the date each checkpoint was reached.
+  const reachedAt: Partial<Record<OrderDetail["status"], string>> = {};
+  for (const event of [...order.statusEvents].reverse()) {
+    if (!reachedAt[event.status]) reachedAt[event.status] = event.createdAt;
+  }
+  const delayed = order.eta
+    ? new Date(order.eta) < new Date() && order.status !== "DELIVERED"
+    : false;
   const documentsByKind = ORDER_DOCUMENT_KINDS.map((kind) => ({
     kind,
     docs: documents.filter((d) => d.kind === kind),
@@ -120,9 +138,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm">Shipment progress</CardTitle>
-            <CardDescription>
-              {order.eta ? `ETA ${fmtDate(order.eta)}` : "ETA not yet available"}
-              {lastEvent ? ` · last updated ${fmtDateTime(lastEvent.createdAt)}` : ""}
+            <CardDescription className="flex flex-wrap items-center gap-1.5">
+              <span>
+                {order.eta ? `ETA ${fmtDate(order.eta)}` : "ETA not yet available"}
+                {lastEvent ? ` · last updated ${fmtDateTime(lastEvent.createdAt)}` : ""}
+              </span>
+              {delayed && <Badge variant="destructive">Past ETA</Badge>}
             </CardDescription>
           </div>
           {canUpdateShipment && (
@@ -133,7 +154,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           )}
         </CardHeader>
         <CardContent>
-          <ShipmentTracker status={order.status} />
+          <ShipmentTracker status={order.status} reachedAt={reachedAt} />
         </CardContent>
       </Card>
 
