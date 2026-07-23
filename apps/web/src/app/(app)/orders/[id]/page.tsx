@@ -121,7 +121,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div>
             <CardTitle className="text-sm">Shipment progress</CardTitle>
             <CardDescription>
-              ETA {fmtDate(order.eta)}
+              {order.eta ? `ETA ${fmtDate(order.eta)}` : "ETA not yet available"}
               {lastEvent ? ` · last updated ${fmtDateTime(lastEvent.createdAt)}` : ""}
             </CardDescription>
           </div>
@@ -198,24 +198,29 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {order.statusEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">No updates yet.</p>
             ) : (
-              <ol className="space-y-3">
-                {order.statusEvents.map((event) => (
-                  <li key={event.id} className="border-l-2 border-border pl-3 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <OrderStatusBadge status={event.status} />
-                      <span className="text-xs text-muted-foreground">
-                        {fmtDateTime(event.createdAt)} · {event.actor.name}
-                      </span>
-                    </div>
-                    {event.note && <p className="mt-1 text-muted-foreground">{event.note}</p>}
-                    {event.eta && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        ETA set to {fmtDate(event.eta)}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ol>
+              <details open>
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground select-none">
+                  {order.statusEvents.length} update(s), oldest first — click to collapse
+                </summary>
+                <ol className="mt-3 space-y-3">
+                  {[...order.statusEvents].reverse().map((event) => (
+                    <li key={event.id} className="border-l-2 border-border pl-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <OrderStatusBadge status={event.status} />
+                        <span className="text-xs text-muted-foreground">
+                          {fmtDateTime(event.createdAt)} · {event.actor.name}
+                        </span>
+                      </div>
+                      {event.note && <p className="mt-1 text-muted-foreground">{event.note}</p>}
+                      {event.eta && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          ETA set to {fmtDate(event.eta)}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </details>
             )}
           </CardContent>
         </Card>

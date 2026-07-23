@@ -86,6 +86,7 @@ export const creditDecisionSchema = z.object({
 
 export const auditLogQuerySchema = paginationQuerySchema.extend({
   actorUserId: z.uuid().optional(),
+  actorEmail: z.string().max(320).optional(),
   entityType: z.string().max(60).optional(),
   companyId: z.uuid().optional(),
   from: z.iso.datetime().optional(),

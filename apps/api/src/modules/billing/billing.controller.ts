@@ -32,6 +32,18 @@ export class BillingController {
     });
   }
 
+  /** US-907: the fee is shown at the point of request, before submitting. */
+  @RequirePermission("usage:read")
+  @Get("credit-fees")
+  async fees() {
+    const [rfq, quotation, currency] = await Promise.all([
+      getParam(PARAM_KEYS.CREDIT_FEE_RFQ_USD),
+      getParam(PARAM_KEYS.CREDIT_FEE_QUOTATION_USD),
+      getParam(PARAM_KEYS.CREDIT_FEE_CURRENCY),
+    ]);
+    return { rfq, quotation, currency };
+  }
+
   @RequirePermission("company:manage")
   @Post("credit-requests")
   async create(
@@ -40,9 +52,12 @@ export class BillingController {
     @Body(zodPipe(creditRequestCreateSchema)) body: CreditRequestCreate,
     @Req() req: FastifyRequest,
   ) {
-    const feePerCredit = await getParam(
-      body.kind === "RFQ" ? PARAM_KEYS.CREDIT_FEE_RFQ_USD : PARAM_KEYS.CREDIT_FEE_QUOTATION_USD,
-    );
+    const [feePerCredit, currency] = await Promise.all([
+      getParam(
+        body.kind === "RFQ" ? PARAM_KEYS.CREDIT_FEE_RFQ_USD : PARAM_KEYS.CREDIT_FEE_QUOTATION_USD,
+      ),
+      getParam(PARAM_KEYS.CREDIT_FEE_CURRENCY),
+    ]);
     const fee = new Prisma.Decimal(feePerCredit).mul(body.count).toDP(2);
     const request = await prisma.creditRequest.create({
       data: {
@@ -50,6 +65,7 @@ export class BillingController {
         kind: body.kind,
         count: body.count,
         fee,
+        currency,
         requestedById: user.id,
       },
     });
@@ -61,11 +77,11 @@ export class BillingController {
       userIds: superAdmins.map((u) => u.id),
       type: "CREDIT_UPDATE",
       title: "Credit request pending payment",
-      body: `${membership.company.name} requested ${body.count} ${body.kind} credit(s) — USD ${fee.toString()}.`,
+      body: `${membership.company.name} requested ${body.count} ${body.kind} credit(s) — ${currency} ${fee.toString()}.`,
       href: "/admin/credits",
       emailContent: genericEventEmail({
         title: "Credit request pending payment",
-        body: `${membership.company.name} requested ${body.count} ${body.kind} credit(s) for USD ${fee.toString()}. Confirm once payment is received.`,
+        body: `${membership.company.name} requested ${body.count} ${body.kind} credit(s) for ${currency} ${fee.toString()}. Confirm once payment is received.`,
         url: `${env.APP_URL}/admin/credits`,
       }),
     });

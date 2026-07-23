@@ -8,11 +8,12 @@ export const PARAM_KEYS = {
   FREEMIUM_QUOTATION_MONTHLY_LIMIT: "freemium_quotation_monthly_limit",
   CREDIT_FEE_RFQ_USD: "credit_fee_rfq_usd",
   CREDIT_FEE_QUOTATION_USD: "credit_fee_quotation_usd",
+  CREDIT_FEE_CURRENCY: "credit_fee_currency",
   COMPANY_USER_LIMIT: "company_user_limit",
 } as const;
 export type ParamKey = (typeof PARAM_KEYS)[keyof typeof PARAM_KEYS];
 
-export type ParamType = "int" | "decimal" | "csv-int";
+export type ParamType = "int" | "decimal" | "csv-int" | "currency";
 
 export interface ParamDefinition {
   key: ParamKey;
@@ -59,6 +60,12 @@ export const PARAM_DEFINITIONS: readonly ParamDefinition[] = [
     description: "Fee (USD) per additional quotation credit beyond the Freemium limit",
   },
   {
+    key: PARAM_KEYS.CREDIT_FEE_CURRENCY,
+    type: "currency",
+    defaultValue: "USD",
+    description: "ISO 4217 currency the per-credit fees are charged in (US-907)",
+  },
+  {
     key: PARAM_KEYS.COMPANY_USER_LIMIT,
     type: "int",
     defaultValue: "0",
@@ -82,6 +89,8 @@ export function validateParamValue(type: ParamType, value: string): boolean {
       const parts = value.split(",").map((p) => p.trim());
       return parts.length > 0 && parts.every((p) => /^\d+$/.test(p) && Number(p) > 0);
     }
+    case "currency":
+      return /^[A-Z]{3}$/.test(value.trim());
   }
 }
 

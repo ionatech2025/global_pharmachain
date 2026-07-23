@@ -37,6 +37,8 @@ export class ShipmentController {
       entityId: updated.id,
       oldValues: { status: previousStatus },
       newValues: { status: body.status, note: body.note ?? null },
+      // US-701 TC4: corrections carry their reason in the dedicated column.
+      ...(correction && body.note ? { reason: body.note } : {}),
     });
     return updated;
   }

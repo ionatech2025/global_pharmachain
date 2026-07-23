@@ -327,6 +327,16 @@ export class CompanyService {
       },
     });
     if (!company) throw notFound("Company profile not found");
-    return company;
+    const logo = await prisma.document.findFirst({
+      where: {
+        ownerCompanyId: companyId,
+        kind: "COMPANY_LOGO",
+        status: "ACTIVE",
+        uploadCompletedAt: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    return { ...company, logoDocumentId: logo?.id ?? null };
   }
 }

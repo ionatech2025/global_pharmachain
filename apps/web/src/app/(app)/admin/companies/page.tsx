@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { VerificationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { AdminCompanyRow, Paginated } from "@/lib/api/types";
@@ -88,9 +89,14 @@ export default async function AdminCompaniesPage({
               ))}
             </TableBody>
           </Table>
-          <p className="text-xs text-muted-foreground">
-            Page {companies.page} of {companies.totalPages} · {companies.total} compan(ies)
-          </p>
+          <PaginationNav
+            page={companies.page}
+            totalPages={companies.totalPages}
+            total={companies.total}
+            noun="compan(ies)"
+            basePath="/admin/companies"
+            params={{ q: params.q }}
+          />
         </>
       )}
     </div>

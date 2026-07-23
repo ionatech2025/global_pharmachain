@@ -19,6 +19,7 @@ import {
   creditDecisionSchema,
   exchangeRateUpsertSchema,
   idParamSchema,
+  PARAM_DEFINITIONS,
   paginate,
   paginationQuerySchema,
   parameterUpdateSchema,
@@ -290,6 +291,9 @@ export class AdminController {
   async auditLogs(@Query(zodPipe(auditLogQuerySchema)) query: AuditLogQuery) {
     const where: Prisma.AuditLogWhereInput = {
       ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
+      ...(query.actorEmail
+        ? { actorEmail: { contains: query.actorEmail, mode: "insensitive" } }
+        : {}),
       ...(query.entityType ? { entityType: query.entityType } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.from || query.to
@@ -338,6 +342,26 @@ export class AdminController {
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
         createdById: user.id,
       },
+    });
+    // US-902: targeted users also see it in the notification centre, not just
+    // the banner. In-app only — announcements are ambient, not email-worthy.
+    const audienceUsers = await prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        ...(body.audience === "ROLE" ? { membership: { role: body.targetRole ?? undefined } } : {}),
+        ...(body.audience === "COMPANY"
+          ? { membership: { companyId: body.targetCompanyId ?? undefined } }
+          : {}),
+      },
+      select: { id: true },
+    });
+    await notify({
+      userIds: audienceUsers.map((u) => u.id),
+      type: "ANNOUNCEMENT",
+      title: announcement.title,
+      body:
+        announcement.body.length > 200 ? `${announcement.body.slice(0, 200)}…` : announcement.body,
+      href: "/dashboard",
     });
     setAudit(req, {
       action: "announcement.publish",
@@ -399,8 +423,24 @@ export class AdminController {
   // ── System parameters (US-904) ─────────────────────────────────────────────
 
   @Get("parameters")
-  parameters() {
-    return prisma.systemParameter.findMany({ orderBy: { key: "asc" } });
+  async parameters() {
+    // Merge with the definitions so parameters added after the last seed still
+    // appear (showing their default) instead of silently missing from the UI.
+    const rows = await prisma.systemParameter.findMany({ orderBy: { key: "asc" } });
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    return PARAM_DEFINITIONS.map(
+      (def) =>
+        byKey.get(def.key) ?? {
+          id: def.key,
+          key: def.key,
+          value: def.defaultValue,
+          type: def.type,
+          description: def.description,
+          updatedById: null,
+          createdAt: null,
+          updatedAt: null,
+        },
+    );
   }
 
   @Put("parameters")

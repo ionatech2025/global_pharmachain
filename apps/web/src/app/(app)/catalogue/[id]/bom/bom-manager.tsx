@@ -250,7 +250,7 @@ export function BomManager({
                                   bomItemId: item.id,
                                   title: item.materialName,
                                   categoryId: item.categoryId ?? undefined,
-                                  unit: "kg",
+                                  unit: item.unit,
                                 },
                               }}
                             >

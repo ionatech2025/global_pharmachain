@@ -4,7 +4,7 @@ import { canTransitionOrder, ORDER_STATUS_LABELS } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
-import { conflict, forbidden, notFound } from "../../common/errors";
+import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 
@@ -44,6 +44,12 @@ export class ShipmentService {
         `Cannot move from ${ORDER_STATUS_LABELS[order.status]} to ${ORDER_STATUS_LABELS[body.status]}`,
       );
     }
+    // US-701 TC4: an out-of-sequence super-admin correction must say why —
+    // the reason lands in the audit log's reason column via the controller.
+    const isCorrection = user.isSuperAdmin && !isSeller;
+    if (isCorrection && (!body.note || body.note.trim().length < 5)) {
+      throw badRequest("A correction reason (min 5 characters) is required");
+    }
 
     const eta = body.eta ? new Date(body.eta) : undefined;
     const updated = await prisma.$transaction(async (tx) => {
@@ -68,12 +74,14 @@ export class ShipmentService {
       return tx.order.findUniqueOrThrow({ where: { id: order.id } });
     });
 
-    // US-703: buyer notified on every transition (email/WhatsApp respect prefs)
+    // US-703: buyer notified on every transition; content carries the ETA on
+    // every channel, not just email.
+    const etaLine = updated.eta ? ` ETA ${updated.eta.toDateString()}.` : "";
     await notify({
       companyId: order.buyerCompanyId,
       type: "SHIPMENT_STATUS_CHANGE",
       title: `Order ${order.orderNo}: ${ORDER_STATUS_LABELS[body.status]}`,
-      body: body.note ?? `Shipment status updated to ${ORDER_STATUS_LABELS[body.status]}.`,
+      body: `${body.note ?? `Shipment status updated to ${ORDER_STATUS_LABELS[body.status]}.`}${etaLine}`,
       href: `/orders/${order.id}`,
       emailContent: genericEventEmail({
         title: `Order ${order.orderNo} — ${ORDER_STATUS_LABELS[body.status]}`,
@@ -81,12 +89,12 @@ export class ShipmentService {
         url: `${env.APP_URL}/orders/${order.id}`,
         cta: "Track order",
       }),
-      whatsappText: `PharmaChain: order ${order.orderNo} is now "${ORDER_STATUS_LABELS[body.status]}". ${env.APP_URL}/orders/${order.id}`,
+      whatsappText: `PharmaChain: order ${order.orderNo} is now "${ORDER_STATUS_LABELS[body.status]}".${etaLine} ${env.APP_URL}/orders/${order.id}`,
     });
 
     return {
       updated,
-      correction: user.isSuperAdmin && !isSeller,
+      correction: isCorrection,
       previousStatus: order.status,
     };
   }
@@ -119,12 +127,21 @@ export class ShipmentService {
         },
       }),
     ]);
+    // US-703: an ETA change is planning-critical for the buyer — it goes
+    // off-platform too, not in-app only.
     await notify({
       companyId: order.buyerCompanyId,
       type: "SHIPMENT_STATUS_CHANGE",
       title: `Order ${order.orderNo}: ETA updated`,
       body: `New estimated delivery: ${eta.toDateString()}.`,
       href: `/orders/${order.id}`,
+      emailContent: genericEventEmail({
+        title: `Order ${order.orderNo} — ETA updated`,
+        body: `New estimated delivery: ${eta.toDateString()}.`,
+        url: `${env.APP_URL}/orders/${order.id}`,
+        cta: "Track order",
+      }),
+      whatsappText: `PharmaChain: order ${order.orderNo} ETA updated to ${eta.toDateString()}.`,
     });
     return { updated, previousEta: order.eta };
   }

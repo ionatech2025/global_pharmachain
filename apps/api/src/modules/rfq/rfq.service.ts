@@ -495,8 +495,10 @@ export class RfqService {
         url: `${env.APP_URL}/orders/${order.id}`,
         cta: "View order",
       }),
+      whatsappText: `PharmaChain: your quotation ${quotation.refNo} was accepted — order ${order.orderNo} is confirmed.`,
     });
-    // Non-selected suppliers (US-405)
+    // Non-selected suppliers (US-405/604): same channels as the winner — an
+    // outcome they acted on deserves more than an in-app row.
     const others = await prisma.quotation.findMany({
       where: {
         rfqId: quotation.rfqId,
@@ -514,6 +516,13 @@ export class RfqService {
           title: "RFQ awarded to another supplier",
           body: `RFQ ${quotation.rfq.refNo} — ${quotation.rfq.title} — was awarded to another supplier.`,
           href: "/quotes",
+          emailContent: genericEventEmail({
+            title: "RFQ awarded to another supplier",
+            body: `RFQ ${quotation.rfq.refNo} — ${quotation.rfq.title} — was awarded to another supplier. Thank you for quoting.`,
+            url: `${env.APP_URL}/quotes`,
+            cta: "Open quote inbox",
+          }),
+          whatsappText: `PharmaChain: RFQ ${quotation.rfq.refNo} was awarded to another supplier.`,
         }),
       ),
     );

@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { Paginated, RfqRow } from "@/lib/api/types";
@@ -82,23 +83,13 @@ export default async function RfqsPage({
               ))}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Page {result.page} of {result.totalPages} · {result.total} RFQ(s)
-            </p>
-            <div className="flex gap-2">
-              {result.page > 1 && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/rfqs?page=${result.page - 1}`}>Previous</Link>
-                </Button>
-              )}
-              {result.page < result.totalPages && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/rfqs?page=${result.page + 1}`}>Next</Link>
-                </Button>
-              )}
-            </div>
-          </div>
+          <PaginationNav
+            page={result.page}
+            totalPages={result.totalPages}
+            total={result.total}
+            noun="RFQ(s)"
+            basePath="/rfqs"
+          />
         </>
       )}
     </div>

@@ -14,6 +14,7 @@ import { Textarea } from "@pharmachain/ui/components/textarea";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UploadButton } from "@/components/upload-button";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { CompanyMe } from "@/lib/api/types";
@@ -64,6 +65,17 @@ export function ProfileForm({ company }: { company: CompanyMe }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 flex items-center gap-3 border-b pb-4">
+          <div>
+            <p className="text-sm font-medium">Company logo</p>
+            <p className="text-xs text-muted-foreground">
+              PNG or JPG, up to 10 MB — shown on your public profile (US-301).
+            </p>
+          </div>
+          <div className="ml-auto">
+            <UploadButton kind="COMPANY_LOGO" label="Upload logo" />
+          </div>
+        </div>
         <form onSubmit={save} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="description">Description</Label>

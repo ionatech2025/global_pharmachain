@@ -16,6 +16,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@pharmachain/ui/components/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@pharmachain/ui/components/dialog";
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
 import { Textarea } from "@pharmachain/ui/components/textarea";
@@ -27,7 +34,13 @@ import { errorMessage } from "@/lib/api/http";
 import type { AdminAnnouncementRow } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
 
-export function AnnouncementManager({ announcements }: { announcements: AdminAnnouncementRow[] }) {
+export function AnnouncementManager({
+  announcements,
+  companies,
+}: {
+  announcements: AdminAnnouncementRow[];
+  companies: Array<{ id: string; name: string }>;
+}) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -36,6 +49,41 @@ export function AnnouncementManager({ announcements }: { announcements: AdminAnn
   const [targetCompanyId, setTargetCompanyId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
+  // US-902: announcements are editable until they expire or are retracted.
+  const [editing, setEditing] = useState<AdminAnnouncementRow | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editExpiresAt, setEditExpiresAt] = useState("");
+
+  function openEdit(a: AdminAnnouncementRow) {
+    setEditing(a);
+    setEditTitle(a.title);
+    setEditBody(a.body);
+    setEditExpiresAt(a.expiresAt ? a.expiresAt.slice(0, 10) : "");
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    try {
+      await api.patch(`/admin/announcements/${editing.id}`, {
+        title: editTitle,
+        body: editBody,
+        audience: editing.audience,
+        targetRole: editing.audience === "ROLE" ? editing.targetRole : undefined,
+        targetCompanyId: editing.audience === "COMPANY" ? editing.targetCompanyId : undefined,
+        expiresAt: editExpiresAt ? new Date(`${editExpiresAt}T23:59:59Z`).toISOString() : undefined,
+      });
+      toast.success("Announcement updated");
+      setEditing(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function publish(e: React.FormEvent) {
     e.preventDefault();
@@ -140,15 +188,23 @@ export function AnnouncementManager({ announcements }: { announcements: AdminAnn
               )}
               {audience === "COMPANY" && (
                 <div className="grid gap-2">
-                  <Label htmlFor="targetCompanyId">Company ID</Label>
-                  <Input
+                  <Label htmlFor="targetCompanyId">Company</Label>
+                  <select
                     id="targetCompanyId"
-                    className="w-80 font-mono text-xs"
-                    placeholder="Company UUID (from the companies page)"
+                    className="h-9 w-64 rounded-md border border-input bg-transparent px-2 text-sm"
                     required
                     value={targetCompanyId}
                     onChange={(e) => setTargetCompanyId(e.target.value)}
-                  />
+                  >
+                    <option value="" disabled>
+                      Select a company…
+                    </option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
               <div className="grid gap-2">
@@ -200,14 +256,69 @@ export function AnnouncementManager({ announcements }: { announcements: AdminAnn
               </CardDescription>
             </div>
             {a.status !== "RETRACTED" && (
-              <Button size="sm" variant="outline" onClick={() => retract(a.id)}>
-                Retract
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => openEdit(a)}>
+                  Edit
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => retract(a.id)}>
+                  Retract
+                </Button>
+              </div>
             )}
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">{a.body}</CardContent>
         </Card>
       ))}
+
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit announcement</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveEdit} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="editTitle">Title</Label>
+              <Input
+                id="editTitle"
+                required
+                minLength={3}
+                maxLength={140}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editBody">Body</Label>
+              <Textarea
+                id="editBody"
+                rows={4}
+                required
+                minLength={5}
+                maxLength={5000}
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editExpiresAt">Expires (optional)</Label>
+              <Input
+                id="editExpiresAt"
+                type="date"
+                value={editExpiresAt}
+                onChange={(e) => setEditExpiresAt(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

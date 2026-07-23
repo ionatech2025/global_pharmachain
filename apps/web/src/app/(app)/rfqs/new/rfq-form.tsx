@@ -78,8 +78,15 @@ export function RfqForm({
       router.refresh();
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "LIMIT_REACHED") {
+        const d = (err.details ?? {}) as { used?: number; limit?: number };
         toast.error(err.message, {
+          description:
+            d.used !== undefined && d.limit !== undefined
+              ? `${d.used} of ${d.limit} used this month. Buy credits for this month or upgrade your plan.`
+              : "Buy credits for this month or upgrade your plan.",
+          duration: 10000,
           action: { label: "Get credits", onClick: () => router.push("/company/usage") },
+          cancel: { label: "Upgrade", onClick: () => router.push("/company/usage") },
         });
         return;
       }

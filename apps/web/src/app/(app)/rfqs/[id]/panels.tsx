@@ -90,10 +90,14 @@ async function openThread(
 export function BuyerQuotations({
   rfqId,
   rfqStatus,
+  quantity,
+  unit,
   initial,
 }: {
   rfqId: string;
   rfqStatus: string;
+  quantity: string;
+  unit: string;
   initial: QuotationRow[];
 }) {
   const router = useRouter();
@@ -227,8 +231,9 @@ export function BuyerQuotations({
               <DialogTitle>Confirm order</DialogTitle>
               <DialogDescription>
                 Accepting {accepting?.supplierCompany.name}'s quotation creates an order for{" "}
-                {accepting ? fmtMoney(accepting.totalPrice, accepting.currency) : ""} and closes
-                this RFQ. Other suppliers will be notified they were not selected.
+                {quantity} {unit} at{" "}
+                {accepting ? fmtMoney(accepting.totalPrice, accepting.currency) : ""} total and
+                closes this RFQ. Other suppliers will be notified they were not selected.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -280,8 +285,15 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
       router.refresh();
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "LIMIT_REACHED") {
+        const d = (err.details ?? {}) as { used?: number; limit?: number };
         toast.error(err.message, {
+          description:
+            d.used !== undefined && d.limit !== undefined
+              ? `${d.used} of ${d.limit} used this month. Buy credits for this month or upgrade your plan.`
+              : "Buy credits for this month or upgrade your plan.",
+          duration: 10000,
           action: { label: "Get credits", onClick: () => router.push("/company/usage") },
+          cancel: { label: "Upgrade", onClick: () => router.push("/company/usage") },
         });
       } else {
         toast.error(errorMessage(err));
@@ -367,6 +379,17 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
               />
             </div>
           </div>
+          {unitPrice && !Number.isNaN(Number.parseFloat(unitPrice)) && (
+            <p className="text-sm text-muted-foreground">
+              Total for {rfq.quantity} {rfq.unit}:{" "}
+              <span className="font-medium text-foreground">
+                {fmtMoney(
+                  (Number.parseFloat(unitPrice) * Number.parseFloat(rfq.quantity)).toFixed(2),
+                  currency,
+                )}
+              </span>
+            </p>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="validDays">Validity (days from today)</Label>
             <Input

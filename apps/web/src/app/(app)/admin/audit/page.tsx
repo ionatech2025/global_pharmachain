@@ -24,12 +24,19 @@ function fmtJson(value: unknown): string {
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ entityType?: string; from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{
+    actorEmail?: string;
+    entityType?: string;
+    from?: string;
+    to?: string;
+    page?: string;
+  }>;
 }) {
   const params = await searchParams;
   const api = await apiServer();
   const logs = await api.get<Paginated<AuditLogRow>>("/admin/audit-logs", {
     query: {
+      actorEmail: params.actorEmail || undefined,
       entityType: params.entityType || undefined,
       from: params.from ? new Date(params.from).toISOString() : undefined,
       to: params.to ? new Date(`${params.to}T23:59:59Z`).toISOString() : undefined,
@@ -38,9 +45,12 @@ export default async function AdminAuditPage({
   });
 
   const filterQuery = new URLSearchParams(
-    Object.entries({ entityType: params.entityType, from: params.from, to: params.to }).filter(
-      (entry): entry is [string, string] => Boolean(entry[1]),
-    ),
+    Object.entries({
+      actorEmail: params.actorEmail,
+      entityType: params.entityType,
+      from: params.from,
+      to: params.to,
+    }).filter((entry): entry is [string, string] => Boolean(entry[1])),
   ).toString();
 
   return (
@@ -52,7 +62,15 @@ export default async function AdminAuditPage({
 
       <form method="GET" action="/admin/audit" className="flex flex-wrap items-end gap-2">
         <Input
+          name="actorEmail"
+          aria-label="Actor email"
+          placeholder="Actor email"
+          defaultValue={params.actorEmail}
+          className="w-52"
+        />
+        <Input
           name="entityType"
+          aria-label="Entity type"
           placeholder="Entity type (e.g. Company)"
           defaultValue={params.entityType}
           className="w-52"

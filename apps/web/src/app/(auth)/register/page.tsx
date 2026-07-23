@@ -48,6 +48,7 @@ export default function RegisterPage() {
         country: "",
         registrationNumber: "",
         address: "",
+        contactPhone: "",
       },
       admin: { name: "", email: "", password: "" },
     },
@@ -148,6 +149,19 @@ export default function RegisterPage() {
                   <FormLabel>Registered address</FormLabel>
                   <FormControl>
                     <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="company.contactPhone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact phone</FormLabel>
+                  <FormControl>
+                    <Input type="tel" autoComplete="tel" placeholder="+256 700 000000" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
