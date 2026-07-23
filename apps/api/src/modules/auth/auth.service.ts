@@ -3,11 +3,11 @@ import type { AuthenticatedUser } from "@pharmachain/auth";
 import type { RegisterInput } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail, otpEmail, passwordResetEmail, welcomeEmail } from "@pharmachain/email";
-import { notify } from "@pharmachain/notifications";
+import { notificationProviders, notify } from "@pharmachain/notifications";
 import { recordAudit } from "../../common/audit";
-import { ApiException, conflict, forbidden, unauthorized } from "../../common/errors";
+import { ApiException, badRequest, conflict, forbidden, unauthorized } from "../../common/errors";
 import { env } from "../../env";
-import { hashToken, randomToken } from "../../lib/crypto";
+import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { sendEmailTo } from "../shared/mailer";
 import { issueOtp, verifyOtp } from "./otp";
@@ -374,11 +374,50 @@ export class AuthService {
   }
 
   async setWhatsappNumber(userId: string, number: string): Promise<void> {
-    // Phase 1: number stored and marked verified immediately; a real provider
-    // verification (challenge message) slots in behind this call later.
+    // US-604: saving a number starts a challenge — a 6-digit code sent over
+    // the WhatsApp channel itself. The number counts as verified only after
+    // verifyWhatsappNumber() checks the code, so notifications never go to a
+    // number nobody proved they hold.
+    const code = generateOtpCode();
     await prisma.user.update({
       where: { id: userId },
-      data: { whatsappNumber: number, whatsappVerifiedAt: new Date() },
+      data: {
+        whatsappNumber: number,
+        whatsappVerifiedAt: null,
+        whatsappVerifyCodeHash: hashOtp(code, number, env.AUTH_SECRET),
+        whatsappVerifyExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+    try {
+      await notificationProviders().whatsapp.send(
+        number,
+        `PharmaChain verification code: ${code}. It expires in 10 minutes.`,
+      );
+    } catch (err) {
+      // The console provider never throws; a real provider failure leaves the
+      // challenge in place — the user can re-save the number to retry.
+      console.error("[whatsapp-verify] challenge delivery failed:", err);
+    }
+  }
+
+  async verifyWhatsappNumber(userId: string, code: string): Promise<void> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.whatsappNumber || !user.whatsappVerifyCodeHash || !user.whatsappVerifyExpiresAt) {
+      throw badRequest("No verification in progress — save your number first");
+    }
+    if (user.whatsappVerifyExpiresAt < new Date()) {
+      throw badRequest("The code expired — save your number again for a fresh one");
+    }
+    if (hashOtp(code, user.whatsappNumber, env.AUTH_SECRET) !== user.whatsappVerifyCodeHash) {
+      throw badRequest("That code doesn't match");
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        whatsappVerifiedAt: new Date(),
+        whatsappVerifyCodeHash: null,
+        whatsappVerifyExpiresAt: null,
+      },
     });
   }
 }

@@ -125,6 +125,18 @@ export class AuthController {
   ) {
     await this.authService.setWhatsappNumber(user.id, body.number);
     setAudit(req, { action: "user.whatsapp-update", entityType: "User", entityId: user.id });
+    return { ok: true, verificationSent: true };
+  }
+
+  @HttpCode(200)
+  @Post("me/whatsapp/verify")
+  async verifyWhatsapp(
+    @CurrentUser() user: AuthUser,
+    @Body(zodPipe(z.object({ code: z.string().regex(/^\d{6}$/) }))) body: { code: string },
+    @Req() req: FastifyRequest,
+  ) {
+    await this.authService.verifyWhatsappNumber(user.id, body.code);
+    setAudit(req, { action: "user.whatsapp-verify", entityType: "User", entityId: user.id });
     return { ok: true };
   }
 

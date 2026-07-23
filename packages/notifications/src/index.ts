@@ -3,8 +3,10 @@ import { PREFERENCE_EVENT_TYPES } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { createEmailProvider, type EmailContent, type EmailProvider } from "@pharmachain/email";
+import { enqueueOutbox } from "./outbox";
 import { createWhatsAppProvider, type WhatsAppProvider } from "./whatsapp";
 
+export * from "./outbox";
 export * from "./whatsapp";
 
 let emailProvider: EmailProvider | undefined;
@@ -113,6 +115,7 @@ async function fanout(input: NotifyInput): Promise<void> {
           await email().send({ to: user.email, ...input.emailContent });
         } catch (err) {
           console.error(`[notify] email delivery failed for user ${user.id}:`, err);
+          await enqueueOutbox("EMAIL", user.email, input.emailContent, err);
         }
       }
       // US-604: silent fallback — WhatsApp only for verified numbers, and a
@@ -122,8 +125,14 @@ async function fanout(input: NotifyInput): Promise<void> {
           await whatsapp().send(user.whatsappNumber, input.whatsappText);
         } catch (err) {
           console.error(`[notify] whatsapp delivery failed for user ${user.id}:`, err);
+          await enqueueOutbox("WHATSAPP", user.whatsappNumber, { text: input.whatsappText }, err);
         }
       }
     }),
   );
+}
+
+/** Providers as configured by env — used by the outbox retry job. */
+export function notificationProviders(): { email: EmailProvider; whatsapp: WhatsAppProvider } {
+  return { email: email(), whatsapp: whatsapp() };
 }

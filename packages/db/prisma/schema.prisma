@@ -230,6 +230,14 @@ model User {
   sessionVersion     Int        @default(1)
   whatsappNumber     String?
   whatsappVerifiedAt DateTime?
+  // Challenge-response number verification (US-604): code sent over the
+  // WhatsApp channel itself, stored hashed like the email OTP.
+  whatsappVerifyCodeHash  String?
+  whatsappVerifyExpiresAt DateTime?
+  // TOTP second factor (RFC 6238); secret stored base32, presence + enabledAt
+  // gate the login challenge.
+  totpSecret         String?
+  totpEnabledAt      DateTime?
   lastLoginAt        DateTime?
   deactivatedAt      DateTime?
   anonymizedAt       DateTime?
@@ -237,6 +245,7 @@ model User {
   updatedAt          DateTime   @updatedAt
 
   membership              CompanyUserRole?
+  savedSearches           SavedSearch[]
   invitesSent             Invite[]
   passwordResetTokens     PasswordResetToken[]
   loginActivity           LoginActivity[]
@@ -745,6 +754,38 @@ model DataDeletionRequest {
 
 // Insert-only at the application layer; no update/delete paths exist in the
 // API. For defence in depth, production migrations can additionally
+// A marketplace search a user chose to keep: its params re-run as a link, and
+// a daily job alerts on new matching listings since the last notification.
+model SavedSearch {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @db.Uuid
+  name           String
+  params         Json
+  lastNotifiedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// Failed email/WhatsApp deliveries land here and are retried with backoff —
+// notify() stays fire-and-forget for callers, but a provider outage no longer
+// silently drops the message.
+model NotificationOutbox {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  channel       String
+  recipient     String
+  payload       Json
+  attempts      Int       @default(1)
+  nextAttemptAt DateTime
+  lastError     String?
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([sentAt, nextAttemptAt])
+}
+
 // Shared rate-limit state for the security-sensitive throttles (login, OTP,
 // register, password reset). In-memory counters are per-instance and therefore
 // ineffective on serverless; long-window limits live here instead. Short-window

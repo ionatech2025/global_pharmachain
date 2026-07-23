@@ -14,6 +14,7 @@ import { CompareButton, CompareTray } from "@/components/compare";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
+import { SavedSearches } from "@/components/saved-searches";
 import { apiServer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
 import { convertedPrices, fmtMoney } from "@/lib/format";
@@ -112,6 +113,14 @@ export default async function MarketplacePage({
       </form>
 
       <FilterChips params={params} categories={categories} />
+      <SavedSearches
+        current={{
+          q: params.q,
+          kind: params.kind,
+          categoryId: params.categoryId,
+          country: params.country,
+        }}
+      />
 
       {results.items.length === 0 ? (
         <EmptyState

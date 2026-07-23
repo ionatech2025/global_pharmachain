@@ -148,9 +148,18 @@ export type MessageRow = Jsonify<Message> & {
 };
 
 /** GET /threads/:id/messages — thread header plus the message page. */
+export interface ThreadSystemEvent {
+  id: string;
+  status: string;
+  note: string | null;
+  eta: string | null;
+  createdAt: string;
+}
+
 export interface ThreadMessages {
   thread: Omit<ThreadRow, "messages">;
   messages: MessageRow[];
+  systemEvents: ThreadSystemEvent[];
 }
 
 export interface UsageSummary {

@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, type MessageEvent } from "@nestjs/common";
 import type { ThreadLookup } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
+import { Observable } from "rxjs";
 import { badRequest, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
@@ -148,7 +149,55 @@ export class MessagingService {
             take: 200,
           })
         ).reverse();
-    return { thread, messages };
+    // Order-linked threads interleave shipment milestones with the chat, so
+    // the conversation reads in business context (deferred-item: system events).
+    const systemEvents = thread.orderId
+      ? await prisma.orderStatusEvent.findMany({
+          where: { orderId: thread.orderId },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, status: true, note: true, eta: true, createdAt: true },
+        })
+      : [];
+    return { thread, messages, systemEvents };
+  }
+
+  /**
+   * SSE change feed: emits a ping whenever the thread has messages newer than
+   * the cursor. The client refetches on ping — payloads stay on one code path
+   * and reconnects (EventSource Last-Event-ID) resume from the right point.
+   * Streams complete after ~55 s; the browser reconnects automatically.
+   */
+  streamChanges(membership: Membership, threadId: string, since: Date): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let cursor = since;
+      let stopped = false;
+      const tick = async () => {
+        try {
+          const latest = await prisma.message.findFirst({
+            where: { threadId, createdAt: { gt: cursor } },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          });
+          if (latest && !stopped) {
+            cursor = latest.createdAt;
+            subscriber.next({
+              id: cursor.toISOString(),
+              data: { changed: true },
+            } as MessageEvent);
+          }
+        } catch {
+          // transient DB error: skip this tick, the next one retries
+        }
+      };
+      void tick();
+      const interval = setInterval(tick, 2500);
+      const end = setTimeout(() => subscriber.complete(), 55_000);
+      return () => {
+        stopped = true;
+        clearInterval(interval);
+        clearTimeout(end);
+      };
+    });
   }
 
   async postMessage(

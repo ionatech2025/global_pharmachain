@@ -4,8 +4,10 @@ import { logger } from "../lib/logger";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runDsrSlaJob,
+  runOutboxJob,
   runQuotationExpiryJob,
   runRfqAutoCloseJob,
+  runSavedSearchAlertJob,
   runThrottleCleanupJob,
   runTokenCleanupJob,
   runUploadCleanupJob,
@@ -59,5 +61,15 @@ export class JobsService {
   @Cron("15 5 * * *", { timeZone: "UTC" })
   dsrSla(): Promise<void> {
     return guarded("dsr-sla", () => runDsrSlaJob());
+  }
+
+  @Cron("*/10 * * * *", { timeZone: "UTC" })
+  outboxRetry(): Promise<void> {
+    return guarded("outbox-retry", () => runOutboxJob());
+  }
+
+  @Cron("0 6 * * *", { timeZone: "UTC" })
+  savedSearchAlerts(): Promise<void> {
+    return guarded("saved-search-alerts", () => runSavedSearchAlertJob());
   }
 }

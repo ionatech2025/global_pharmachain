@@ -17,7 +17,9 @@ import type { ThreadMessages } from "@/lib/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { uploadDocument } from "@/lib/upload";
 
-const POLL_INTERVAL_MS = 5000;
+// SSE pushes "changed" pings for near-instant updates; the slow poll is the
+// safety net when the stream can't connect (old proxies, buffering CDNs).
+const FALLBACK_POLL_INTERVAL_MS = 20_000;
 
 function entityHref(thread: ThreadMessages["thread"]): { href: string; label: string } | null {
   if (thread.order)
@@ -42,9 +44,19 @@ export function ThreadView({
     queryKey: ["thread", threadId],
     queryFn: () => api.get<ThreadMessages>(`/threads/${threadId}/messages`),
     initialData: initial,
-    refetchInterval: POLL_INTERVAL_MS,
+    refetchInterval: FALLBACK_POLL_INTERVAL_MS,
   });
-  const { thread, messages } = data;
+  const { thread, messages, systemEvents = [] } = data;
+
+  // Deferred item: SSE change feed — on ping, refetch through the one query
+  // path (no second payload shape, trivial dedupe).
+  useEffect(() => {
+    const source = new EventSource(`/api/proxy/threads/${threadId}/stream`);
+    source.onmessage = () => {
+      void queryClient.invalidateQueries({ queryKey: ["thread", threadId] });
+    };
+    return () => source.close();
+  }, [threadId, queryClient]);
 
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -119,50 +131,70 @@ export function ThreadView({
             No messages yet — start the conversation below.
           </p>
         )}
-        {messages.map((message) => {
-          const mine = message.sender.id === meUserId;
-          return (
-            <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                  mine ? "bg-primary text-primary-foreground" : "bg-muted",
-                )}
-              >
-                <p
+        {[
+          ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
+          ...systemEvents.map((e) => ({ kind: "system" as const, at: e.createdAt, event: e })),
+        ]
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .map((entry) => {
+            if (entry.kind === "system") {
+              const e = entry.event;
+              return (
+                <div key={`sys-${e.id}`} className="flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed bg-card px-3 py-1 text-xs text-muted-foreground">
+                    <span aria-hidden className="size-1.5 rounded-full bg-info" />
+                    {e.status.replaceAll("_", " ").toLowerCase()}
+                    {e.note ? ` — ${e.note}` : ""}
+                    {" · "}
+                    {fmtDateTime(e.createdAt)}
+                  </span>
+                </div>
+              );
+            }
+            const message = entry.message;
+            const mine = message.sender.id === meUserId;
+            return (
+              <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                <div
                   className={cn(
-                    "mb-0.5 text-xs",
-                    mine ? "text-primary-foreground/80" : "text-muted-foreground",
+                    "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                    mine ? "bg-primary text-primary-foreground" : "bg-muted",
                   )}
                 >
-                  {message.sender.name}
-                  {" · "}
-                  {message.senderCompanyId === thread.buyerCompany.id
-                    ? thread.buyerCompany.name
-                    : thread.supplierCompany.name}
-                  {message.senderRole
-                    ? ` · ${message.senderRole.toLowerCase().replace("_", " ")}`
-                    : ""}
-                  {" · "}
-                  {fmtDateTime(message.createdAt)}
-                </p>
-                <p className="whitespace-pre-wrap">{message.body}</p>
-                {message.attachments.length > 0 && (
-                  <div
+                  <p
                     className={cn(
-                      "mt-1.5 space-y-0.5",
-                      mine && "[&_button]:text-primary-foreground",
+                      "mb-0.5 text-xs",
+                      mine ? "text-primary-foreground/80" : "text-muted-foreground",
                     )}
                   >
-                    {message.attachments.map((a) => (
-                      <DocumentChip key={a.id} id={a.id} fileName={a.fileName} />
-                    ))}
-                  </div>
-                )}
+                    {message.sender.name}
+                    {" · "}
+                    {message.senderCompanyId === thread.buyerCompany.id
+                      ? thread.buyerCompany.name
+                      : thread.supplierCompany.name}
+                    {message.senderRole
+                      ? ` · ${message.senderRole.toLowerCase().replace("_", " ")}`
+                      : ""}
+                    {" · "}
+                    {fmtDateTime(message.createdAt)}
+                  </p>
+                  <p className="whitespace-pre-wrap">{message.body}</p>
+                  {message.attachments.length > 0 && (
+                    <div
+                      className={cn(
+                        "mt-1.5 space-y-0.5",
+                        mine && "[&_button]:text-primary-foreground",
+                      )}
+                    >
+                      {message.attachments.map((a) => (
+                        <DocumentChip key={a.id} id={a.id} fileName={a.fileName} />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
         <div ref={bottomRef} />
       </div>
 
