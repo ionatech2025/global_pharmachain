@@ -18,16 +18,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { HeroPanel } from "@/components/glass-panels";
+import { ChromeCube, ChromeSphere } from "@/components/chrome-motif";
+import { HeroMarketCards, HeroTickerRow } from "@/components/glass-panels";
+import { HeroGlobe } from "@/components/hero-globe";
 import { Logo, LogoMark } from "@/components/logo";
 import { Providers } from "@/components/providers";
 import { RouteMarquee } from "@/components/route-marquee";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: { absolute: "PharmaChain — verified B2B pharmaceutical marketplace" },
+  title: { absolute: "PharmaChain — the global verified pharmaceutical marketplace" },
   description:
-    "Source pharmaceutical raw materials and finished products from verified companies. RFQs, quotations, orders, shipment tracking and compliant document exchange — with a full audit trail.",
+    "Source pharmaceutical raw materials and finished products from verified companies worldwide. RFQs, quotations, orders, shipment tracking and compliant document exchange — with a full audit trail.",
 };
 
 const NAV_LINKS = [
@@ -39,25 +41,25 @@ const NAV_LINKS = [
 const STATS = [
   { value: "6", label: "Forward-only shipment stages, each with notes and ETAs" },
   { value: "100%", label: "Of actions recorded on the immutable audit trail" },
+  { value: "9", label: "Display currencies across one global marketplace" },
   { value: "0", label: "Email chains or spreadsheets needed per deal" },
-  { value: "3", label: "Sides of the supply chain on one workspace" },
 ];
 
 const AUDIENCES = [
   {
     icon: FlaskConical,
     title: "Raw-material manufacturers",
-    body: "Publish APIs and excipients with CoAs, SDS and GMP credentials attached to every listing.",
+    body: "Publish APIs and excipients with CoAs, SDS and GMP credentials — visible to verified buyers worldwide.",
   },
   {
     icon: Factory,
     title: "Finished-product manufacturers",
-    body: "Source by bill of materials, raise targeted RFQs and compare quotations side by side.",
+    body: "Source by bill of materials, raise targeted RFQs and compare quotations from any market side by side.",
   },
   {
     icon: Package,
     title: "Suppliers & distributors",
-    body: "Quote fast, win orders and keep buyers updated at every stage to the door.",
+    body: "Quote fast, win orders and keep buyers updated at every stage — from factory gate to the door.",
   },
 ];
 
@@ -146,7 +148,8 @@ export default async function LandingPage() {
           <div className="mx-auto flex h-9 w-full max-w-6xl items-center justify-center gap-4 px-4 text-xs text-muted-foreground sm:justify-between sm:px-6">
             <p className="flex items-center gap-2 truncate">
               <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
-              Now onboarding manufacturers, suppliers & distributors — verification included
+              Now onboarding manufacturers, suppliers & distributors worldwide — verification
+              included
             </p>
             <Link
               href="/register"
@@ -189,65 +192,77 @@ export default async function LandingPage() {
         </header>
 
         <main className="flex-1">
-          {/* Hero */}
-          <section className="relative overflow-hidden">
-            <div aria-hidden className="absolute inset-0 -z-10 bg-hero-glow" />
-            <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[40rem] bg-grid-fade" />
-            <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20">
-              <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-10">
-                <div className="text-center lg:text-left">
-                  <p className="eyebrow justify-center text-primary lg:justify-start">
+          {/* Hero — daylight-sky panel, the nav floating over its top edge */}
+          <section className="px-3 sm:px-5">
+            <div className="sky-scope relative mx-auto -mt-[4.25rem] w-full max-w-[86rem] overflow-hidden rounded-[1.75rem] bg-panel-sky shadow-[0_48px_110px_-48px_oklch(0.32_0.11_250/0.6)] sm:rounded-[2.5rem]">
+              <div aria-hidden className="absolute inset-0 bg-panel-grid opacity-45" />
+              {/* Wireframe globe rising behind the market cards (≥lg) */}
+              <div aria-hidden className="absolute inset-0 hidden overflow-hidden lg:block">
+                <HeroGlobe
+                  aurora={false}
+                  className="absolute -right-[10%] -bottom-[52%] aspect-square w-[56%] max-w-none opacity-90"
+                />
+              </div>
+
+              <div className="relative grid gap-12 px-6 pt-28 pb-14 sm:px-10 sm:pt-32 lg:grid-cols-[1.05fr_0.95fr] lg:px-14 lg:pb-24">
+                <div>
+                  <p className="eyebrow text-foreground/70">
                     <Sparkles className="size-3.5" />
-                    Verified-only B2B pharma network
+                    The global pharmaceutical supply network
                   </p>
-                  <h1 className="mt-5 text-4xl font-semibold tracking-[-0.035em] text-balance sm:text-6xl xl:text-[4.25rem] xl:leading-[1.04]">
-                    Pharmaceutical sourcing,{" "}
-                    <span className="text-gradient">from RFQ to delivered</span>
+                  <h1 className="text-display mt-6 text-[2.85rem] text-balance sm:text-6xl xl:text-[4.9rem]">
+                    Global pharma trade, verified end to end
                   </h1>
-                  <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground sm:text-lg lg:mx-0">
-                    PharmaChain connects verified manufacturers and suppliers. Publish catalogues,
-                    compare quotations, confirm orders and track every shipment — with compliant
-                    document exchange and a full audit trail underneath.
+                  <p className="mt-6 max-w-xl text-base text-foreground/80 sm:text-lg">
+                    PharmaChain runs every deal from RFQ to delivered — verified counterparties,
+                    versioned quotations, tracked shipments and compliant document exchange on one
+                    audit-trailed workspace, wherever your supply chain reaches.
                   </p>
-                  <div className="mt-9 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                    <Button asChild size="xl" className="shadow-lg shadow-primary/25">
+                  <div className="mt-9 flex flex-wrap items-center gap-3">
+                    <Button asChild size="xl" className="rounded-full shadow-lg shadow-black/20">
                       <Link href="/register">
                         Register your company <ArrowRight />
                       </Link>
                     </Button>
-                    <Button asChild size="xl" variant="outline">
+                    <Button
+                      asChild
+                      size="xl"
+                      className="rounded-full border-0 bg-white text-[oklch(0.22_0.032_256)] shadow-lg shadow-black/10 hover:bg-white/90"
+                    >
                       <Link href="/login">Sign in</Link>
                     </Button>
                   </div>
-                  <ul className="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
+                  <ul className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-foreground/75">
                     <li className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-4 text-success" /> Every counterparty verified
+                      <ShieldCheck className="size-4" /> Every counterparty verified
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <ScrollText className="size-4 text-success" /> Immutable audit trail
+                      <ScrollText className="size-4" /> Immutable audit trail
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Lock className="size-4 text-success" /> GDPR-ready by design
+                      <Lock className="size-4" /> GDPR-ready by design
                     </li>
                   </ul>
+                  <HeroTickerRow className="mt-10 lg:hidden" />
                 </div>
-                <HeroPanel className="min-h-[26rem] w-full sm:min-h-[30rem] lg:min-h-[32rem] lg:self-stretch" />
-              </div>
 
-              {/* Stat band */}
-              <dl className="mt-16 grid grid-cols-2 gap-x-6 gap-y-10 border-t pt-10 lg:grid-cols-4">
-                {STATS.map((stat) => (
-                  <div key={stat.label} className="border-l-2 border-primary/25 pl-4">
-                    <dd className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">
-                      {stat.value}
-                    </dd>
-                    <dt className="mt-1.5 text-sm text-muted-foreground">{stat.label}</dt>
-                  </div>
-                ))}
-              </dl>
+                <HeroMarketCards className="hidden min-h-[26rem] lg:block" />
+              </div>
             </div>
-            <RouteMarquee />
           </section>
+
+          {/* Stat band — display numerals */}
+          <section className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-10 pt-16 pb-6 lg:grid-cols-4">
+              {STATS.map((stat) => (
+                <div key={stat.label} className="border-l-2 border-primary/25 pl-4">
+                  <dd className="text-display text-4xl tabular-nums sm:text-5xl">{stat.value}</dd>
+                  <dt className="mt-2 text-sm text-muted-foreground">{stat.label}</dt>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <RouteMarquee />
 
           {/* Audiences */}
           <section id="network" className="scroll-mt-24">
@@ -255,19 +270,20 @@ export default async function LandingPage() {
               <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-end">
                 <div>
                   <p className="eyebrow text-primary">Who it's for</p>
-                  <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                  <h2 className="text-display mt-4 text-3xl sm:text-[2.6rem]">
                     Built for every side of the supply chain
                   </h2>
                 </div>
                 <p className="text-muted-foreground lg:pb-1">
-                  One verified network — whether you make, source or move pharmaceutical products.
+                  One verified network — whether you make, source or move pharmaceutical products,
+                  on any continent.
                 </p>
               </div>
               <div className="mt-12 grid gap-4 md:grid-cols-3">
                 {AUDIENCES.map((audience) => (
                   <div
                     key={audience.title}
-                    className="group rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10"
+                    className="group rounded-3xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10"
                   >
                     <span className="inline-flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-info text-primary-foreground shadow-md shadow-primary/25">
                       <audience.icon className="size-5" />
@@ -280,20 +296,26 @@ export default async function LandingPage() {
             </div>
           </section>
 
-          {/* Platform — dark showcase */}
+          {/* Platform — onyx showcase with chrome motifs */}
           <section id="platform" className="dark scroll-mt-24 bg-background text-foreground">
             <div className="relative overflow-hidden border-y border-border">
               <div
                 aria-hidden
-                className="absolute inset-0 bg-[radial-gradient(50rem_22rem_at_50%_-6rem,color-mix(in_oklch,var(--primary)_28%,transparent),transparent_70%)]"
+                className="absolute inset-0 bg-[radial-gradient(50rem_22rem_at_50%_-6rem,color-mix(in_oklch,var(--primary)_26%,transparent),transparent_70%)]"
               />
               <div aria-hidden className="absolute inset-x-0 top-0 h-[32rem] bg-grid-fade" />
+              <div aria-hidden className="absolute top-16 right-[4%] hidden w-64 lg:block xl:w-72">
+                <ChromeCube className="animate-float" />
+              </div>
+              <div aria-hidden className="absolute top-52 right-[27%] hidden w-16 xl:block">
+                <ChromeSphere className="animate-float" />
+              </div>
               <div className="relative mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
                 <p className="eyebrow text-primary">The platform</p>
-                <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-5xl">
+                <h2 className="text-display mt-4 max-w-2xl text-4xl text-balance sm:text-6xl">
                   Everything a regulated trade needs
                 </h2>
-                <p className="mt-4 max-w-xl text-muted-foreground">
+                <p className="mt-5 max-w-xl text-muted-foreground">
                   One workspace from first enquiry to delivered order — no email chains, no
                   spreadsheets.
                 </p>
@@ -301,13 +323,13 @@ export default async function LandingPage() {
                   {FEATURES.map((feature) => (
                     <div
                       key={feature.title}
-                      className="group rounded-2xl border bg-card/80 p-6 transition-colors duration-300 hover:border-primary/40 hover:bg-card"
+                      className="group rounded-2xl border bg-card/70 p-6 backdrop-blur-sm transition-colors duration-300 hover:border-primary/40 hover:bg-card"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
                           <feature.icon className="size-4.5" />
                         </span>
-                        <span className="rounded-full border border-border px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                        <span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] text-secondary-foreground uppercase">
                           {feature.tag}
                         </span>
                       </div>
@@ -325,7 +347,7 @@ export default async function LandingPage() {
             <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
               <div className="text-center">
                 <p className="eyebrow justify-center text-primary">How it works</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                <h2 className="text-display mt-4 text-3xl sm:text-[2.6rem]">
                   Up and trading in three steps
                 </h2>
               </div>
@@ -338,7 +360,7 @@ export default async function LandingPage() {
                   <li key={step.title} className="relative">
                     <span
                       aria-hidden
-                      className="pointer-events-none absolute -top-7 right-0 text-7xl font-bold tracking-tighter text-primary/[0.08] select-none dark:text-primary/[0.16]"
+                      className="text-display pointer-events-none absolute -top-7 right-0 text-8xl text-primary/[0.08] select-none dark:text-primary/[0.16]"
                     >
                       0{index + 1}
                     </span>
@@ -362,10 +384,10 @@ export default async function LandingPage() {
                 className="absolute inset-0 bg-[radial-gradient(42rem_18rem_at_50%_-6rem,oklch(1_0_0/0.18),transparent)]"
               />
               <div className="relative">
-                <h2 className="text-3xl font-semibold tracking-tight text-balance text-white sm:text-4xl">
+                <h2 className="text-display text-4xl text-balance text-white sm:text-5xl">
                   Ready to trade with verified partners?
                 </h2>
-                <p className="mx-auto mt-3 max-w-xl text-white/80">
+                <p className="mx-auto mt-4 max-w-xl text-white/80">
                   Register your company today. Start on the Freemium plan — no card required.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -373,7 +395,7 @@ export default async function LandingPage() {
                   <Button
                     asChild
                     size="xl"
-                    className="border-0 bg-white text-[oklch(0.25_0.04_255)] shadow-lg hover:bg-white/90"
+                    className="rounded-full border-0 bg-white text-[oklch(0.25_0.04_255)] shadow-lg hover:bg-white/90"
                   >
                     <Link href="/register">
                       Create your account <ArrowRight />
@@ -383,7 +405,7 @@ export default async function LandingPage() {
                     asChild
                     size="xl"
                     variant="outline"
-                    className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                    className="rounded-full border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
                   >
                     <Link href="/login">Sign in</Link>
                   </Button>
@@ -400,8 +422,8 @@ export default async function LandingPage() {
                 <Logo markClassName="size-8" wordClassName="text-lg" />
               </Link>
               <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-                The verified B2B network for pharmaceutical sourcing — RFQ to delivered, fully
-                audit-trailed.
+                The global verified network for pharmaceutical sourcing and logistics — RFQ to
+                delivered, fully audit-trailed.
               </p>
             </div>
             {FOOTER_GROUPS.map((group) => (
@@ -425,10 +447,12 @@ export default async function LandingPage() {
           <div className="border-t">
             <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 sm:flex-row sm:px-6">
               <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <LogoMark className="size-5" />© 2026 PharmaChain · Built for regulated supply
-                chains
+                <LogoMark className="size-5" />© 2026 PharmaChain · The global pharmaceutical supply
+                network
               </p>
-              <p className="text-xs text-muted-foreground">B2B pharmaceutical sourcing</p>
+              <p className="text-xs text-muted-foreground">
+                Kampala · Nairobi · Mumbai · Shanghai · Rotterdam · São Paulo
+              </p>
             </div>
           </div>
         </footer>

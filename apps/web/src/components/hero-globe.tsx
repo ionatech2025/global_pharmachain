@@ -50,18 +50,22 @@ const STARS = [
   [300, 36],
 ];
 
-export function HeroGlobe({ className }: { className?: string }) {
+export function HeroGlobe({ className, aurora = true }: { className?: string; aurora?: boolean }) {
   const uid = useId().replace(/:/g, "");
   const arcGrad = `arc-${uid}`;
   const meridGrad = `merid-${uid}`;
   const glow = `glow-${uid}`;
   return (
     <div className={className} aria-hidden>
-      {/* Drifting aurora blobs — the glass orb frosts these */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="animate-aurora-slow absolute -top-6 left-[10%] size-72 rounded-full bg-primary/25 blur-[110px] dark:bg-primary/45" />
-        <div className="animate-aurora-fast absolute bottom-[-8%] right-[8%] size-72 rounded-full bg-info/20 blur-[120px] dark:bg-info/35" />
-      </div>
+      {/* Drifting aurora blobs — the glass orb frosts these. Skipped when the
+          globe sits fully inside a panel: the blobs clip at this wrapper's
+          rectangular bounds, which reads as a seam on the panel gradient. */}
+      {aurora && (
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="animate-aurora-slow absolute -top-6 left-[10%] size-72 rounded-full bg-primary/25 blur-[110px] dark:bg-primary/45" />
+          <div className="animate-aurora-fast absolute bottom-[-8%] right-[8%] size-72 rounded-full bg-info/20 blur-[120px] dark:bg-info/35" />
+        </div>
+      )}
 
       <div className="globe-scene absolute inset-0 grid place-items-center">
         <div className="relative aspect-square w-[88%]">

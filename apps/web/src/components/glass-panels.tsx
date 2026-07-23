@@ -1,13 +1,12 @@
 import { cn } from "@pharmachain/ui/lib/utils";
-import { FileCheck2, ScrollText, ShieldCheck, Thermometer } from "lucide-react";
-import { HeroGlobe } from "./hero-globe";
+import { FileCheck2, ScrollText, ShieldCheck, Thermometer, TrendingUp } from "lucide-react";
 
 /**
- * Brand-fixed azure panels + frosted vignette cards for the marketing and
- * auth surfaces. Everything here is decorative illustration (aria-hidden,
- * same precedent as RouteMarquee): the floating cards are product-UI
- * vignettes with illustrative data, not live metrics. Pure server-rendered
- * SVG/CSS — no client JS; all motion obeys the global reduced-motion switch.
+ * Frosted vignette cards for the marketing and auth sky panels. Everything
+ * here is decorative illustration (aria-hidden at the use site, same
+ * precedent as RouteMarquee): the floating cards are product-UI vignettes
+ * with illustrative data, not live metrics. Pure server-rendered SVG/CSS —
+ * no client JS; all motion obeys the global reduced-motion switch.
  */
 
 /** Tiny up-trending sparkline; inherits colour via currentColor. */
@@ -54,45 +53,47 @@ function AvatarCluster({ className }: { className?: string }) {
   );
 }
 
-/** Hero visual: azure gradient panel, wireframe globe, floating glass cards. */
-export function HeroPanel({ className }: { className?: string }) {
+/**
+ * Olympus-style floating market cards for the sky hero (≥lg): a price-index
+ * ticker, the verified-network card, an on-time lane card and a cold-chain
+ * chip, staggered over the panel with a gentle float.
+ */
+export function HeroMarketCards({ className }: { className?: string }) {
   return (
-    <div
-      aria-hidden
-      className={cn(
-        "panel-globe-scope relative overflow-hidden rounded-[2rem] bg-panel-azure",
-        "shadow-[0_32px_80px_-32px_oklch(0.3_0.12_255/0.55)]",
-        className,
-      )}
-    >
-      <div className="absolute inset-0 bg-panel-grid" />
-      {/* The globe bleeds off the bottom edge for depth */}
-      <HeroGlobe className="absolute bottom-[-16%] left-1/2 aspect-square w-[110%] max-w-none -translate-x-1/2" />
+    <div aria-hidden className={cn("pointer-events-none relative", className)}>
+      {/* Price-index ticker */}
+      <div className="glass-card animate-float absolute top-0 right-0 w-56 rounded-2xl p-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            Para-API · USD/kg
+          </span>
+          <span className="text-xs font-semibold text-success tabular-nums">+0.6%</span>
+        </div>
+        <div className="mt-1 flex items-end justify-between gap-3">
+          <p className="text-2xl font-semibold tracking-tight tabular-nums">$4.82</p>
+          <Sparkline className="text-success" />
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">Marketplace median · 30 days</p>
+      </div>
 
-      {/* Verified-network stat card */}
-      <div className="glass-card animate-float absolute top-5 left-5 rounded-2xl p-4 sm:top-6 sm:left-6">
+      {/* Verified-network card */}
+      <div
+        className="glass-card animate-float absolute top-[9.5rem] left-0 rounded-2xl p-4"
+        style={{ animationDelay: "1.2s" }}
+      >
         <p className="text-2xl font-semibold tracking-tight tabular-nums">1,240+</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Verified companies</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Verified companies worldwide</p>
         <AvatarCluster className="mt-3" />
       </div>
 
-      {/* Credentials chip */}
+      {/* On-time lane card */}
       <div
-        className="glass-card animate-float absolute top-6 right-5 hidden items-center gap-2 rounded-full px-3.5 py-2 sm:right-6 sm:flex"
-        style={{ animationDelay: "1.4s" }}
+        className="glass-card animate-float absolute right-2 bottom-16 w-60 rounded-2xl p-4"
+        style={{ animationDelay: "0.6s" }}
       >
-        <ShieldCheck className="size-4 text-success" />
-        <span className="text-xs font-medium">GMP · GDP verified</span>
-      </div>
-
-      {/* On-time lane ticker */}
-      <div
-        className="glass-card animate-float absolute bottom-5 left-5 rounded-2xl p-4 sm:bottom-8 sm:left-6"
-        style={{ animationDelay: "0.7s" }}
-      >
-        <div className="flex items-baseline justify-between gap-6">
-          <span className="text-xs font-medium text-muted-foreground">KLA → NBO · API</span>
-          <span className="text-xs font-semibold text-success tabular-nums">+0.6%</span>
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="text-xs font-medium text-muted-foreground">Mumbai → Kampala</span>
+          <TrendingUp className="size-3.5 text-success" />
         </div>
         <div className="mt-1 flex items-end gap-3">
           <p className="text-xl font-semibold tracking-tight tabular-nums">98.4%</p>
@@ -103,35 +104,58 @@ export function HeroPanel({ className }: { className?: string }) {
 
       {/* Cold-chain chip */}
       <div
-        className="glass-card animate-float absolute right-5 bottom-6 hidden rounded-2xl p-3.5 sm:right-6 sm:bottom-10 sm:block"
-        style={{ animationDelay: "2.1s" }}
+        className="glass-card animate-float absolute bottom-2 left-6 flex items-center gap-2 rounded-full px-3.5 py-2"
+        style={{ animationDelay: "1.9s" }}
       >
-        <div className="flex items-center gap-2">
-          <Thermometer className="size-4 text-info" />
-          <p className="text-sm font-semibold tabular-nums">2–8 °C</p>
-        </div>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">Cold chain held</p>
+        <Thermometer className="size-4 text-info" />
+        <span className="text-xs font-semibold tabular-nums">2–8 °C</span>
+        <span className="text-[11px] text-muted-foreground">cold chain held</span>
       </div>
     </div>
   );
 }
 
-/** Auth right-hand aside: caption + shipment vignette on the azure panel. */
+/** Compact ticker pair shown under the hero copy on small screens. */
+export function HeroTickerRow({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cn("flex flex-wrap items-center gap-3", className)}>
+      <div className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
+        <div>
+          <p className="text-lg leading-none font-semibold tracking-tight tabular-nums">1,240+</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Verified companies</p>
+        </div>
+        <AvatarCluster />
+      </div>
+      <div className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
+        <div>
+          <p className="text-lg leading-none font-semibold tracking-tight tabular-nums">98.4%</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">On-time · 30 days</p>
+        </div>
+        <Sparkline className="text-success" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Auth right-hand aside, Untitled-UI style: a calm daylight-sky artwork
+ * panel with a display tagline and one product-screenshot vignette floating
+ * at its centre.
+ */
 export function AuthBrandPanel() {
   return (
-    <aside aria-hidden className="relative hidden overflow-hidden lg:block">
-      <div className="absolute inset-0 bg-panel-azure" />
-      <div className="absolute inset-0 bg-panel-grid" />
+    <aside aria-hidden className="sky-scope relative hidden overflow-hidden bg-panel-sky lg:block">
+      <div className="absolute inset-0 bg-panel-grid opacity-60" />
       <div className="relative flex h-full flex-col justify-between gap-10 p-10 xl:p-14">
         <div>
-          <p className="eyebrow text-white/70">
+          <p className="eyebrow text-foreground/70">
             <ShieldCheck className="size-3.5" />
-            PharmaChain network
+            PharmaChain · Global network
           </p>
-          <p className="mt-5 max-w-md text-3xl font-semibold tracking-tight text-balance text-white xl:text-4xl">
-            Verified trade, end to end.
+          <p className="text-display mt-6 max-w-md text-4xl text-balance xl:text-5xl">
+            Global pharma trade, verified.
           </p>
-          <p className="mt-3 max-w-sm text-sm text-white/75">
+          <p className="mt-4 max-w-sm text-sm text-foreground/75">
             Every counterparty is credential-checked before a single quote is exchanged — and every
             step lands on the audit trail.
           </p>
@@ -143,7 +167,7 @@ export function AuthBrandPanel() {
             <span className="text-xs font-medium">GMP · GDP verified network</span>
           </span>
 
-          {/* Shipment vignette */}
+          {/* Product-screenshot vignette */}
           <div className="glass-card animate-float rounded-2xl p-5">
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm font-semibold">Order PC-2481</p>
@@ -152,7 +176,7 @@ export function AuthBrandPanel() {
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Kampala → Nairobi · Amoxicillin API · 500 kg
+              Mumbai → Kampala · Amoxicillin API · 500 kg
             </p>
             <div className="mt-3 flex gap-1">
               {[1, 2, 3, 4].map((s) => (
@@ -177,7 +201,7 @@ export function AuthBrandPanel() {
           </div>
         </div>
 
-        <p className="text-xs text-white/60">
+        <p className="text-xs text-foreground/60">
           Compliant document exchange · Immutable audit trail · GDPR-ready
         </p>
       </div>

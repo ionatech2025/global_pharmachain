@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Anton, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorker } from "@/components/service-worker";
 
@@ -7,10 +7,12 @@ import { ServiceWorker } from "@/components/service-worker";
 // no external font request and no layout shift.
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+// Condensed grotesque reserved for display headlines (marketing surfaces).
+const fontDisplay = Anton({ weight: "400", subsets: ["latin"], variable: "--font-anton" });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmachain-seven.vercel.app";
 const SHARE_DESCRIPTION =
-  "Source pharmaceutical raw materials and finished products from verified companies — RFQs, quotations, orders, shipment tracking and compliant document exchange.";
+  "The global verified network for pharmaceutical sourcing and logistics — RFQs, quotations, orders, shipment tracking and compliant document exchange, worldwide.";
 
 export const metadata: Metadata = {
   // Absolute base so the file-convention opengraph-image / twitter-image and
@@ -30,14 +32,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "PharmaChain",
-    title: "PharmaChain — verified B2B pharmaceutical marketplace",
+    title: "PharmaChain — the global verified pharmaceutical marketplace",
     description: SHARE_DESCRIPTION,
     url: "/",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PharmaChain — verified B2B pharmaceutical marketplace",
+    title: "PharmaChain — the global verified pharmaceutical marketplace",
     description: SHARE_DESCRIPTION,
   },
 };
@@ -56,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fontSans.variable} ${fontMono.variable}`}
+      className={`${fontSans.variable} ${fontMono.variable} ${fontDisplay.variable}`}
     >
       <body className="min-h-screen font-sans antialiased">
         {children}
