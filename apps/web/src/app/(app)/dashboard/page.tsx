@@ -62,7 +62,9 @@ export default async function DashboardPage() {
         <PageHeader
           title="Platform overview"
           description="Live counts across PharmaChain (US-901)."
-        />
+        >
+          <DashboardRefresh />
+        </PageHeader>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Companies" value={p.totalCompanies} href="/admin/companies" />
           <Stat label="Verified companies" value={p.verifiedCompanies} href="/admin/companies" />
