@@ -27,6 +27,7 @@ import { MessagingModule } from "./modules/messaging/messaging.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { OrderModule } from "./modules/order/order.module";
 import { RfqModule } from "./modules/rfq/rfq.module";
+import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { RfqModule } from "./modules/rfq/rfq.module";
     NotificationModule,
     AnnouncementModule,
     BillingModule,
+    SavedSearchModule,
     DashboardModule,
     AdminModule,
   ],

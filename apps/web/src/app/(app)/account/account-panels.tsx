@@ -100,14 +100,34 @@ function ChangePasswordCard() {
 function WhatsappCard() {
   const [number, setNumber] = useState("");
   const [busy, setBusy] = useState(false);
+  // Challenge-response verification (US-604): a code arrives on the number
+  // itself; notifications only flow once it's confirmed.
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
       await api.put("/auth/me/whatsapp", { number });
-      toast.success("WhatsApp number saved — used for opted-in notifications");
+      setAwaitingCode(true);
+      toast.success("Verification code sent to your WhatsApp number");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/auth/me/whatsapp/verify", { code });
+      setAwaitingCode(false);
       setNumber("");
+      setCode("");
+      toast.success("Number verified — WhatsApp notifications are active");
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -120,24 +140,44 @@ function WhatsappCard() {
       <CardHeader>
         <CardTitle className="text-sm">WhatsApp notifications</CardTitle>
         <CardDescription>
-          International format (e.g. +256700000000). Manage which events use it on the notifications
+          International format (e.g. +256700000000). A verification code is sent to the number;
+          notifications start once it's confirmed. Manage which events use it on the notifications
           page.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
           <div className="min-w-52 flex-1">
             <Input
               placeholder="+256700000000"
               required
+              aria-label="WhatsApp number"
               value={number}
               onChange={(e) => setNumber(e.target.value)}
             />
           </div>
           <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save number"}
+            {busy ? "Working…" : awaitingCode ? "Resend code" : "Save number"}
           </Button>
         </form>
+        {awaitingCode && (
+          <form onSubmit={verify} className="flex flex-wrap items-end gap-2">
+            <div className="w-40">
+              <Input
+                placeholder="6-digit code"
+                required
+                inputMode="numeric"
+                pattern="\d{6}"
+                aria-label="Verification code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </div>
+            <Button type="submit" variant="secondary" disabled={busy || code.length !== 6}>
+              Verify number
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   );

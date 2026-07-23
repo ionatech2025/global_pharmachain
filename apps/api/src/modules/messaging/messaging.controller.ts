@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, Sse } from "@nestjs/common";
 import {
   idParamSchema,
   type MessageCreate,
@@ -48,6 +48,25 @@ export class MessagingController {
     @Query(zodPipe(afterQuerySchema)) query: AfterQuery,
   ) {
     return this.messagingService.listMessages(membership, params.id, query.after);
+  }
+
+  @RequirePermission("message:read")
+  @Sse(":id/stream")
+  async stream(
+    @CurrentMembership() membership: Membership,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Req() req: FastifyRequest,
+  ) {
+    // Access is asserted before the stream opens; afterwards the observable
+    // only ever reveals "something changed".
+    await this.messagingService.listMessages(membership, params.id, new Date().toISOString());
+    const lastEventId = req.headers["last-event-id"];
+    const since = typeof lastEventId === "string" ? new Date(lastEventId) : new Date();
+    return this.messagingService.streamChanges(
+      membership,
+      params.id,
+      Number.isNaN(since.getTime()) ? new Date() : since,
+    );
   }
 
   @RequirePermission("message:write")
