@@ -36,14 +36,15 @@ export class BillingController {
   @RequirePermission("usage:read")
   @Get("credit-fees")
   async fees() {
-    const [rfq, quotation, featured, verificationPremium, currency] = await Promise.all([
+    const [rfq, quotation, featured, verificationPremium, insights, currency] = await Promise.all([
       getParam(PARAM_KEYS.CREDIT_FEE_RFQ_USD),
       getParam(PARAM_KEYS.CREDIT_FEE_QUOTATION_USD),
       getParam(PARAM_KEYS.FEATURED_FEE_USD),
       getParam(PARAM_KEYS.VERIFICATION_PREMIUM_FEE_USD),
+      getParam(PARAM_KEYS.DATA_INSIGHTS_FEE_USD),
       getParam(PARAM_KEYS.CREDIT_FEE_CURRENCY),
     ]);
-    return { rfq, quotation, featured, verificationPremium, currency };
+    return { rfq, quotation, featured, verificationPremium, insights, currency };
   }
 
   @RequirePermission("company:manage")
@@ -62,8 +63,9 @@ export class BillingController {
       QUOTATION: PARAM_KEYS.CREDIT_FEE_QUOTATION_USD,
       FEATURED: PARAM_KEYS.FEATURED_FEE_USD,
       VERIFICATION_PREMIUM: PARAM_KEYS.VERIFICATION_PREMIUM_FEE_USD,
+      DATA_INSIGHTS: PARAM_KEYS.DATA_INSIGHTS_FEE_USD,
     } as const;
-    const flat = body.kind === "FEATURED" || body.kind === "VERIFICATION_PREMIUM";
+    const flat = body.kind !== "RFQ" && body.kind !== "QUOTATION";
     const count = flat ? 1 : body.count;
     const [feePerCredit, currency] = await Promise.all([
       getParam(FEE_PARAM[body.kind]),

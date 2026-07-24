@@ -54,6 +54,7 @@ export function CreditRequestPanel({
     quotation: string;
     featured: string;
     verificationPremium: string;
+    insights: string;
     currency: string;
   } | null>(null);
   useEffect(() => {
@@ -63,6 +64,7 @@ export function CreditRequestPanel({
         quotation: string;
         featured: string;
         verificationPremium: string;
+        insights: string;
         currency: string;
       }>("/billing/credit-fees")
       .then(setFees)
@@ -70,12 +72,13 @@ export function CreditRequestPanel({
   }, []);
   // Phase 4 §3: featured placement + premium verification are flat purchases
   // through the same manual-payment flow; usage credits price per unit.
-  const flat = kind === "FEATURED" || kind === "VERIFICATION_PREMIUM";
+  const flat = kind !== "RFQ" && kind !== "QUOTATION";
   const FEE_KEY = {
     RFQ: "rfq",
     QUOTATION: "quotation",
     FEATURED: "featured",
     VERIFICATION_PREMIUM: "verificationPremium",
+    DATA_INSIGHTS: "insights",
   } as const;
   const feePerCredit = fees ? fees[FEE_KEY[kind]] : null;
   const parsedCount = flat ? 1 : Number.parseInt(count, 10);
@@ -83,8 +86,10 @@ export function CreditRequestPanel({
     feePerCredit !== null && Number.isFinite(parsedCount) && parsedCount > 0
       ? (Number.parseFloat(feePerCredit) * parsedCount).toFixed(2)
       : null;
+  // Usage credits only make sense on Freemium; the flat purchases (featured,
+  // premium verification, data insights) are open to every tier.
   const availableKinds = CREDIT_KINDS.filter(
-    (k) => tier === "FREEMIUM" || k === "FEATURED" || k === "VERIFICATION_PREMIUM",
+    (k) => tier === "FREEMIUM" || (k !== "RFQ" && k !== "QUOTATION"),
   );
 
   async function request(e: React.FormEvent) {

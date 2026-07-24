@@ -12,6 +12,7 @@ import { notificationProviders, notify, runOutboxRetryJob } from "@pharmachain/n
 import { env } from "../env";
 import { logger } from "../lib/logger";
 import { shipmentPartyUserIds } from "../lib/shipment-access";
+import { runWebhookDeliveryPass } from "../lib/webhooks";
 import { deleteObject } from "../modules/document/storage";
 
 /** RFQs past their deadline auto-close (US-402); buyers are told. */
@@ -485,6 +486,12 @@ export async function runTrustBadgeJob(now = new Date()): Promise<void> {
   if (granted + revoked + expired.count > 0) {
     logger.info("trust badge job done", { granted, revoked, featuredExpired: expired.count });
   }
+}
+
+/** Retries pending partner webhook deliveries with backoff (Phase 5 §3). */
+export async function runWebhookRetryJob(now = new Date()): Promise<void> {
+  const result = await runWebhookDeliveryPass(now);
+  if (result.delivered > 0) logger.info("webhook retry job done", result);
 }
 
 /** Drops rate-limit buckets whose window and block have both long passed. */

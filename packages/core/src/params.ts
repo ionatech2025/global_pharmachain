@@ -14,6 +14,8 @@ export const PARAM_KEYS = {
   PLATFORM_BANK_DETAILS: "platform_bank_details",
   FEATURED_FEE_USD: "featured_fee_usd",
   VERIFICATION_PREMIUM_FEE_USD: "verification_premium_fee_usd",
+  DATA_INSIGHTS_FEE_USD: "data_insights_fee_usd",
+  LOGISTICS_LEAD_FEE_USD: "logistics_lead_fee_usd",
 } as const;
 export type ParamKey = (typeof PARAM_KEYS)[keyof typeof PARAM_KEYS];
 
@@ -98,6 +100,19 @@ export const PARAM_DEFINITIONS: readonly ParamDefinition[] = [
     type: "decimal",
     defaultValue: "499.00",
     description: "Fee (USD) for the premium verification package (Phase 4)",
+  },
+  {
+    key: PARAM_KEYS.DATA_INSIGHTS_FEE_USD,
+    type: "decimal",
+    defaultValue: "299.00",
+    description: "Fee (USD) for 30 days of market data-insights access (Phase 5)",
+  },
+  {
+    key: PARAM_KEYS.LOGISTICS_LEAD_FEE_USD,
+    type: "decimal",
+    defaultValue: "5.00",
+    description:
+      "Lead-generation fee (USD) recorded when a logistics partner is appointed (Phase 5)",
   },
 ];
 

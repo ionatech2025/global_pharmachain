@@ -328,7 +328,13 @@ export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number];
 export const ANNOUNCEMENT_STATUSES = ["DRAFT", "PUBLISHED", "RETRACTED"] as const;
 export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 
-export const CREDIT_KINDS = ["RFQ", "QUOTATION", "FEATURED", "VERIFICATION_PREMIUM"] as const;
+export const CREDIT_KINDS = [
+  "RFQ",
+  "QUOTATION",
+  "FEATURED",
+  "VERIFICATION_PREMIUM",
+  "DATA_INSIGHTS",
+] as const;
 export type CreditKind = (typeof CREDIT_KINDS)[number];
 
 export const CREDIT_KIND_LABELS: Record<CreditKind, string> = {
@@ -336,6 +342,7 @@ export const CREDIT_KIND_LABELS: Record<CreditKind, string> = {
   QUOTATION: "Quotation credits",
   FEATURED: "Featured placement (30 days)",
   VERIFICATION_PREMIUM: "Premium verification package",
+  DATA_INSIGHTS: "Market data insights (30 days)",
 };
 
 export const CREDIT_STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "REJECTED"] as const;
@@ -350,13 +357,14 @@ export type Currency = (typeof CURRENCIES)[number];
 
 // ─── Phase 3: payments & financial tools ─────────────────────────────────────
 
-export const PAYMENT_METHODS = ["BANK_TRANSFER", "CARD", "MOBILE_MONEY"] as const;
+export const PAYMENT_METHODS = ["BANK_TRANSFER", "CARD", "MOBILE_MONEY", "ESCROW"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "Bank transfer / EFT",
   CARD: "Credit / debit card",
   MOBILE_MONEY: "Mobile money",
+  ESCROW: "Escrow (third-party held)",
 };
 
 export const PAYMENT_STATUSES = ["PENDING", "CONFIRMED", "FAILED", "REFUNDED"] as const;

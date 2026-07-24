@@ -11,6 +11,7 @@ import {
   isLogisticsCompanyType,
   LOGISTICS_ROLE_COMPANY_TYPE,
   LOGISTICS_ROLE_LABELS,
+  PARAM_KEYS,
 } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
@@ -18,6 +19,7 @@ import { notify } from "@pharmachain/notifications";
 import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
+import { getParam } from "../../lib/params";
 import { resolveShipmentRole, shipmentPartyUserIds } from "../../lib/shipment-access";
 
 @Injectable()
@@ -78,6 +80,26 @@ export class LogisticsService {
       });
     });
 
+    // Phase 5 §4: parameterised lead-generation fee recorded against the
+    // appointed logistics partner's ledger (facilitation monetisation).
+    try {
+      const leadFee = Number(await getParam(PARAM_KEYS.LOGISTICS_LEAD_FEE_USD));
+      if (leadFee > 0) {
+        await prisma.ledgerEntry.create({
+          data: {
+            companyId: company.id,
+            kind: "PLATFORM_FEE",
+            amount: -leadFee,
+            currency: "USD",
+            refType: "ShipmentAppointment",
+            refId: appointment.id,
+            note: `Lead-generation fee · order ${order.orderNo}`,
+          },
+        });
+      }
+    } catch {
+      // fee recording is best-effort; the appointment stands
+    }
     await notify({
       companyId: company.id,
       type: "SHIPMENT_STATUS_CHANGE",

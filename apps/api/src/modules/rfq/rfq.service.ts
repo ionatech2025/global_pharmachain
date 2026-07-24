@@ -7,6 +7,7 @@ import { notify } from "@pharmachain/notifications";
 import { badRequest, conflict, forbidden, limitReached, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
+import { emitWebhookEvent } from "../../lib/webhooks";
 import { evaluateCompanyUsage } from "../billing/usage";
 
 const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
@@ -511,6 +512,12 @@ export class RfqService {
       return order;
     });
 
+    // Phase 5 §3: signed webhook push to both parties' external systems.
+    void emitWebhookEvent(
+      [quotation.rfq.buyerCompanyId, quotation.supplierCompanyId],
+      "order.created",
+      { orderId: order.id, orderNo: order.orderNo, title: order.title },
+    );
     // Winner (US-405)
     await notify({
       companyId: quotation.supplierCompanyId,

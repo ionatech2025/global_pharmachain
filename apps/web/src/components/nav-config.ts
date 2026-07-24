@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from "@pharmachain/auth";
 import { isLogisticsCompanyType } from "@pharmachain/core";
 import {
   Building2,
+  Code2,
   FileText,
   Inbox,
   Landmark,
@@ -17,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingCart,
+  Sparkles,
   Truck,
   UserRound,
   Users,
@@ -87,12 +89,14 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
         { href: "/rfqs", label: "My RFQs", icon: ListChecks },
         { href: "/quotes", label: "Quote inbox", icon: Inbox },
         { href: "/orders", label: "Orders", icon: ShoppingCart },
+        { href: "/intelligence", label: "Intelligence", icon: Sparkles },
       ],
     },
     {
       section: "Workspace",
       items: [
         { href: "/finance", label: "Finance", icon: Landmark },
+        { href: "/developers", label: "Developers", icon: Code2 },
         { href: "/documents", label: "Documents", icon: FileText },
         { href: "/messages", label: "Messages", icon: MessageSquare },
         { href: "/company", label: "Company", icon: Building2 },

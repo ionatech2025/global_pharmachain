@@ -26,6 +26,8 @@ import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { DisputeModule } from "./modules/dispute/dispute.module";
 import { DocumentModule } from "./modules/document/document.module";
 import { FinanceModule } from "./modules/finance/finance.module";
+import { IntegrationsModule } from "./modules/integrations/integrations.module";
+import { IntelligenceModule } from "./modules/intelligence/intelligence.module";
 import { LogisticsModule } from "./modules/logistics/logistics.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { NotificationModule } from "./modules/notification/notification.module";
@@ -54,6 +56,8 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     DisputeModule,
     FinanceModule,
     AnalyticsModule,
+    IntelligenceModule,
+    IntegrationsModule,
     DocumentModule,
     BomModule,
     MessagingModule,

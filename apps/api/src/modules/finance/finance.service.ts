@@ -21,6 +21,7 @@ import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getParam } from "../../lib/params";
 import { gatewayById, gatewayFor } from "../../lib/payment-gateways";
+import { emitWebhookEvent } from "../../lib/webhooks";
 import { buildStorageKey, putObject } from "../document/storage";
 
 function refCode(prefix: string): string {
@@ -238,6 +239,19 @@ export class FinanceService {
       });
     }
 
+    if (payment.status === "CONFIRMED") {
+      void emitWebhookEvent(
+        [payment.payerCompanyId, payment.order.sellerCompanyId],
+        "payment.confirmed",
+        {
+          paymentId: payment.id,
+          providerRef: payment.providerRef,
+          orderNo: payment.order.orderNo,
+          amount: String(payment.amount),
+          currency: payment.currency,
+        },
+      );
+    }
     const label = payment.status === "CONFIRMED" ? "confirmed" : "failed";
     await notify({
       userIds: (
@@ -421,6 +435,7 @@ export class FinanceService {
             vatRatePct: rule ? vatRatePct : null,
             fxRateToUsd: rateToUsd,
             fxStampedAt: rateToUsd === null ? null : new Date(),
+            paymentTermsDays: input.paymentTermsDays ?? null,
             issuedById: user.id,
           },
         });
@@ -483,6 +498,13 @@ export class FinanceService {
       console.error("[finance] invoice pdf store failed:", err);
     }
 
+    void emitWebhookEvent([order.buyerCompanyId, order.sellerCompanyId], "invoice.issued", {
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      orderNo: order.orderNo,
+      total: String(invoice.total),
+      currency: invoice.currency,
+    });
     await notify({
       companyId: order.buyerCompanyId,
       roles: ["COMPANY_ADMIN", "FINANCE"],
