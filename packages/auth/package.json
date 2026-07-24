@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@auth/core": "0.41.2",
+    "@auth/core": "0.41.3",
     "@pharmachain/core": "workspace:*",
-    "next-auth": "5.0.0-beta.31"
+    "next-auth": "5.0.0-beta.32"
   },
   "devDependencies": {
     "@pharmachain/typescript-config": "workspace:*",
