@@ -49,7 +49,7 @@ cat > "$FUNC/.vc-config.json" <<'JSON'
   "handler": "index.cjs",
   "launcherType": "Nodejs",
   "shouldAddHelpers": false,
-  "maxDuration": 30
+  "maxDuration": 60
 }
 JSON
 echo "   func: $(du -sh "$FUNC" | cut -f1)"

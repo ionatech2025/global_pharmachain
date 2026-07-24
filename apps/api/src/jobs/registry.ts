@@ -32,7 +32,7 @@ import { withJobLock } from "./lock";
 
 export type JobTier = "frequent" | "daily";
 
-const JOBS: Record<string, { tier: JobTier; run: () => Promise<void> }> = {
+const JOBS: Record<string, { tier: JobTier; run: () => Promise<unknown> }> = {
   "rfq-auto-close": { tier: "frequent", run: () => runRfqAutoCloseJob() },
   "quotation-expiry": { tier: "frequent", run: () => runQuotationExpiryJob() },
   "outbox-retry": { tier: "frequent", run: () => runOutboxJob() },

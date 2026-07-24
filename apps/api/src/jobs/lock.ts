@@ -16,7 +16,7 @@ const JOB_LOCK_TIMEOUT_MS = 15 * 60 * 1000;
  *
  * Returns false when another instance holds the lock (the job is skipped).
  */
-export async function withJobLock(name: string, fn: () => Promise<void>): Promise<boolean> {
+export async function withJobLock(name: string, fn: () => Promise<unknown>): Promise<boolean> {
   return prisma.$transaction(
     async (tx) => {
       const [{ locked }] = await tx.$queryRaw<[{ locked: boolean }]>`
