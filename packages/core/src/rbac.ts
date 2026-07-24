@@ -21,6 +21,8 @@ export const PERMISSIONS = [
   "message:read",
   "message:write",
   "usage:read",
+  "finance:read", // payments, invoices, ledger, reports (Phase 3)
+  "finance:manage", // initiate/confirm payments, issue invoices (Phase 3)
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -49,6 +51,7 @@ const ROLE_PERMISSIONS: Record<CompanyRole, readonly Permission[]> = {
     "message:read",
     "message:write",
     "usage:read",
+    "finance:read",
   ],
   FINANCE: [
     "catalogue:read",
@@ -60,6 +63,8 @@ const ROLE_PERMISSIONS: Record<CompanyRole, readonly Permission[]> = {
     "message:read",
     "message:write",
     "usage:read",
+    "finance:read",
+    "finance:manage",
   ],
 };
 

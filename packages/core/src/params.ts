@@ -10,10 +10,12 @@ export const PARAM_KEYS = {
   CREDIT_FEE_QUOTATION_USD: "credit_fee_quotation_usd",
   CREDIT_FEE_CURRENCY: "credit_fee_currency",
   COMPANY_USER_LIMIT: "company_user_limit",
+  PLATFORM_COMMISSION_PCT: "platform_commission_pct",
+  PLATFORM_BANK_DETAILS: "platform_bank_details",
 } as const;
 export type ParamKey = (typeof PARAM_KEYS)[keyof typeof PARAM_KEYS];
 
-export type ParamType = "int" | "decimal" | "csv-int" | "currency";
+export type ParamType = "int" | "decimal" | "csv-int" | "currency" | "text";
 
 export interface ParamDefinition {
   key: ParamKey;
@@ -71,6 +73,18 @@ export const PARAM_DEFINITIONS: readonly ParamDefinition[] = [
     defaultValue: "0",
     description: "Maximum users per company (0 = unlimited)",
   },
+  {
+    key: PARAM_KEYS.PLATFORM_COMMISSION_PCT,
+    type: "decimal",
+    defaultValue: "1.50",
+    description: "Platform commission (%) recorded on each confirmed payment (Phase 3)",
+  },
+  {
+    key: PARAM_KEYS.PLATFORM_BANK_DETAILS,
+    type: "text",
+    defaultValue: "Bank of Africa · PharmaChain Ltd · A/C 01234567890 · SWIFT BOAUGKA",
+    description: "Bank instructions shown for manual bank-transfer payments (Phase 3)",
+  },
 ];
 
 export function paramDefinition(key: ParamKey): ParamDefinition {
@@ -91,6 +105,8 @@ export function validateParamValue(type: ParamType, value: string): boolean {
     }
     case "currency":
       return /^[A-Z]{3}$/.test(value.trim());
+    case "text":
+      return value.trim().length > 0 && value.length <= 500;
   }
 }
 

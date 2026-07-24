@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from "@pharmachain/auth";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import { Input } from "@pharmachain/ui/components/input";
@@ -17,7 +18,7 @@ import { PaginationNav } from "@/components/pagination-nav";
 import { SavedSearches } from "@/components/saved-searches";
 import { apiServer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
-import { convertedPrices, fmtMoney } from "@/lib/format";
+import { approxInPreferred, convertedPrices, fmtMoney } from "@/lib/format";
 
 export const metadata = { title: "Marketplace" };
 
@@ -37,7 +38,7 @@ export default async function MarketplacePage({
 }) {
   const params = await searchParams;
   const api = await apiServer();
-  const [results, categories, rates] = await Promise.all([
+  const [results, categories, rates, me] = await Promise.all([
     api.get<Paginated<ListingRow>>("/catalogue/search", {
       query: {
         q: params.q,
@@ -50,7 +51,9 @@ export default async function MarketplacePage({
     }),
     api.get<CategoryRow[]>("/catalogue/categories"),
     api.get<ExchangeRateRow[]>("/catalogue/exchange-rates"),
+    api.get<AuthenticatedUser & { preferredCurrency?: string | null }>("/auth/me"),
   ]);
+  const preferredCurrency = me.preferredCurrency ?? null;
 
   return (
     <div className="space-y-4">
@@ -169,6 +172,12 @@ export default async function MarketplacePage({
                       {fmtMoney(l.price, l.currency)}{" "}
                       <span className="font-normal text-muted-foreground">/ {l.unit}</span>
                     </div>
+                    {/* Phase 3 §3: viewer's preferred display currency, inline */}
+                    {approxInPreferred(l.price, l.currency, preferredCurrency, rates) && (
+                      <div className="text-xs text-muted-foreground tabular-nums">
+                        {approxInPreferred(l.price, l.currency, preferredCurrency, rates)}
+                      </div>
+                    )}
                     {/* Conversions collapsed by default — keeps rows scannable
                         while the FX detail stays one click away (US-905). */}
                     {rates.length > 0 && (

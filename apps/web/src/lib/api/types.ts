@@ -173,6 +173,81 @@ export type OrderDetail = Jsonify<Order> & {
   documentChecklist: Array<{ kind: string; present: boolean }>;
 };
 
+export type PaymentRow = {
+  id: string;
+  orderId: string;
+  method: "BANK_TRANSFER" | "CARD" | "MOBILE_MONEY";
+  provider: string;
+  providerRef: string;
+  amount: string;
+  currency: string;
+  status: "PENDING" | "CONFIRMED" | "FAILED" | "REFUNDED";
+  note: string | null;
+  failureReason: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  recordedBy?: { name: string };
+  order?: { orderNo: string };
+};
+
+export type OrderPayments = {
+  payments: PaymentRow[];
+  total: number;
+  paid: number;
+  balance: number;
+  currency: string;
+};
+
+export type InvoiceRow = {
+  id: string;
+  invoiceNo: string;
+  status: "DRAFT" | "ISSUED" | "PAID" | "VOID";
+  subtotal: string;
+  dutyAmount: string;
+  vatAmount: string;
+  total: string;
+  currency: string;
+  hsCode: string | null;
+  dutyRatePct: string | null;
+  vatRatePct: string | null;
+  fxRateToUsd: string | null;
+  documentId: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  issuer?: CompanyRef;
+  recipient?: CompanyRef;
+  order?: { id: string; orderNo: string };
+};
+
+export type LedgerRow = {
+  id: string;
+  kind:
+    | "INVOICE_ISSUED"
+    | "INVOICE_RECEIVED"
+    | "PAYMENT_IN"
+    | "PAYMENT_OUT"
+    | "PLATFORM_FEE"
+    | "CREDIT_PURCHASE";
+  amount: string;
+  currency: string;
+  refType: string;
+  refId: string;
+  note: string | null;
+  createdAt: string;
+};
+
+export type TaxRuleRow = {
+  id: string;
+  hsPrefix: string;
+  originCountry: string | null;
+  destCountry: string;
+  dutyRatePct: string;
+  vatRatePct: string;
+  notes: string | null;
+  active: boolean;
+  updatedAt: string;
+};
+
 export type AppointedShipmentRow = {
   id: string;
   role: "FORWARDER" | "CLEARING_AGENT" | "TRANSPORTER";
