@@ -49,6 +49,7 @@ import {
   RevokeAppointmentButton,
 } from "./logistics-panels";
 import { EtaButton, MessageCounterpartyButton, StatusUpdateButton } from "./panels";
+import { TraceCard } from "./trace-card";
 
 export const metadata = { title: "Order" };
 
@@ -591,6 +592,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </CardContent>
         </Card>
       )}
+
+      {/* Traceability ledger (Phase 5 §2) */}
+      <TraceCard orderId={order.id} />
 
       {/* Exceptions & disputes (Phase 2 §4) */}
       <Card>

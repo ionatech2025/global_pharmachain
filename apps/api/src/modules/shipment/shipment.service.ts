@@ -13,6 +13,7 @@ import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { resolveShipmentRole, shipmentPartyUserIds } from "../../lib/shipment-access";
+import { emitWebhookEvent } from "../../lib/webhooks";
 
 const EXCEPTION_NOTIFICATION = {
   DELAYED: "SHIPMENT_DELAYED",
@@ -91,6 +92,13 @@ export class ShipmentService {
       return tx.order.findUniqueOrThrow({ where: { id: order.id } });
     });
 
+    // Phase 5 §3: partner systems hear about the transition too.
+    void emitWebhookEvent([order.buyerCompanyId, order.sellerCompanyId], "order.status_changed", {
+      orderId: order.id,
+      orderNo: order.orderNo,
+      status: body.status,
+      note: body.note ?? null,
+    });
     // Phase 2 §1: every transition notifies buyer, seller AND the appointed
     // logistics parties, on every channel their preferences allow.
     const etaLine = updated.eta ? ` ETA ${updated.eta.toDateString()}.` : "";
@@ -190,6 +198,12 @@ export class ShipmentService {
         exception: body.kind,
         actorUserId: user.id,
       },
+    });
+    void emitWebhookEvent([order.buyerCompanyId, order.sellerCompanyId], "shipment.exception", {
+      orderId: order.id,
+      orderNo: order.orderNo,
+      kind: body.kind,
+      note: body.note,
     });
     const label = SHIPMENT_EXCEPTION_LABELS[body.kind];
     await notify({

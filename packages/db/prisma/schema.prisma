@@ -173,6 +173,7 @@ enum PaymentMethod {
   BANK_TRANSFER
   CARD
   MOBILE_MONEY
+  ESCROW
 }
 
 enum PaymentStatus {
@@ -250,6 +251,7 @@ enum CreditKind {
   QUOTATION
   FEATURED
   VERIFICATION_PREMIUM
+  DATA_INSIGHTS
 }
 
 enum CreditStatus {
@@ -288,6 +290,8 @@ model Company {
   // Phase 4 §3: trust system — nightly-granted badge + paid featured placement
   trustedBadgeAt          DateTime?
   featuredUntil           DateTime?
+  // Phase 5 §4: data-insights subscription window
+  insightsUntil           DateTime?
   // Phase 4 §4: chemical-handling & environmental compliance profile
   reachStatus             String?
   ehsReport               String?
@@ -320,6 +324,8 @@ model Company {
   ledgerEntries          LedgerEntry[]
   ratingsGiven           Rating[]          @relation("RatingsGiven")
   ratingsReceived        Rating[]          @relation("RatingsReceived")
+  webhooks               Webhook[]
+  apiKeys                ApiKey[]
 
   @@index([verificationStatus])
   @@index([type, verificationStatus])
@@ -689,6 +695,7 @@ model Order {
   payments      Payment[]
   invoices      Invoice[]
   ratings       Rating[]
+  traceEvents   TraceEvent[]
 
   @@index([buyerCompanyId, createdAt])
   @@index([sellerCompanyId, createdAt])
@@ -785,6 +792,89 @@ model ProofOfDelivery {
 
   order      Order @relation(fields: [orderId], references: [id])
   capturedBy User  @relation(fields: [capturedById], references: [id])
+}
+
+// ─── Phase 5: intelligence & marketplace scale ───────────────────────────────
+
+// Cryptographically chained traceability ledger (Phase 5 §2): every supply-
+// chain event on an order links to its predecessor by hash, so any tampering
+// breaks verification. Append-only — a DB trigger (added in the Phase 5
+// migration, same pattern as AuditLog) rejects UPDATE/DELETE outright.
+model TraceEvent {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  orderId     String   @db.Uuid
+  seq         Int
+  type        String
+  at          String
+  payload     Json
+  payloadHash String
+  prevHash    String
+  hash        String
+  createdAt   DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId, seq])
+  @@index([orderId])
+  @@index([hash])
+}
+
+// Partner webhooks (Phase 5 §3): signed real-time push to external systems
+// (ERP, accounting, port community systems) with retries + replay protection.
+model Webhook {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  companyId     String    @db.Uuid
+  url           String
+  secret        String
+  events        String[]
+  active        Boolean   @default(true)
+  failCount     Int       @default(0)
+  lastSuccessAt DateTime?
+  createdById   String    @db.Uuid
+  createdAt     DateTime  @default(now())
+
+  company    Company           @relation(fields: [companyId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([companyId])
+}
+
+model WebhookDelivery {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  webhookId     String    @db.Uuid
+  event         String
+  payload       Json
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  deliveredAt   DateTime?
+  lastStatus    Int?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id])
+
+  @@index([deliveredAt, nextAttemptAt])
+  @@index([webhookId, createdAt])
+}
+
+// Partner/public API keys (Phase 5 §4): hashed at rest, scoped, per-key
+// rate-limited through the durable throttle storage.
+model ApiKey {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  companyId      String    @db.Uuid
+  name           String
+  prefix         String
+  hashedKey      String    @unique
+  scopes         String[]
+  rateLimitPerMin Int      @default(60)
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdById    String    @db.Uuid
+  createdAt      DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
 }
 
 // ─── Phase 4: analytics, mobile & compliance ─────────────────────────────────
@@ -903,6 +993,8 @@ model Invoice {
   // FX stamp: rate to USD at issue time, for reproducible reporting
   fxRateToUsd        Decimal?      @db.Decimal(16, 8)
   fxStampedAt        DateTime?
+  // Phase 5 §3: credit terms (invoice financing) — net-N days
+  paymentTermsDays   Int?
   documentId         String?       @db.Uuid
   issuedById         String        @db.Uuid
   paidAt             DateTime?

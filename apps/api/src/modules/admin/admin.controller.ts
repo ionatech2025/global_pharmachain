@@ -548,6 +548,12 @@ export class AdminController {
         },
       });
     }
+    if (confirm && request.kind === "DATA_INSIGHTS") {
+      await prisma.company.update({
+        where: { id: request.companyId },
+        data: { insightsUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+      });
+    }
     if (confirm && request.kind === "VERIFICATION_PREMIUM") {
       await prisma.company.update({
         where: { id: request.companyId },

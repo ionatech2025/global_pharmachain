@@ -15,6 +15,7 @@ import {
   runTokenCleanupJob,
   runTrustBadgeJob,
   runUploadCleanupJob,
+  runWebhookRetryJob,
 } from "./housekeeping";
 import { withJobLock } from "./lock";
 
@@ -95,5 +96,10 @@ export class JobsService {
   @Cron("20 5 * * *", { timeZone: "UTC" })
   trustBadges(): Promise<void> {
     return guarded("trust-badges", () => runTrustBadgeJob());
+  }
+
+  @Cron("*/10 * * * *", { timeZone: "UTC" })
+  webhookRetry(): Promise<void> {
+    return guarded("webhook-retry", () => runWebhookRetryJob());
   }
 }

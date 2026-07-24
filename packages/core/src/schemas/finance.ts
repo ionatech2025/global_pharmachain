@@ -22,6 +22,8 @@ export const invoiceCreateSchema = z.object({
     .regex(/^\d{4,10}$/, "HS codes are 4–10 digits")
     .optional(),
   // Extra charge lines on top of the order line (freight, handling…)
+  // Phase 5 §3: credit terms (net-N days) recorded on the invoice
+  paymentTermsDays: z.number().int().min(0).max(365).optional(),
   extraLines: z
     .array(
       z.object({
