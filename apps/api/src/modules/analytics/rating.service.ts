@@ -3,7 +3,7 @@ import type { RatingCreateInput } from "@pharmachain/core";
 import { LOGISTICS_ROLE_COMPANY_TYPE, RATEABLE_ROLE_LABELS } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { notify } from "@pharmachain/notifications";
-import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
+import { badRequest, conflict, notFound } from "../../common/errors";
 import type { AuthUser, Membership } from "../../lib/context";
 
 /**
@@ -174,10 +174,5 @@ export class RatingService {
       href: `/companies/${rating.targetCompanyId}`,
     });
     return updated;
-  }
-
-  private forbiddenUnusedGuard() {
-    // referenced to keep forbidden import for future scoped checks
-    return forbidden;
   }
 }

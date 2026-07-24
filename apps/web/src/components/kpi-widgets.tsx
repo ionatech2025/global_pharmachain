@@ -37,7 +37,10 @@ export function KpiGrid({ kpis, widgets }: { kpis: Kpi[]; widgets: string[] }) {
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {visible.map((kpi) => {
         const body = (
-          <Card className="gap-1 px-4 py-4 transition-colors hover:border-primary/40">
+          <Card
+            key={`${kpi.key}-card`}
+            className="gap-1 px-4 py-4 transition-colors hover:border-primary/40"
+          >
             <p className="text-sm font-medium text-muted-foreground">{kpi.label}</p>
             <p className="text-display mt-1 text-[1.6rem] tabular-nums">{kpi.value}</p>
             <p className="text-xs text-muted-foreground">{kpi.detail}</p>
