@@ -1,105 +1,82 @@
 import { Injectable } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
-import { logger } from "../lib/logger";
-import { runDocumentExpiryJob } from "./document-expiry";
-import {
-  runDsrSlaJob,
-  runFxRefreshJob,
-  runLogisticsAlertsJob,
-  runOutboxJob,
-  runQuotationExpiryJob,
-  runRfqAutoCloseJob,
-  runSavedSearchAlertJob,
-  runScheduledReportsJob,
-  runThrottleCleanupJob,
-  runTokenCleanupJob,
-  runTrustBadgeJob,
-  runUploadCleanupJob,
-  runWebhookRetryJob,
-} from "./housekeeping";
-import { withJobLock } from "./lock";
+import { runRegisteredJob } from "./registry";
 
-/** Advisory-locked so only one instance runs a given sweep (see lock.ts). */
-async function guarded(name: string, fn: () => Promise<void>): Promise<void> {
-  try {
-    const ran = await withJobLock(`job:${name}`, fn);
-    if (!ran) logger.info(`job ${name} skipped — another instance holds the lock`);
-  } catch (err) {
-    logger.error(`job ${name} failed`, { error: String(err) });
-  }
-}
-
-/** Scheduled jobs (all UTC). Runs inside the API when JOBS_IN_PROCESS=true,
- *  or in the dedicated worker (src/jobs/worker.ts). */
+/**
+ * @Cron host for environments with a resident process (JOBS_IN_PROCESS=true:
+ * the dedicated worker or local dev). Serverless production is driven by the
+ * HTTP dispatcher instead — both hosts share the registry, its advisory
+ * locks and its heartbeats, so running both concurrently is safe.
+ */
 @Injectable()
 export class JobsService {
-  @Cron("0 5 * * *", { timeZone: "UTC" })
-  documentExpiry(): Promise<void> {
-    return guarded("document-expiry", () => runDocumentExpiryJob());
+  @Cron("*/15 * * * *", { timeZone: "UTC" })
+  rfqAutoClose(): Promise<unknown> {
+    return runRegisteredJob("rfq-auto-close");
   }
 
   @Cron("*/15 * * * *", { timeZone: "UTC" })
-  rfqAutoClose(): Promise<void> {
-    return guarded("rfq-auto-close", () => runRfqAutoCloseJob());
+  quotationExpiry(): Promise<unknown> {
+    return runRegisteredJob("quotation-expiry");
   }
 
-  @Cron("*/15 * * * *", { timeZone: "UTC" })
-  quotationExpiry(): Promise<void> {
-    return guarded("quotation-expiry", () => runQuotationExpiryJob());
+  @Cron("*/10 * * * *", { timeZone: "UTC" })
+  outboxRetry(): Promise<unknown> {
+    return runRegisteredJob("outbox-retry");
+  }
+
+  @Cron("*/10 * * * *", { timeZone: "UTC" })
+  webhookRetry(): Promise<unknown> {
+    return runRegisteredJob("webhook-retry");
   }
 
   @Cron("0 * * * *", { timeZone: "UTC" })
-  tokenCleanup(): Promise<void> {
-    return guarded("token-cleanup", () => runTokenCleanupJob());
+  tokenCleanup(): Promise<unknown> {
+    return runRegisteredJob("token-cleanup");
+  }
+
+  @Cron("0 5 * * *", { timeZone: "UTC" })
+  documentExpiry(): Promise<unknown> {
+    return runRegisteredJob("document-expiry");
   }
 
   @Cron("30 4 * * *", { timeZone: "UTC" })
-  uploadCleanup(): Promise<void> {
-    return guarded("upload-cleanup", () => runUploadCleanupJob());
+  uploadCleanup(): Promise<unknown> {
+    return runRegisteredJob("upload-cleanup");
   }
 
   @Cron("45 4 * * *", { timeZone: "UTC" })
-  throttleCleanup(): Promise<void> {
-    return guarded("throttle-cleanup", () => runThrottleCleanupJob());
+  throttleCleanup(): Promise<unknown> {
+    return runRegisteredJob("throttle-cleanup");
   }
 
   @Cron("15 5 * * *", { timeZone: "UTC" })
-  dsrSla(): Promise<void> {
-    return guarded("dsr-sla", () => runDsrSlaJob());
-  }
-
-  @Cron("*/10 * * * *", { timeZone: "UTC" })
-  outboxRetry(): Promise<void> {
-    return guarded("outbox-retry", () => runOutboxJob());
+  dsrSla(): Promise<unknown> {
+    return runRegisteredJob("dsr-sla");
   }
 
   @Cron("0 6 * * *", { timeZone: "UTC" })
-  savedSearchAlerts(): Promise<void> {
-    return guarded("saved-search-alerts", () => runSavedSearchAlertJob());
+  savedSearchAlerts(): Promise<unknown> {
+    return runRegisteredJob("saved-search-alerts");
   }
 
   @Cron("30 6 * * *", { timeZone: "UTC" })
-  logisticsAlerts(): Promise<void> {
-    return guarded("logistics-alerts", () => runLogisticsAlertsJob());
+  logisticsAlerts(): Promise<unknown> {
+    return runRegisteredJob("logistics-alerts");
   }
 
   @Cron("10 4 * * *", { timeZone: "UTC" })
-  fxRefresh(): Promise<void> {
-    return guarded("fx-refresh", () => runFxRefreshJob());
+  fxRefresh(): Promise<unknown> {
+    return runRegisteredJob("fx-refresh");
   }
 
   @Cron("0 7 * * *", { timeZone: "UTC" })
-  scheduledReports(): Promise<void> {
-    return guarded("scheduled-reports", () => runScheduledReportsJob());
+  scheduledReports(): Promise<unknown> {
+    return runRegisteredJob("scheduled-reports");
   }
 
   @Cron("20 5 * * *", { timeZone: "UTC" })
-  trustBadges(): Promise<void> {
-    return guarded("trust-badges", () => runTrustBadgeJob());
-  }
-
-  @Cron("*/10 * * * *", { timeZone: "UTC" })
-  webhookRetry(): Promise<void> {
-    return guarded("webhook-retry", () => runWebhookRetryJob());
+  trustBadges(): Promise<unknown> {
+    return runRegisteredJob("trust-badges");
   }
 }

@@ -1,0 +1,30 @@
+name: Scheduled jobs (daily)
+
+# Daily tier of the HTTP job dispatcher (see jobs-frequent.yml for context):
+# document expiry, upload/throttle cleanup, DSR-SLA paging, saved-search
+# alerts, logistics alerts, FX refresh, scheduled reports, trust badges.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: jobs-daily
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run daily tier
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS --max-time 500 \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://pharmachain-seven.vercel.app/api/backend/jobs/run?tier=daily")
+          echo "$response"
+          echo "$response" | grep -q '"ok":false' && { echo "::error::a job reported failure"; exit 1; } || true

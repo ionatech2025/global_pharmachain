@@ -23,6 +23,7 @@
     "@pharmachain/db": "workspace:*",
     "@pharmachain/email": "workspace:*",
     "@pharmachain/notifications": "workspace:*",
+    "@vercel/functions": "^3.7.5",
     "aws4fetch": "^1.0.20",
     "fastify": "^5.10.0",
     "reflect-metadata": "^0.2.2",

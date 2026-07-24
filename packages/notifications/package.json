@@ -12,7 +12,8 @@
   "dependencies": {
     "@pharmachain/core": "workspace:*",
     "@pharmachain/db": "workspace:*",
-    "@pharmachain/email": "workspace:*"
+    "@pharmachain/email": "workspace:*",
+    "@vercel/functions": "^3.7.5"
   },
   "devDependencies": {
     "@pharmachain/typescript-config": "workspace:*",
