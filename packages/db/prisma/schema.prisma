@@ -198,6 +198,12 @@ enum LedgerEntryKind {
   CREDIT_PURCHASE
 }
 
+enum RatingStatus {
+  PUBLISHED
+  FLAGGED
+  REMOVED
+}
+
 enum BomStatus {
   DRAFT
   ACTIVE
@@ -242,6 +248,8 @@ enum AnnouncementStatus {
 enum CreditKind {
   RFQ
   QUOTATION
+  FEATURED
+  VERIFICATION_PREMIUM
 }
 
 enum CreditStatus {
@@ -277,6 +285,12 @@ model Company {
   // Phase 3 §2: AML/KYC review on the company financial profile
   kycReviewedAt           DateTime?
   kycRiskLevel            String?
+  // Phase 4 §3: trust system — nightly-granted badge + paid featured placement
+  trustedBadgeAt          DateTime?
+  featuredUntil           DateTime?
+  // Phase 4 §4: chemical-handling & environmental compliance profile
+  reachStatus             String?
+  ehsReport               String?
   // Public profile (US-301); publishable once VERIFIED
   profileDescription      String?
   profileStatus           ProfileStatus      @default(DRAFT)
@@ -304,6 +318,8 @@ model Company {
   invoicesIssued         Invoice[]         @relation("InvoiceIssuer")
   invoicesReceived       Invoice[]         @relation("InvoiceRecipient")
   ledgerEntries          LedgerEntry[]
+  ratingsGiven           Rating[]          @relation("RatingsGiven")
+  ratingsReceived        Rating[]          @relation("RatingsReceived")
 
   @@index([verificationStatus])
   @@index([type, verificationStatus])
@@ -330,6 +346,9 @@ model User {
   totpEnabledAt      DateTime?
   // Phase 3 §3: preferred display currency (null = listing currency as-is)
   preferredCurrency  String?
+  // Phase 4 §4: locale-aware formatting + time-zone handling
+  locale             String?
+  timeZone           String?
   lastLoginAt        DateTime?
   deactivatedAt      DateTime?
   anonymizedAt       DateTime?
@@ -361,6 +380,9 @@ model User {
   paymentsRecorded        Payment[]
   invoicesIssued          Invoice[]
   scheduledReports        ScheduledReport[]
+  ratingsAuthored         Rating[]
+  pushSubscriptions       PushSubscription[]
+  dashboardPreference     DashboardPreference?
 }
 
 // One membership per user in Phase 1 (US-201: an email active in another
@@ -470,6 +492,8 @@ model Listing {
   shelfLifeMonths   Int?
   storageConditions String?
   certifications    String[]      @default([])
+  // Phase 4 §4: pharmacopoeia standards the material/product conforms to
+  standards         String[]      @default([])
   categoryId        String        @db.Uuid
   price             Decimal       @db.Decimal(14, 4)
   currency          String
@@ -664,6 +688,7 @@ model Order {
   disputes      Dispute[]
   payments      Payment[]
   invoices      Invoice[]
+  ratings       Rating[]
 
   @@index([buyerCompanyId, createdAt])
   @@index([sellerCompanyId, createdAt])
@@ -760,6 +785,61 @@ model ProofOfDelivery {
 
   order      Order @relation(fields: [orderId], references: [id])
   capturedBy User  @relation(fields: [capturedById], references: [id])
+}
+
+// ─── Phase 4: analytics, mobile & compliance ─────────────────────────────────
+
+// One rating per (engagement, rater, ratee), verified against the shipment
+// record (Phase 4 §3): the order must be delivered and the target must have
+// been the seller or an appointed logistics partner on it.
+model Rating {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  orderId         String       @db.Uuid
+  raterCompanyId  String       @db.Uuid
+  targetCompanyId String       @db.Uuid
+  targetRole      String
+  stars           Int
+  comment         String?
+  status          RatingStatus @default(PUBLISHED)
+  flaggedReason   String?
+  moderatedById   String?      @db.Uuid
+  createdById     String       @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  rater   Company @relation("RatingsGiven", fields: [raterCompanyId], references: [id])
+  target  Company @relation("RatingsReceived", fields: [targetCompanyId], references: [id])
+  author  User    @relation(fields: [createdById], references: [id])
+
+  @@unique([orderId, raterCompanyId, targetCompanyId])
+  @@index([targetCompanyId, status])
+}
+
+// Web Push subscriptions (Phase 4 §1): payloads encrypted per RFC 8291,
+// VAPID-authenticated; dead endpoints are pruned on 404/410.
+model PushSubscription {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// Per-user dashboard layout (Phase 4 §2): ordered widget keys.
+model DashboardPreference {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @unique @db.Uuid
+  widgets   Json
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 // ─── Phase 3: payments & financial tools ─────────────────────────────────────

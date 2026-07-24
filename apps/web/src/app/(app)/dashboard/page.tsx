@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/compon
 import { Package, Search, Send } from "lucide-react";
 import Link from "next/link";
 import { DashboardRefresh } from "@/components/dashboard-refresh";
+import { CustomizeDashboardButton, type Kpi, KpiGrid } from "@/components/kpi-widgets";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
 import type { DashboardSummary } from "@/lib/api/types";
@@ -55,9 +56,13 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
 
 export default async function DashboardPage() {
   const api = await apiServer();
-  const [summary, me] = await Promise.all([
+  const [summary, me, kpis, dashboardPrefs] = await Promise.all([
     api.get<DashboardSummary>("/dashboard/summary"),
     api.get<AuthenticatedUser>("/auth/me"),
+    api.get<Kpi[]>("/analytics/kpis").catch(() => [] as Kpi[]),
+    api
+      .get<{ widgets: string[]; available: Array<{ key: string; label: string }> }>("/me/dashboard")
+      .catch(() => ({ widgets: [], available: [] })),
   ]);
 
   // Logistics companies (Phase 2) work appointed shipments, not the market.
@@ -67,7 +72,13 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-4">
         <PageHeader title="Dashboard" description="Your appointed shipments at a glance.">
-          <DashboardRefresh />
+          <div className="flex items-center gap-2">
+            <CustomizeDashboardButton
+              widgets={dashboardPrefs.widgets}
+              available={dashboardPrefs.available}
+            />
+            <DashboardRefresh />
+          </div>
         </PageHeader>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -76,6 +87,7 @@ export default async function DashboardPage() {
             </Link>
           </Button>
         </div>
+        <KpiGrid kpis={kpis} widgets={dashboardPrefs.widgets} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Active appointments" value={shipments.total} href="/shipments" />
           <Stat
@@ -103,6 +115,7 @@ export default async function DashboardPage() {
         >
           <DashboardRefresh />
         </PageHeader>
+        <KpiGrid kpis={kpis} widgets={kpis.map((k) => k.key)} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Companies" value={p.totalCompanies} href="/admin/companies" />
           <Stat label="Verified companies" value={p.verifiedCompanies} href="/admin/companies" />
@@ -133,8 +146,15 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Dashboard" description="Your company's activity at a glance.">
-        <DashboardRefresh />
+        <div className="flex items-center gap-2">
+          <CustomizeDashboardButton
+            widgets={dashboardPrefs.widgets}
+            available={dashboardPrefs.available}
+          />
+          <DashboardRefresh />
+        </div>
       </PageHeader>
+      <KpiGrid kpis={kpis} widgets={dashboardPrefs.widgets} />
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm">
           <Link href="/rfqs/new">

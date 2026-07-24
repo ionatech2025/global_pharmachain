@@ -537,6 +537,23 @@ export class AdminController {
       where: { id: params.id },
       include: { company: { select: { name: true } } },
     });
+    // Phase 4 §3: confirmed monetisation purchases take effect immediately —
+    // featured placement runs 30 days; premium verification upgrades the tier.
+    if (confirm && request.kind === "FEATURED") {
+      await prisma.company.update({
+        where: { id: request.companyId },
+        data: {
+          subscriptionTier: "FEATURED",
+          featuredUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+    if (confirm && request.kind === "VERIFICATION_PREMIUM") {
+      await prisma.company.update({
+        where: { id: request.companyId },
+        data: { subscriptionTier: "PREMIUM" },
+      });
+    }
     await notify({
       companyId: request.companyId,
       roles: ["COMPANY_ADMIN"],

@@ -12,6 +12,8 @@ export const PARAM_KEYS = {
   COMPANY_USER_LIMIT: "company_user_limit",
   PLATFORM_COMMISSION_PCT: "platform_commission_pct",
   PLATFORM_BANK_DETAILS: "platform_bank_details",
+  FEATURED_FEE_USD: "featured_fee_usd",
+  VERIFICATION_PREMIUM_FEE_USD: "verification_premium_fee_usd",
 } as const;
 export type ParamKey = (typeof PARAM_KEYS)[keyof typeof PARAM_KEYS];
 
@@ -84,6 +86,18 @@ export const PARAM_DEFINITIONS: readonly ParamDefinition[] = [
     type: "text",
     defaultValue: "Bank of Africa · PharmaChain Ltd · A/C 01234567890 · SWIFT BOAUGKA",
     description: "Bank instructions shown for manual bank-transfer payments (Phase 3)",
+  },
+  {
+    key: PARAM_KEYS.FEATURED_FEE_USD,
+    type: "decimal",
+    defaultValue: "199.00",
+    description: "Fee (USD) for 30 days of featured marketplace placement (Phase 4)",
+  },
+  {
+    key: PARAM_KEYS.VERIFICATION_PREMIUM_FEE_USD,
+    type: "decimal",
+    defaultValue: "499.00",
+    description: "Fee (USD) for the premium verification package (Phase 4)",
   },
 ];
 

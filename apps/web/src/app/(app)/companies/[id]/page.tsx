@@ -1,9 +1,11 @@
+import type { AuthenticatedUser } from "@pharmachain/auth";
 import { COMPANY_TYPE_LABELS, type CompanyType } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { ShieldCheck } from "lucide-react";
 import { notFound as notFoundPage } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { CompanyRatings, type CompanyRatingsData } from "@/components/ratings";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
 import { fmtDate } from "@/lib/format";
@@ -36,6 +38,10 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
     if (err instanceof ApiClientError && err.status === 404) notFoundPage();
     throw err;
   }
+  const [ratings, me] = await Promise.all([
+    api.get<CompanyRatingsData>(`/companies/${id}/ratings`).catch(() => null),
+    api.get<AuthenticatedUser>("/auth/me").catch(() => null),
+  ]);
 
   // US-301: render the uploaded logo via a short-lived signed URL.
   let logoUrl: string | null = null;
@@ -118,6 +124,18 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
           )}
         </CardContent>
       </Card>
+
+      {/* Verified performance ratings + trust badge (Phase 4 §3) */}
+      {ratings && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Performance & trust</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CompanyRatings data={ratings} canContest={me?.membership?.companyId === company.id} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

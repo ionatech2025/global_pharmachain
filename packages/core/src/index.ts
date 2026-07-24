@@ -8,6 +8,7 @@ export * from "./pdf";
 export * from "./rbac";
 export * from "./refno";
 export * from "./schemas/admin";
+export * from "./schemas/analytics";
 export * from "./schemas/auth";
 export * from "./schemas/billing";
 export * from "./schemas/bom";

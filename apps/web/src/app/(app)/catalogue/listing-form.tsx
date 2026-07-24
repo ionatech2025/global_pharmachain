@@ -7,6 +7,7 @@ import {
   LISTING_KINDS,
   type ListingCreate,
   listingCreateSchema,
+  PHARMACOPOEIA_STANDARDS,
 } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent } from "@pharmachain/ui/components/card";
@@ -62,6 +63,7 @@ export function ListingForm({
           shelfLifeMonths: existing.shelfLifeMonths ?? undefined,
           storageConditions: existing.storageConditions ?? undefined,
           certifications: existing.certifications,
+          standards: (existing.standards ?? []) as ListingCreate["standards"],
           categoryId: existing.categoryId,
           price: existing.price,
           currency: existing.currency as ListingCreate["currency"],
@@ -75,6 +77,7 @@ export function ListingForm({
           packSize: "",
           unit: "kg",
           certifications: [],
+          standards: [],
           categoryId: undefined as unknown as string,
           price: "",
           currency: "USD",
@@ -353,6 +356,45 @@ export function ListingForm({
                 )}
               />
             </div>
+            {/* Phase 4 §4: pharmacopoeia conformity — enforced with a quality
+                document at publish time */}
+            <FormField
+              control={form.control}
+              name="standards"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pharmacopoeia standards</FormLabel>
+                  <FormControl>
+                    <div className="flex flex-wrap gap-3">
+                      {PHARMACOPOEIA_STANDARDS.map((standard) => {
+                        const selected = (field.value ?? []).includes(standard);
+                        return (
+                          <label
+                            key={standard}
+                            className="flex cursor-pointer items-center gap-1.5 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-[var(--color-primary)]"
+                              checked={selected}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.checked
+                                    ? [...(field.value ?? []), standard]
+                                    : (field.value ?? []).filter((s: string) => s !== standard),
+                                )
+                              }
+                            />
+                            {standard}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="certifications"

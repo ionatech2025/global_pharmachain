@@ -426,6 +426,67 @@ export async function runScheduledReportsJob(now = new Date()): Promise<void> {
   if (sent > 0) logger.info("scheduled reports job done", { sent });
 }
 
+/**
+ * Phase 4 §3 trust system: the Trusted Supplier badge is earned, not bought —
+ * granted nightly to VERIFIED companies with ≥3 published ratings averaging
+ * ≥4.5★, revoked when the average slips. Paid featured placement expires here
+ * too (tier reverts to FREEMIUM when featuredUntil passes).
+ */
+export async function runTrustBadgeJob(now = new Date()): Promise<void> {
+  const aggregates = await prisma.rating.groupBy({
+    by: ["targetCompanyId"],
+    where: { status: "PUBLISHED" },
+    _avg: { stars: true },
+    _count: true,
+    orderBy: { targetCompanyId: "asc" },
+  });
+  let granted = 0;
+  let revoked = 0;
+  const qualifying = new Set(
+    aggregates
+      .filter((a) => (a._count ?? 0) >= 3 && (a._avg?.stars ?? 0) >= 4.5)
+      .map((a) => a.targetCompanyId),
+  );
+  const badged = await prisma.company.findMany({
+    where: { trustedBadgeAt: { not: null } },
+    select: { id: true },
+  });
+  for (const companyId of qualifying) {
+    const result = await prisma.company.updateMany({
+      where: { id: companyId, verificationStatus: "VERIFIED", trustedBadgeAt: null },
+      data: { trustedBadgeAt: now },
+    });
+    if (result.count > 0) {
+      granted += 1;
+      await notify({
+        companyId,
+        roles: ["COMPANY_ADMIN"],
+        type: "ACCOUNT_UPDATE",
+        title: "Trusted Supplier badge earned 🏅",
+        body: "Your verified ratings now average 4.5★ or better across 3+ engagements.",
+        href: "/company",
+      });
+    }
+  }
+  for (const company of badged) {
+    if (!qualifying.has(company.id)) {
+      await prisma.company.update({
+        where: { id: company.id },
+        data: { trustedBadgeAt: null },
+      });
+      revoked += 1;
+    }
+  }
+  // Featured placement expiry (Phase 4 §3 monetisation)
+  const expired = await prisma.company.updateMany({
+    where: { subscriptionTier: "FEATURED", featuredUntil: { lt: now } },
+    data: { subscriptionTier: "FREEMIUM", featuredUntil: null },
+  });
+  if (granted + revoked + expired.count > 0) {
+    logger.info("trust badge job done", { granted, revoked, featuredExpired: expired.count });
+  }
+}
+
 /** Drops rate-limit buckets whose window and block have both long passed. */
 export async function runThrottleCleanupJob(now = new Date()): Promise<void> {
   const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);

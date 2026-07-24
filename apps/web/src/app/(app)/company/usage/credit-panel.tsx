@@ -1,6 +1,11 @@
 "use client";
 
-import { CREDIT_KINDS, type CreditKind, type SubscriptionTier } from "@pharmachain/core";
+import {
+  CREDIT_KIND_LABELS,
+  CREDIT_KINDS,
+  type CreditKind,
+  type SubscriptionTier,
+} from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -44,21 +49,43 @@ export function CreditRequestPanel({
   const [count, setCount] = useState("5");
   const [busy, setBusy] = useState(false);
   // US-907: the configured fee is displayed at the point of request.
-  const [fees, setFees] = useState<{ rfq: string; quotation: string; currency: string } | null>(
-    null,
-  );
+  const [fees, setFees] = useState<{
+    rfq: string;
+    quotation: string;
+    featured: string;
+    verificationPremium: string;
+    currency: string;
+  } | null>(null);
   useEffect(() => {
     api
-      .get<{ rfq: string; quotation: string; currency: string }>("/billing/credit-fees")
+      .get<{
+        rfq: string;
+        quotation: string;
+        featured: string;
+        verificationPremium: string;
+        currency: string;
+      }>("/billing/credit-fees")
       .then(setFees)
       .catch(() => setFees(null));
   }, []);
-  const feePerCredit = fees ? (kind === "RFQ" ? fees.rfq : fees.quotation) : null;
-  const parsedCount = Number.parseInt(count, 10);
+  // Phase 4 §3: featured placement + premium verification are flat purchases
+  // through the same manual-payment flow; usage credits price per unit.
+  const flat = kind === "FEATURED" || kind === "VERIFICATION_PREMIUM";
+  const FEE_KEY = {
+    RFQ: "rfq",
+    QUOTATION: "quotation",
+    FEATURED: "featured",
+    VERIFICATION_PREMIUM: "verificationPremium",
+  } as const;
+  const feePerCredit = fees ? fees[FEE_KEY[kind]] : null;
+  const parsedCount = flat ? 1 : Number.parseInt(count, 10);
   const feeDue =
     feePerCredit !== null && Number.isFinite(parsedCount) && parsedCount > 0
       ? (Number.parseFloat(feePerCredit) * parsedCount).toFixed(2)
       : null;
+  const availableKinds = CREDIT_KINDS.filter(
+    (k) => tier === "FREEMIUM" || k === "FEATURED" || k === "VERIFICATION_PREMIUM",
+  );
 
   async function request(e: React.FormEvent) {
     e.preventDefault();
@@ -85,12 +112,12 @@ export function CreditRequestPanel({
         <CardTitle className="text-sm">Extra credits</CardTitle>
         <CardDescription>
           {tier === "FREEMIUM"
-            ? "Buy additional RFQ or quotation credits for the current month, or contact the platform team to upgrade your plan."
-            : "Your plan is unmetered — credits only apply to Freemium companies."}
+            ? "Buy additional monthly credits, 30 days of featured placement, or the premium verification package."
+            : "Your plan is unmetered — featured placement and verification packages are still available."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {canRequest && tier === "FREEMIUM" && (
+        {canRequest && (
           <form onSubmit={request} className="flex flex-wrap items-end gap-2">
             <select
               aria-label="Credit type"
@@ -98,23 +125,25 @@ export function CreditRequestPanel({
               value={kind}
               onChange={(e) => setKind(e.target.value as CreditKind)}
             >
-              {CREDIT_KINDS.map((k) => (
+              {availableKinds.map((k) => (
                 <option key={k} value={k}>
-                  {k === "RFQ" ? "RFQ credits" : "Quotation credits"}
+                  {CREDIT_KIND_LABELS[k]}
                 </option>
               ))}
             </select>
-            <Input
-              className="w-24"
-              type="number"
-              min={1}
-              max={100}
-              required
-              value={count}
-              onChange={(e) => setCount(e.target.value)}
-            />
+            {!flat && (
+              <Input
+                className="w-24"
+                type="number"
+                min={1}
+                max={100}
+                required
+                value={count}
+                onChange={(e) => setCount(e.target.value)}
+              />
+            )}
             <Button type="submit" disabled={busy}>
-              {busy ? "Submitting…" : "Request credits"}
+              {busy ? "Submitting…" : flat ? "Purchase" : "Request credits"}
             </Button>
             {fees && feeDue && (
               <p className="w-full text-xs text-muted-foreground">
@@ -122,8 +151,10 @@ export function CreditRequestPanel({
                 <span className="font-medium text-foreground">
                   {fmtMoney(feeDue, fees.currency)}
                 </span>{" "}
-                ({fmtMoney(feePerCredit ?? "0", fees.currency)} per credit) — payable off-platform,
-                confirmed by the platform team.
+                {flat
+                  ? "(one-off)"
+                  : `(${fmtMoney(feePerCredit ?? "0", fees.currency)} per credit)`}{" "}
+                — payable off-platform, confirmed by the platform team.
               </p>
             )}
           </form>
@@ -146,7 +177,7 @@ export function CreditRequestPanel({
               {credits.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>{fmtDate(c.createdAt)}</TableCell>
-                  <TableCell>{c.kind === "RFQ" ? "RFQ" : "Quotation"}</TableCell>
+                  <TableCell>{CREDIT_KIND_LABELS[c.kind as CreditKind] ?? c.kind}</TableCell>
                   <TableCell>{c.count}</TableCell>
                   <TableCell>{fmtMoney(c.fee, c.currency)}</TableCell>
                   <TableCell>

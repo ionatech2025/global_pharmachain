@@ -328,8 +328,15 @@ export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number];
 export const ANNOUNCEMENT_STATUSES = ["DRAFT", "PUBLISHED", "RETRACTED"] as const;
 export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 
-export const CREDIT_KINDS = ["RFQ", "QUOTATION"] as const;
+export const CREDIT_KINDS = ["RFQ", "QUOTATION", "FEATURED", "VERIFICATION_PREMIUM"] as const;
 export type CreditKind = (typeof CREDIT_KINDS)[number];
+
+export const CREDIT_KIND_LABELS: Record<CreditKind, string> = {
+  RFQ: "RFQ credits",
+  QUOTATION: "Quotation credits",
+  FEATURED: "Featured placement (30 days)",
+  VERIFICATION_PREMIUM: "Premium verification package",
+};
 
 export const CREDIT_STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "REJECTED"] as const;
 export type CreditStatus = (typeof CREDIT_STATUSES)[number];
@@ -393,3 +400,56 @@ export const LEDGER_ENTRY_LABELS: Record<LedgerEntryKind, string> = {
 
 export const KYC_RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export type KycRiskLevel = (typeof KYC_RISK_LEVELS)[number];
+
+// ─── Phase 4: analytics, mobile & compliance ─────────────────────────────────
+
+// Pharmacopoeia standards a listing may conform to (Phase 4 §4).
+export const PHARMACOPOEIA_STANDARDS = ["BP", "USP", "IP", "EP"] as const;
+export type PharmacopoeiaStandard = (typeof PHARMACOPOEIA_STANDARDS)[number];
+
+export const PHARMACOPOEIA_LABELS: Record<PharmacopoeiaStandard, string> = {
+  BP: "British Pharmacopoeia (BP)",
+  USP: "United States Pharmacopeia (USP)",
+  IP: "Indian Pharmacopoeia (IP)",
+  EP: "European Pharmacopoeia (EP)",
+};
+
+export const RATING_STATUSES = ["PUBLISHED", "FLAGGED", "REMOVED"] as const;
+export type RatingStatus = (typeof RATING_STATUSES)[number];
+
+// Rateable roles on a completed engagement (Phase 4 §3).
+export const RATEABLE_ROLES = ["SELLER", "FORWARDER", "CLEARING_AGENT", "TRANSPORTER"] as const;
+export type RateableRole = (typeof RATEABLE_ROLES)[number];
+
+export const RATEABLE_ROLE_LABELS: Record<RateableRole, string> = {
+  SELLER: "Supplier",
+  FORWARDER: "Freight forwarder",
+  CLEARING_AGENT: "Clearing agent",
+  TRANSPORTER: "Transporter",
+};
+
+// Dashboard widget registry (Phase 4 §2): keys are stored in the per-user
+// preference; audience scopes which roles see which widgets by default.
+export interface DashboardWidgetDef {
+  key: string;
+  label: string;
+  audience: "trade" | "logistics" | "all";
+}
+
+export const DASHBOARD_WIDGETS: readonly DashboardWidgetDef[] = [
+  { key: "kpi-lead-time", label: "Procurement lead time", audience: "trade" },
+  { key: "kpi-fulfilment", label: "Order fulfilment rate", audience: "trade" },
+  { key: "kpi-on-time", label: "On-time delivery rate", audience: "all" },
+  { key: "kpi-customs-delay", label: "Customs dwell time", audience: "all" },
+  { key: "kpi-quote-win", label: "Quotation win rate", audience: "trade" },
+  { key: "kpi-response-time", label: "Quote response time", audience: "trade" },
+  { key: "kpi-stockout-risk", label: "Stockout risk (BOM)", audience: "trade" },
+  { key: "kpi-supplier-score", label: "Supplier performance score", audience: "all" },
+  { key: "kpi-compliance", label: "Compliance status", audience: "all" },
+  { key: "kpi-active-shipments", label: "Active shipments", audience: "all" },
+] as const;
+
+export const DEFAULT_WIDGETS: Record<"trade" | "logistics", readonly string[]> = {
+  trade: ["kpi-lead-time", "kpi-fulfilment", "kpi-on-time", "kpi-quote-win", "kpi-compliance"],
+  logistics: ["kpi-active-shipments", "kpi-on-time", "kpi-customs-delay", "kpi-compliance"],
+};

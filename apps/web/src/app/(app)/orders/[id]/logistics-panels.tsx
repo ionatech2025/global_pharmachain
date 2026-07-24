@@ -434,12 +434,14 @@ export function LocationsCard({ order, canRecord }: { order: OrderDetail; canRec
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post(`/orders/${order.id}/locations`, {
-        lat: Number(lat),
-        lng: Number(lng),
-        note: note || undefined,
-      });
-      toast.success("Location recorded");
+      // X-Offline-Queue: the service worker queues this capture in IndexedDB
+      // when offline and replays it once connectivity returns (Phase 4 §1).
+      const result = await api.post<{ queued?: boolean }>(
+        `/orders/${order.id}/locations`,
+        { lat: Number(lat), lng: Number(lng), note: note || undefined },
+        { headers: { "X-Offline-Queue": "1" } },
+      );
+      toast.success(result?.queued ? "Offline — location saved, will sync" : "Location recorded");
       setLat("");
       setLng("");
       setNote("");
@@ -610,13 +612,19 @@ export function PodButton({
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post(`/orders/${order.id}/pod`, {
-        signedByName: name,
-        note: note || undefined,
-        signatureData: signature ?? undefined,
-        photoDocumentId: photoId || undefined,
-      });
-      toast.success("Proof of delivery captured");
+      const result = await api.post<{ queued?: boolean }>(
+        `/orders/${order.id}/pod`,
+        {
+          signedByName: name,
+          note: note || undefined,
+          signatureData: signature ?? undefined,
+          photoDocumentId: photoId || undefined,
+        },
+        { headers: { "X-Offline-Queue": "1" } },
+      );
+      toast.success(
+        result?.queued ? "Offline — POD saved, will sync" : "Proof of delivery captured",
+      );
       setOpen(false);
       router.refresh();
     } catch (err) {

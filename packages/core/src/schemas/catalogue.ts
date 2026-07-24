@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LISTING_KINDS } from "../enums";
+import { LISTING_KINDS, PHARMACOPOEIA_STANDARDS } from "../enums";
 import { paginationQuerySchema } from "../pagination";
 import { currencySchema, decimalString } from "./common";
 
@@ -22,6 +22,9 @@ const listingBase = z.object({
   shelfLifeMonths: z.coerce.number().int().min(1).max(240).optional(),
   storageConditions: z.string().max(240).optional(),
   certifications: z.array(z.string().min(1).max(80)).max(20).default([]),
+  // Phase 4 §4: pharmacopoeia standards; enforced with a quality document at
+  // publish time.
+  standards: z.array(z.enum(PHARMACOPOEIA_STANDARDS)).max(4).default([]),
   categoryId: z.uuid(),
   price: decimalString,
   currency: currencySchema,

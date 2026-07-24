@@ -36,12 +36,14 @@ export class BillingController {
   @RequirePermission("usage:read")
   @Get("credit-fees")
   async fees() {
-    const [rfq, quotation, currency] = await Promise.all([
+    const [rfq, quotation, featured, verificationPremium, currency] = await Promise.all([
       getParam(PARAM_KEYS.CREDIT_FEE_RFQ_USD),
       getParam(PARAM_KEYS.CREDIT_FEE_QUOTATION_USD),
+      getParam(PARAM_KEYS.FEATURED_FEE_USD),
+      getParam(PARAM_KEYS.VERIFICATION_PREMIUM_FEE_USD),
       getParam(PARAM_KEYS.CREDIT_FEE_CURRENCY),
     ]);
-    return { rfq, quotation, currency };
+    return { rfq, quotation, featured, verificationPremium, currency };
   }
 
   @RequirePermission("company:manage")
@@ -52,18 +54,27 @@ export class BillingController {
     @Body(zodPipe(creditRequestCreateSchema)) body: CreditRequestCreate,
     @Req() req: FastifyRequest,
   ) {
+    // Phase 4 §3 monetisation reuses the manual-payment credit flow: RFQ and
+    // quotation credits price per unit; featured placement and the premium
+    // verification package are flat purchases.
+    const FEE_PARAM = {
+      RFQ: PARAM_KEYS.CREDIT_FEE_RFQ_USD,
+      QUOTATION: PARAM_KEYS.CREDIT_FEE_QUOTATION_USD,
+      FEATURED: PARAM_KEYS.FEATURED_FEE_USD,
+      VERIFICATION_PREMIUM: PARAM_KEYS.VERIFICATION_PREMIUM_FEE_USD,
+    } as const;
+    const flat = body.kind === "FEATURED" || body.kind === "VERIFICATION_PREMIUM";
+    const count = flat ? 1 : body.count;
     const [feePerCredit, currency] = await Promise.all([
-      getParam(
-        body.kind === "RFQ" ? PARAM_KEYS.CREDIT_FEE_RFQ_USD : PARAM_KEYS.CREDIT_FEE_QUOTATION_USD,
-      ),
+      getParam(FEE_PARAM[body.kind]),
       getParam(PARAM_KEYS.CREDIT_FEE_CURRENCY),
     ]);
-    const fee = new Prisma.Decimal(feePerCredit).mul(body.count).toDP(2);
+    const fee = new Prisma.Decimal(feePerCredit).mul(count).toDP(2);
     const request = await prisma.creditRequest.create({
       data: {
         companyId: membership.companyId,
         kind: body.kind,
-        count: body.count,
+        count,
         fee,
         currency,
         requestedById: user.id,
