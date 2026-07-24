@@ -157,6 +157,24 @@ export class CatalogueService {
     if (membership.company.profileStatus !== "PUBLISHED") {
       throw forbidden("Publish your company profile before publishing listings");
     }
+    // Phase 4 §4: pharmacopoeia claims (BP/USP/IP/EP) are enforced — a
+    // listing claiming a standard needs a quality document on file.
+    if (listing.standards.length > 0) {
+      const qualityDoc = await prisma.document.findFirst({
+        where: {
+          ownerCompanyId: membership.companyId,
+          kind: { in: ["QUALITY_CERTIFICATE", "GMP_CERTIFICATE", "CERTIFICATE_OF_ANALYSIS"] },
+          status: "ACTIVE",
+          uploadCompletedAt: { not: null },
+        },
+        select: { id: true },
+      });
+      if (!qualityDoc) {
+        throw forbidden(
+          `This listing claims ${listing.standards.join("/")} conformity — upload a quality certificate (CoA, GMP or quality certificate) before publishing`,
+        );
+      }
+    }
     return prisma.listing.update({ where: { id: listing.id }, data: { status: "PUBLISHED" } });
   }
 

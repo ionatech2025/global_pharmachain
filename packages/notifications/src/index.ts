@@ -4,9 +4,11 @@ import type { CompanyRole } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { createEmailProvider, type EmailContent, type EmailProvider } from "@pharmachain/email";
 import { enqueueOutbox } from "./outbox";
+import { sendWebPush, vapidPublicKey } from "./webpush";
 import { createWhatsAppProvider, type WhatsAppProvider } from "./whatsapp";
 
 export * from "./outbox";
+export * from "./webpush";
 export * from "./whatsapp";
 
 let emailProvider: EmailProvider | undefined;
@@ -90,6 +92,14 @@ async function fanout(input: NotifyInput): Promise<void> {
     })),
   });
 
+  // Phase 4 §1: Web Push rides along with every in-app notification (subject
+  // to the same per-event email preference — push is an off-platform channel).
+  if (vapidPublicKey()) {
+    void pushFanout(userIds, input).catch((err) =>
+      console.error("[notify] push fanout failed:", err),
+    );
+  }
+
   if (!input.emailContent && !input.whatsappText) return;
 
   const users = await prisma.user.findMany({
@@ -127,6 +137,30 @@ async function fanout(input: NotifyInput): Promise<void> {
           console.error(`[notify] whatsapp delivery failed for user ${user.id}:`, err);
           await enqueueOutbox("WHATSAPP", user.whatsappNumber, { text: input.whatsappText }, err);
         }
+      }
+    }),
+  );
+}
+
+/** Push delivery to every registered device; dead endpoints are pruned. */
+async function pushFanout(userIds: string[], input: NotifyInput): Promise<void> {
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { userId: { in: userIds } },
+  });
+  if (subscriptions.length === 0) return;
+  await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        const result = await sendWebPush(sub, {
+          title: input.title,
+          body: input.body,
+          href: input.href ?? "/notifications",
+        });
+        if (result.gone) {
+          await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+        }
+      } catch (err) {
+        console.error(`[notify] push delivery failed for ${sub.id}:`, err);
       }
     }),
   );

@@ -25,6 +25,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
 import { PageHeader } from "@/components/page-header";
+import { RateEngagementButton } from "@/components/ratings";
 import { OrderStatusBadge } from "@/components/status-badge";
 import { UploadButton } from "@/components/upload-button";
 import { ApiClientError } from "@/lib/api/http";
@@ -181,6 +182,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </Badge>
           )}
           <OrderStatusBadge status={order.status} />
+          {order.viewerIsBuyer && ["DELIVERED", "DELIVERY_CONFIRMED"].includes(order.status) && (
+            <RateEngagementButton
+              orderId={order.id}
+              targets={[
+                {
+                  companyId: order.sellerCompany.id,
+                  companyName: order.sellerCompany.name,
+                  role: "SELLER" as const,
+                },
+                ...order.appointments.map((a) => ({
+                  companyId: a.company.id,
+                  companyName: a.company.name,
+                  role: a.role,
+                })),
+              ]}
+            />
+          )}
           {role !== "admin" && (
             <MessageCounterpartyButton
               orderId={order.id}

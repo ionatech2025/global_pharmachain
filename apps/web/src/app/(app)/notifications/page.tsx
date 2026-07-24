@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { PushOptIn } from "@/components/push-optin";
 import { apiServer } from "@/lib/api/server";
 import type { NotificationRow, Paginated } from "@/lib/api/types";
 import { NotificationList, PreferencesPanel } from "./notifications-panel";
@@ -28,7 +29,9 @@ export default async function NotificationsPage({
       <PageHeader
         title="Notifications"
         description="In-app notifications are always on; choose which events also reach you by email or WhatsApp (US-605/606)."
-      />
+      >
+        <PushOptIn />
+      </PageHeader>
       <NotificationList notifications={notifications} />
       <PreferencesPanel initial={prefs.preferences} />
     </div>

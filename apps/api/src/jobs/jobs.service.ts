@@ -13,6 +13,7 @@ import {
   runScheduledReportsJob,
   runThrottleCleanupJob,
   runTokenCleanupJob,
+  runTrustBadgeJob,
   runUploadCleanupJob,
 } from "./housekeeping";
 import { withJobLock } from "./lock";
@@ -89,5 +90,10 @@ export class JobsService {
   @Cron("0 7 * * *", { timeZone: "UTC" })
   scheduledReports(): Promise<void> {
     return guarded("scheduled-reports", () => runScheduledReportsJob());
+  }
+
+  @Cron("20 5 * * *", { timeZone: "UTC" })
+  trustBadges(): Promise<void> {
+    return guarded("trust-badges", () => runTrustBadgeJob());
   }
 }

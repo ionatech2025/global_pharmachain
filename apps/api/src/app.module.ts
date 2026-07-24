@@ -15,6 +15,7 @@ import { HybridThrottlerStorage } from "./common/throttler-storage";
 import { env } from "./env";
 import { JobsModule } from "./jobs/jobs.module";
 import { AdminModule } from "./modules/admin/admin.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { AnnouncementModule } from "./modules/announcement/announcement.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BillingModule } from "./modules/billing/billing.module";
@@ -52,6 +53,7 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     LogisticsModule,
     DisputeModule,
     FinanceModule,
+    AnalyticsModule,
     DocumentModule,
     BomModule,
     MessagingModule,

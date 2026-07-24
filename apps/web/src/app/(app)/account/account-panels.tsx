@@ -252,8 +252,88 @@ export function AccountPanels({ totpEnabled }: { totpEnabled: boolean }) {
       <ChangePasswordCard />
       <TotpCard initiallyEnabled={totpEnabled} />
       <WhatsappCard />
+      <LocaleCard />
       <DataPrivacyCard />
     </div>
+  );
+}
+
+const LOCALE_OPTIONS = [
+  { value: "", label: "Browser default" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "Français" },
+  { value: "sw", label: "Kiswahili" },
+  { value: "hi", label: "हिन्दी" },
+  { value: "zh", label: "中文" },
+  { value: "pt", label: "Português" },
+];
+
+/** Phase 4 §4: locale-aware formatting + time-zone handling. The language
+ *  preference also seeds the multi-language rollout. */
+function LocaleCard() {
+  const [locale, setLocale] = useState("");
+  const [timeZone, setTimeZone] = useState(
+    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "",
+  );
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.patch("/me/locale", {
+        locale: locale || null,
+        timeZone: timeZone || null,
+      });
+      toast.success("Language & region preferences saved");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Language & region</CardTitle>
+        <CardDescription>
+          Dates, times and numbers follow your locale and time zone across the app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={save} className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="pref-locale">Language</Label>
+            <select
+              id="pref-locale"
+              className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value)}
+            >
+              {LOCALE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="pref-tz">Time zone (IANA)</Label>
+            <Input
+              id="pref-tz"
+              className="w-56"
+              placeholder="Africa/Kampala"
+              value={timeZone}
+              onChange={(e) => setTimeZone(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
