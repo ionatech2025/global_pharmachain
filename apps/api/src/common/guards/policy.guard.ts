@@ -33,7 +33,11 @@ export class PolicyGuard implements CanActivate {
       permission !== undefined ||
       this.reflector.getAllAndOverride<boolean>(REQUIRE_VERIFIED_KEY, targets);
 
-    if (requireCompany && !req.membership) {
+    // Super admins pass the bare company gate: routes marked @RequireCompany
+    // without a permission (shipment corrections, exceptions, ETA) explicitly
+    // support the audited admin-correction path in their services. Routes
+    // with @RequirePermission stay membership-only below — admins don't trade.
+    if (requireCompany && !req.membership && !req.user?.isSuperAdmin) {
       throw forbidden("This action requires a company account");
     }
     if (permission && (!req.membership || !can(req.membership.role, permission))) {
