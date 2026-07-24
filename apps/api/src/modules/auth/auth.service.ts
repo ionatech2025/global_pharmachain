@@ -44,6 +44,7 @@ export class AuthService {
       isSuperAdmin: user.isSuperAdmin,
       sessionVersion: user.sessionVersion,
       totpEnabled: Boolean(user.totpEnabledAt),
+      preferredCurrency: user.preferredCurrency ?? null,
       membership: user.membership
         ? {
             companyId: user.membership.companyId,

@@ -340,3 +340,56 @@ export type DataRequestStatus = (typeof DATA_REQUEST_STATUSES)[number];
 // Currencies offered in selects. Prices are display-converted only (Phase 1).
 export const CURRENCIES = ["USD", "EUR", "GBP", "UGX", "KES", "TZS", "RWF", "INR", "CNY"] as const;
 export type Currency = (typeof CURRENCIES)[number];
+
+// ─── Phase 3: payments & financial tools ─────────────────────────────────────
+
+export const PAYMENT_METHODS = ["BANK_TRANSFER", "CARD", "MOBILE_MONEY"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  BANK_TRANSFER: "Bank transfer / EFT",
+  CARD: "Credit / debit card",
+  MOBILE_MONEY: "Mobile money",
+};
+
+export const PAYMENT_STATUSES = ["PENDING", "CONFIRMED", "FAILED", "REFUNDED"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+  FAILED: "Failed",
+  REFUNDED: "Refunded",
+};
+
+export const INVOICE_STATUSES = ["DRAFT", "ISSUED", "PAID", "VOID"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  DRAFT: "Draft",
+  ISSUED: "Issued",
+  PAID: "Paid",
+  VOID: "Void",
+};
+
+export const LEDGER_ENTRY_KINDS = [
+  "INVOICE_ISSUED",
+  "INVOICE_RECEIVED",
+  "PAYMENT_IN",
+  "PAYMENT_OUT",
+  "PLATFORM_FEE",
+  "CREDIT_PURCHASE",
+] as const;
+export type LedgerEntryKind = (typeof LEDGER_ENTRY_KINDS)[number];
+
+export const LEDGER_ENTRY_LABELS: Record<LedgerEntryKind, string> = {
+  INVOICE_ISSUED: "Invoice issued",
+  INVOICE_RECEIVED: "Invoice received",
+  PAYMENT_IN: "Payment received",
+  PAYMENT_OUT: "Payment sent",
+  PLATFORM_FEE: "Platform fee",
+  CREDIT_PURCHASE: "Credit purchase",
+};
+
+export const KYC_RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
+export type KycRiskLevel = (typeof KYC_RISK_LEVELS)[number];

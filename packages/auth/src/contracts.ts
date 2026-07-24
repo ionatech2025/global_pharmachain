@@ -14,6 +14,7 @@ export interface AuthenticatedUser {
   isSuperAdmin: boolean;
   sessionVersion: number;
   totpEnabled?: boolean;
+  preferredCurrency?: string | null;
   membership: {
     companyId: string;
     companyName: string;

@@ -1,3 +1,5 @@
+import { convertAmount } from "@pharmachain/core";
+
 export function fmtMoney(amount: string | number, currency: string): string {
   const value = typeof amount === "string" ? Number.parseFloat(amount) : amount;
   if (!Number.isFinite(value)) return `${amount} ${currency}`;
@@ -31,6 +33,29 @@ export function convertedPrices(
       return Number.isFinite(rate) ? fmtMoney(value * rate, r.quote) : null;
     })
     .filter((v): v is string => v !== null);
+}
+
+/**
+ * Phase 3 §3: the viewer's preferred display currency. Returns the approx
+ * converted amount ("≈ USD 1,234.00") or null when no preference is set, the
+ * price is already in it, or no FX path exists (falls back silently).
+ */
+export function approxInPreferred(
+  amount: string | number,
+  currency: string,
+  preferred: string | null | undefined,
+  rates: DisplayRate[],
+): string | null {
+  if (!preferred || preferred === currency) return null;
+  const value = typeof amount === "string" ? Number.parseFloat(amount) : amount;
+  if (!Number.isFinite(value)) return null;
+  const pairs = rates.map((r) => ({
+    base: r.base,
+    quote: r.quote,
+    rate: typeof r.rate === "string" ? Number.parseFloat(r.rate) : r.rate,
+  }));
+  const converted = convertAmount(pairs, value, currency, preferred);
+  return converted === null ? null : `≈ ${fmtMoney(converted, preferred)}`;
 }
 
 export function fmtNumber(value: string | number): string {

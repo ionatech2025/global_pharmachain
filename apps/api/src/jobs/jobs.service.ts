@@ -4,11 +4,13 @@ import { logger } from "../lib/logger";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runDsrSlaJob,
+  runFxRefreshJob,
   runLogisticsAlertsJob,
   runOutboxJob,
   runQuotationExpiryJob,
   runRfqAutoCloseJob,
   runSavedSearchAlertJob,
+  runScheduledReportsJob,
   runThrottleCleanupJob,
   runTokenCleanupJob,
   runUploadCleanupJob,
@@ -77,5 +79,15 @@ export class JobsService {
   @Cron("30 6 * * *", { timeZone: "UTC" })
   logisticsAlerts(): Promise<void> {
     return guarded("logistics-alerts", () => runLogisticsAlertsJob());
+  }
+
+  @Cron("10 4 * * *", { timeZone: "UTC" })
+  fxRefresh(): Promise<void> {
+    return guarded("fx-refresh", () => runFxRefreshJob());
+  }
+
+  @Cron("0 7 * * *", { timeZone: "UTC" })
+  scheduledReports(): Promise<void> {
+    return guarded("scheduled-reports", () => runScheduledReportsJob());
   }
 }

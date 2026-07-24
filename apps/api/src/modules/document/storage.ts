@@ -46,6 +46,24 @@ export async function presignUpload(
 
 const STORAGE_OP_TIMEOUT_MS = 10_000;
 
+/** Server-side direct upload for platform-generated files (invoice PDFs). */
+export async function putObject(
+  key: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  const res = await client.fetch(objectUrl(key).toString(), {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    // Copy into a fresh ArrayBuffer: BodyInit rejects Uint8Array<ArrayBufferLike>
+    body: bytes.slice().buffer as ArrayBuffer,
+    signal: AbortSignal.timeout(STORAGE_OP_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`putObject failed: ${res.status} ${await res.text().catch(() => "")}`);
+  }
+}
+
 /**
  * Server-side existence/size/type check for a presigned upload. A presigned
  * PUT cannot enforce the declared size, so completeUpload verifies what

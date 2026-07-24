@@ -24,6 +24,7 @@ import { CompanyModule } from "./modules/company/company.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { DisputeModule } from "./modules/dispute/dispute.module";
 import { DocumentModule } from "./modules/document/document.module";
+import { FinanceModule } from "./modules/finance/finance.module";
 import { LogisticsModule } from "./modules/logistics/logistics.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { NotificationModule } from "./modules/notification/notification.module";
@@ -50,6 +51,7 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     OrderModule,
     LogisticsModule,
     DisputeModule,
+    FinanceModule,
     DocumentModule,
     BomModule,
     MessagingModule,

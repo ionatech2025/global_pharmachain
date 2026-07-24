@@ -29,8 +29,14 @@ import { OrderStatusBadge } from "@/components/status-badge";
 import { UploadButton } from "@/components/upload-button";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
-import type { DocumentRow, OrderDetail } from "@/lib/api/types";
+import type { DocumentRow, OrderDetail, OrderPayments } from "@/lib/api/types";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNumber } from "@/lib/format";
+import {
+  IssueInvoiceButton,
+  PaymentActions,
+  PaymentStatusBadge,
+  RecordPaymentButton,
+} from "./finance-panels";
 import {
   AppointPartnerButton,
   DisputeButtons,
@@ -119,6 +125,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     api.get<DocumentRow[]>(`/orders/${id}/documents`),
     api.get<AuthenticatedUser>("/auth/me"),
   ]);
+  // Payments are a trade-party view (Phase 3); appointees don't see money.
+  const isTradeParty = order.viewerIsBuyer || order.viewerIsSeller;
+  const orderPayments = isTradeParty
+    ? await api.get<OrderPayments>(`/orders/${id}/payments`).catch(() => null)
+    : null;
   const role = order.viewerRole;
   // Phase 2 §1–3: seller + forwarder run the lifecycle; transporter and
   // clearing agent drive their own legs; buyer confirms final receipt.
@@ -493,6 +504,75 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           )}
         </CardContent>
       </Card>
+
+      {/* Payments & invoice (Phase 3 §1–2) */}
+      {orderPayments && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm">Payments & invoice</CardTitle>
+              <CardDescription>
+                {fmtMoney(orderPayments.paid, orderPayments.currency)} of{" "}
+                {fmtMoney(orderPayments.total, orderPayments.currency)} confirmed ·{" "}
+                {orderPayments.balance <= 0
+                  ? "fully paid"
+                  : `${fmtMoney(orderPayments.balance, orderPayments.currency)} outstanding`}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              {order.viewerIsSeller && <IssueInvoiceButton orderId={order.id} />}
+              {order.viewerIsBuyer && (
+                <RecordPaymentButton
+                  orderId={order.id}
+                  currency={orderPayments.currency}
+                  balance={orderPayments.balance}
+                />
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 h-2 rounded-full bg-muted">
+              <div
+                className="h-2 rounded-full bg-success"
+                style={{
+                  width: `${Math.min(100, Math.round((orderPayments.paid / Math.max(1, orderPayments.total)) * 100))}%`,
+                }}
+              />
+            </div>
+            {orderPayments.payments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No payments recorded yet. Payments move directly between the parties — the platform
+                never holds funds.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {orderPayments.payments.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PaymentStatusBadge status={p.status} />
+                      <span className="font-medium tabular-nums">
+                        {fmtMoney(p.amount, p.currency)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {p.providerRef} · {fmtDate(p.createdAt)}
+                        {p.failureReason ? ` · ${p.failureReason}` : ""}
+                      </span>
+                    </div>
+                    <PaymentActions
+                      payment={p}
+                      viewerIsSeller={order.viewerIsSeller}
+                      viewerIsBuyer={order.viewerIsBuyer}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Exceptions & disputes (Phase 2 §4) */}
       <Card>

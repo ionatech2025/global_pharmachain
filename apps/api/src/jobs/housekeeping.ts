@@ -1,4 +1,10 @@
-import { LISTING_KINDS, orderStatusIndex, requiredShipmentDocKinds } from "@pharmachain/core";
+import {
+  CURRENCIES,
+  LEDGER_ENTRY_LABELS,
+  LISTING_KINDS,
+  orderStatusIndex,
+  requiredShipmentDocKinds,
+} from "@pharmachain/core";
 import type { ListingKind, Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
@@ -314,6 +320,110 @@ export async function runLogisticsAlertsJob(now = new Date()): Promise<void> {
   if (delayed.length + docAlerts > 0) {
     logger.info("logistics alerts job done", { delayed: delayed.length, docAlerts });
   }
+}
+
+/**
+ * Phase 3 §3: refresh display FX rates from a live feed (default: the free
+ * open.er-api.com USD table), falling back silently to the admin-managed
+ * manual rows when the feed is unreachable — the documented degradation.
+ */
+export async function runFxRefreshJob(): Promise<void> {
+  const feedUrl = process.env.FX_FEED_URL ?? "https://open.er-api.com/v6/latest/USD";
+  let rates: Record<string, number>;
+  try {
+    const res = await fetch(feedUrl, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) throw new Error(`feed ${res.status}`);
+    const data = (await res.json()) as { rates?: Record<string, number> };
+    if (!data.rates) throw new Error("feed shape unexpected");
+    rates = data.rates;
+  } catch (err) {
+    logger.warn("fx refresh: live feed unavailable — manual table remains authoritative", {
+      error: String(err),
+    });
+    return;
+  }
+  let updated = 0;
+  for (const quote of CURRENCIES) {
+    if (quote === "USD") continue;
+    const rate = rates[quote];
+    if (!rate || !Number.isFinite(rate) || rate <= 0) continue;
+    await prisma.exchangeRate.upsert({
+      where: { base_quote: { base: "USD", quote } },
+      update: { rate, source: "LIVE" },
+      create: { base: "USD", quote, rate, source: "LIVE" },
+    });
+    updated += 1;
+  }
+  logger.info("fx refresh job done", { updated });
+}
+
+/**
+ * Phase 3 §4: scheduled financial report delivery. WEEKLY sends on Mondays,
+ * MONTHLY on the 1st; each opted-in user gets their company summary by email.
+ */
+export async function runScheduledReportsJob(now = new Date()): Promise<void> {
+  const isMonday = now.getUTCDay() === 1;
+  const isFirst = now.getUTCDate() === 1;
+  const due = await prisma.scheduledReport.findMany({
+    where: {
+      active: true,
+      OR: [
+        ...(isMonday ? [{ frequency: "WEEKLY" }] : []),
+        ...(isFirst ? [{ frequency: "MONTHLY" }] : []),
+      ],
+    },
+    include: { user: { select: { id: true, email: true, status: true, membership: true } } },
+  });
+  let sent = 0;
+  for (const schedule of due) {
+    if (schedule.user.status !== "ACTIVE") continue;
+    // Idempotence across restarts: skip if already sent this UTC day.
+    if (
+      schedule.lastSentAt &&
+      schedule.lastSentAt.toISOString().slice(0, 10) === now.toISOString().slice(0, 10)
+    ) {
+      continue;
+    }
+    const companyId = schedule.user.membership?.companyId;
+    if (schedule.report === "company-finance" && companyId) {
+      const since = new Date(
+        now.getTime() - (schedule.frequency === "WEEKLY" ? 7 : 31) * 24 * 60 * 60 * 1000,
+      );
+      const entries = await prisma.ledgerEntry.findMany({
+        where: { companyId, createdAt: { gte: since } },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      const lines =
+        entries.length === 0
+          ? "No financial activity in the period."
+          : entries
+              .map(
+                (e) =>
+                  `${e.createdAt.toISOString().slice(0, 10)}  ${LEDGER_ENTRY_LABELS[e.kind]}  ${Number(e.amount).toFixed(2)} ${e.currency}  ${e.note ?? ""}`,
+              )
+              .join("\n");
+      await notify({
+        userIds: [schedule.userId],
+        type: "ACCOUNT_UPDATE",
+        title: `Your ${schedule.frequency.toLowerCase()} finance report`,
+        body: `${entries.length} ledger entrie(s) in the period. Full report on the Finance page.`,
+        href: "/finance",
+        emailContent: genericEventEmail({
+          title: `PharmaChain ${schedule.frequency.toLowerCase()} finance report`,
+          body: `Ledger activity since ${since.toDateString()}:\n\n${lines}`,
+          url: `${env.APP_URL}/finance`,
+          cta: "Open finance workspace",
+        }),
+      });
+      sent += 1;
+    }
+    await prisma.scheduledReport.update({
+      where: { id: schedule.id },
+      data: { lastSentAt: now },
+    });
+  }
+  if (sent > 0) logger.info("scheduled reports job done", { sent });
 }
 
 /** Drops rate-limit buckets whose window and block have both long passed. */
