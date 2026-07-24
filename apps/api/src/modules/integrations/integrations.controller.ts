@@ -19,10 +19,10 @@ import {
   RequirePermission,
   setAudit,
 } from "../../common/decorators";
-import { notFound } from "../../common/errors";
+import { badRequest, notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import { emitWebhookEvent, runWebhookDeliveryPass } from "../../lib/webhooks";
+import { assertSafeWebhookUrl, emitWebhookEvent, runWebhookDeliveryPass } from "../../lib/webhooks";
 import { authenticateApiKey, generateApiKey } from "./api-key";
 
 @Controller()
@@ -49,6 +49,9 @@ export class IntegrationsController {
     @Body(zodPipe(webhookCreateSchema)) body: WebhookCreateInput,
     @Req() req: FastifyRequest,
   ) {
+    await assertSafeWebhookUrl(body.url).catch((err) => {
+      throw badRequest(String(err instanceof Error ? err.message : err));
+    });
     const secret = `whsec_${randomBytes(24).toString("hex")}`;
     const hook = await prisma.webhook.create({
       data: {

@@ -100,38 +100,52 @@ export class TraceService {
     return events.sort((a, b) => a.at.localeCompare(b.at) || a.type.localeCompare(b.type));
   }
 
-  /** Seal any canonical events not yet in the chain (append-only). */
+  /**
+   * Seal any canonical events not yet in the chain (append-only). A
+   * per-order advisory lock serialises concurrent first views (review
+   * finding: simultaneous extension raced on the (orderId, seq) unique
+   * index and 500'd the loser); the transaction re-reads the sealed tail
+   * under the lock so each writer extends from the true head.
+   */
   private async extendChain(orderId: string) {
-    const [canonical, sealed] = await Promise.all([
-      this.canonicalEvents(orderId),
-      prisma.traceEvent.findMany({ where: { orderId }, orderBy: { seq: "asc" } }),
-    ]);
-    let prevHash = sealed.length ? (sealed[sealed.length - 1]?.hash as string) : TRACE_GENESIS;
-    for (let i = sealed.length; i < canonical.length; i += 1) {
-      const event = canonical[i] as CanonicalEvent;
-      const payloadHash = await hashPayload(event.payload);
-      const input = {
-        seq: i + 1,
-        type: event.type,
-        at: event.at,
-        payloadHash,
-        prevHash,
-      };
-      const hash = await traceHash(input);
-      await prisma.traceEvent.create({
-        data: {
-          orderId,
-          seq: input.seq,
-          type: input.type,
-          at: input.at,
-          payload: event.payload as Prisma.InputJsonValue,
-          payloadHash,
-          prevHash,
-          hash,
-        },
-      });
-      prevHash = hash;
-    }
+    const canonical = await this.canonicalEvents(orderId);
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`trace:${orderId}`}))`;
+        const sealed = await tx.traceEvent.findMany({
+          where: { orderId },
+          orderBy: { seq: "asc" },
+          select: { hash: true },
+        });
+        let prevHash = sealed.length ? (sealed[sealed.length - 1]?.hash as string) : TRACE_GENESIS;
+        for (let i = sealed.length; i < canonical.length; i += 1) {
+          const event = canonical[i] as CanonicalEvent;
+          const payloadHash = await hashPayload(event.payload);
+          const input = {
+            seq: i + 1,
+            type: event.type,
+            at: event.at,
+            payloadHash,
+            prevHash,
+          };
+          const hash = await traceHash(input);
+          await tx.traceEvent.create({
+            data: {
+              orderId,
+              seq: input.seq,
+              type: input.type,
+              at: input.at,
+              payload: event.payload as Prisma.InputJsonValue,
+              payloadHash,
+              prevHash,
+              hash,
+            },
+          });
+          prevHash = hash;
+        }
+      },
+      { timeout: 15_000 },
+    );
     return { canonical };
   }
 
