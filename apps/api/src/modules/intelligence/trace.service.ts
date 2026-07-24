@@ -305,15 +305,72 @@ export class TraceService {
   }
 
   /** Daily job body: seal every order's chain so coverage never depends on
-   *  someone having opened the order (registry: "trace-seal"). */
-  async sealAllChains(): Promise<void> {
-    const orders = await prisma.order.findMany({ select: { id: true }, take: 2000 });
-    for (const order of orders) {
+   *  someone having opened the order (registry: "trace-seal").
+   *
+   *  Serverless-shaped: the function ceiling is 30s, and extendChain is one
+   *  interactive transaction per order, so an unbounded loop times the whole
+   *  dispatcher request out on a cold backlog. Instead: detect stale chains
+   *  with grouped counts (a sealed chain only ever grows, so sealed < canonical
+   *  means work to do), seal newest-first under a time budget, and report the
+   *  remainder — the next run resumes where this one stopped. */
+  async sealAllChains(budgetMs = 15_000) {
+    const deadline = Date.now() + budgetMs;
+    const orders = await prisma.order.findMany({
+      select: { id: true },
+      orderBy: { updatedAt: "desc" },
+      take: 2000,
+    });
+    const [statusEvents, documents, pods, invoices, payments, sealed] = await Promise.all([
+      prisma.orderStatusEvent.groupBy({ by: ["orderId"], _count: { _all: true } }),
+      prisma.document.groupBy({
+        by: ["orderId"],
+        where: { orderId: { not: null }, uploadCompletedAt: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.proofOfDelivery.findMany({ select: { orderId: true } }),
+      prisma.invoice.groupBy({ by: ["orderId"], _count: { _all: true } }),
+      prisma.payment.groupBy({
+        by: ["orderId"],
+        where: { status: "CONFIRMED" },
+        _count: { _all: true },
+      }),
+      prisma.traceEvent.groupBy({ by: ["orderId"], _count: { _all: true } }),
+    ]);
+    const countMap = (rows: { orderId: string | null; _count: { _all: number } }[]) =>
+      new Map(rows.filter((r) => r.orderId).map((r) => [r.orderId as string, r._count._all]));
+    const statusN = countMap(statusEvents);
+    const docN = countMap(documents);
+    const invoiceN = countMap(invoices);
+    const paymentN = countMap(payments);
+    const sealedN = countMap(sealed);
+    const podSet = new Set(pods.map((p) => p.orderId));
+
+    const stale = orders.filter((o) => {
+      const canonical =
+        1 + // order.created
+        (statusN.get(o.id) ?? 0) +
+        (docN.get(o.id) ?? 0) +
+        (podSet.has(o.id) ? 1 : 0) +
+        (invoiceN.get(o.id) ?? 0) +
+        (paymentN.get(o.id) ?? 0);
+      return (sealedN.get(o.id) ?? 0) < canonical;
+    });
+
+    let sealedNow = 0;
+    for (const order of stale) {
+      if (Date.now() >= deadline) break;
       try {
         await this.extendChain(order.id);
+        sealedNow += 1;
       } catch (err) {
         console.error(`[trace-seal] order ${order.id}:`, err);
       }
     }
+    return {
+      checked: orders.length,
+      stale: stale.length,
+      sealed: sealedNow,
+      remaining: stale.length - sealedNow,
+    };
   }
 }
