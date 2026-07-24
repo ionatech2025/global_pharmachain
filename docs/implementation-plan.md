@@ -5,6 +5,14 @@ Module-by-module map of the delivered scaffold, story traceability
 Phase 1 backlog PDFs are canonical; this document records where each one lands
 in code.
 
+> **Historical scope.** This file covers the Phase 1 MVP. Phases 2–5
+> (logistics, payments/ledger, analytics/notifications, trace/webhooks/public
+> API) shipped via PRs #40–#46 tracked in GitHub issues #1–#4, and the
+> subsequent architecture-review remediation is traced in
+> [`architecture-review-remediation.md`](architecture-review-remediation.md).
+> The README's Architecture / Deployment sections describe the current
+> system.
+
 ## Packages
 
 | Package | Responsibility |
@@ -77,7 +85,7 @@ server components call the API directly with a typed client.
 | E7 Shipment visibility | US-701…703 | `api/shipment` + `OrderStatusEvent`; web: orders/[id] tracker + controls |
 | E8 BOM | US-801…803 | `api/bom` (versioning, one-ACTIVE, raise-RFQ link); web: BOM manager on finished-product listings, rfqs/new prefill |
 | E9 Platform admin | US-901…907 | `api/admin`, `api/announcement`, `api/billing`, `api/dashboard`, freemium limit logic in `api/rfq`; web: admin/*, company/usage |
-| E10 Security & data | US-1001…1003 | argon2id (`Bun.password`), guards, presigned storage, audit interceptor; backups + TLS in README deployment guide; GDPR: privacy page, `auth.me/export`, deletion request → `api/admin` anonymize |
+| E10 Security & data | US-1001…1003 | argon2id (now `@node-rs/argon2` for Node/Bun parity), guards, presigned storage, audit interceptor; backups + TLS in README deployment guide; GDPR: privacy page, `auth.me/export`, deletion request → `api/admin` anonymize |
 
 ## Intentional stubs (Phase 1)
 
@@ -88,7 +96,7 @@ server components call the API directly with a typed client.
 | SMS/WhatsApp OTP delivery (email OTP is live) | `packages/email` OTP template + channel adapters | Phase 2 |
 | Payment for credit requests (manual admin confirm) | `api/billing` + `api/admin` | Phase 2: gateway |
 | Exchange rates (admin-managed, display-only) | `api/admin` FX endpoints | Phase 2: live FX feed |
-| Playwright e2e (placeholder spec) | `e2e/` | Wire to CI once a disposable stack exists |
+| Playwright e2e | `e2e/` | Since grown into the real 35-test suite (golden path, routes, endpoints, security) — run with `E2E_BASE_URL` against any deployment |
 
 Out of scope for Phase 1 (unchanged from the backlog): payments/escrow,
 GPS/13-stage logistics, forwarder accounts, mobile apps, multi-language,
