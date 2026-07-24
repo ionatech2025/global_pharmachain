@@ -2,7 +2,7 @@
 // auth-gated app: navigations are network-first with an offline fallback,
 // immutable static assets are cache-first, and the API/auth surface is never
 // cached (always the network). Bump CACHE to invalidate on release.
-const CACHE = "pharmachain-v2";
+const CACHE = "pharmachain-v3";
 const PRECACHE = ["/offline.html", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -140,7 +140,12 @@ async function flushQueue() {
         credentials: "include",
       });
       // Replayed successfully (or permanently rejected): drop from the queue.
-      if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 429)) {
+      // 401 stays queued — an expired session must not cost field captures;
+      // the entry replays after the next sign-in (review finding).
+      if (
+        res.ok ||
+        (res.status >= 400 && res.status < 500 && res.status !== 429 && res.status !== 401)
+      ) {
         await new Promise((resolve) => {
           const tx = db.transaction(QUEUE_STORE, "readwrite");
           tx.objectStore(QUEUE_STORE).delete(entry.id);

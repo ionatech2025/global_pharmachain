@@ -1,6 +1,6 @@
 "use client";
 
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type PaymentMethod } from "@pharmachain/core";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -17,7 +17,7 @@ import { Label } from "@pharmachain/ui/components/label";
 import { Textarea } from "@pharmachain/ui/components/textarea";
 import { BadgeCheck, Banknote, ReceiptText, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
@@ -50,6 +50,17 @@ export function RecordPaymentButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("BANK_TRANSFER");
+  // Only methods something can actually settle are offered (review finding:
+  // dead-end payments); sandbox-backed ones are labelled as such.
+  const [enabled, setEnabled] = useState<Array<{ method: PaymentMethod; sandbox: boolean }>>([
+    { method: "BANK_TRANSFER", sandbox: false },
+  ]);
+  useEffect(() => {
+    api
+      .get<Array<{ method: PaymentMethod; sandbox: boolean }>>("/payments/methods")
+      .then(setEnabled)
+      .catch(() => {});
+  }, []);
   const [amount, setAmount] = useState(balance > 0 ? balance.toFixed(2) : "");
   const [note, setNote] = useState("");
   const [instructions, setInstructions] = useState<string | null>(null);
@@ -112,9 +123,10 @@ export function RecordPaymentButton({
                 value={method}
                 onChange={(e) => setMethod(e.target.value as PaymentMethod)}
               >
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {PAYMENT_METHOD_LABELS[m]}
+                {enabled.map((m) => (
+                  <option key={m.method} value={m.method}>
+                    {PAYMENT_METHOD_LABELS[m.method]}
+                    {m.sandbox ? " (sandbox)" : ""}
                   </option>
                 ))}
               </select>

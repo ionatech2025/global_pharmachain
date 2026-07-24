@@ -16,9 +16,15 @@ interface VerifyResult {
   chainLength?: number;
 }
 
-export function VerifyForm() {
-  const [orderNo, setOrderNo] = useState("");
-  const [hash, setHash] = useState("");
+export function VerifyForm({
+  initialOrderNo = "",
+  initialHash = "",
+}: {
+  initialOrderNo?: string;
+  initialHash?: string;
+}) {
+  const [orderNo, setOrderNo] = useState(initialOrderNo);
+  const [hash, setHash] = useState(initialHash);
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
 

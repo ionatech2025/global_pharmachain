@@ -5,8 +5,9 @@ import { auth, signOut } from "@/auth";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
 import { ApiClientError } from "@/lib/api/http";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { AnnouncementRow } from "@/lib/api/types";
+import { setViewerFormat } from "@/lib/format";
 
 // Server-side guard on the layout (data-layer auth — no middleware.ts).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -18,9 +19,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   try {
     // Fresh state from the API — role/verification changes apply immediately
     const [me, announcements] = await Promise.all([
-      api.get<AuthenticatedUser>("/auth/me"),
+      getViewer(),
       api.get<AnnouncementRow[]>("/announcements/active"),
     ]);
+    // Prime the request-scoped formatter store so server-rendered dates and
+    // amounts honour the viewer's saved locale/time zone.
+    setViewerFormat({ locale: me.locale, timeZone: me.timeZone });
     return (
       <Providers nonce={nonce}>
         <AppShell me={me} announcements={announcements}>

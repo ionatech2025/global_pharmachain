@@ -20,7 +20,7 @@ import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { defer } from "../../lib/defer";
 import { getParam } from "../../lib/params";
-import { gatewayById, gatewayFor } from "../../lib/payment-gateways";
+import { enabledPaymentMethods, gatewayById, gatewayFor } from "../../lib/payment-gateways";
 import { emitWebhookEvent } from "../../lib/webhooks";
 import { buildStorageKey, putObject } from "../document/storage";
 
@@ -75,8 +75,13 @@ export class FinanceService {
         `Amount exceeds the outstanding balance (${order.currency} ${available.toFixed(2)} after pending instalments)`,
       );
     }
-    const gateway =
-      input.method === "BANK_TRANSFER" ? gatewayFor("BANK_TRANSFER") : gatewayFor(input.method);
+    // Review finding: never initiate a payment nothing can settle.
+    if (!enabledPaymentMethods().some((m) => m.method === input.method)) {
+      throw badRequest(
+        `${PAYMENT_METHOD_LABELS[input.method]} is not enabled on this deployment — use bank transfer or escrow`,
+      );
+    }
+    const gateway = gatewayFor(input.method);
     const bankDetails = await getParam(PARAM_KEYS.PLATFORM_BANK_DETAILS);
     const initiated = await gateway.initiate({
       reference: refCode("PAY"),

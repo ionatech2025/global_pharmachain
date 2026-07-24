@@ -7,7 +7,7 @@ import { notFound as notFoundPage } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { CompanyRatings, type CompanyRatingsData } from "@/components/ratings";
 import { ApiClientError } from "@/lib/api/http";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Company profile" };
@@ -40,7 +40,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
   }
   const [ratings, me] = await Promise.all([
     api.get<CompanyRatingsData>(`/companies/${id}/ratings`).catch(() => null),
-    api.get<AuthenticatedUser>("/auth/me").catch(() => null),
+    getViewer().catch(() => null),
   ]);
 
   // US-301: render the uploaded logo via a short-lived signed URL.

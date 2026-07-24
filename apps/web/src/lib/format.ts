@@ -1,9 +1,34 @@
 import { convertAmount } from "@pharmachain/core";
+import { cache } from "react";
+
+/**
+ * Viewer locale/timeZone threading (review finding: the saved preference was
+ * never applied — Intl calls hardcoded "en"). Server components read a
+ * request-scoped store (React cache — one object per RSC render, no
+ * cross-request bleed under concurrency); client components read a
+ * per-browser module store. Both are primed from the authenticated user:
+ * the (app) layout calls setViewerFormat() on the server, AppShell mirrors
+ * it on the client. Unauthenticated surfaces keep the "en" default.
+ */
+interface ViewerFormat {
+  locale: string;
+  timeZone?: string;
+}
+const serverFormatStore = cache((): ViewerFormat => ({ locale: "en", timeZone: undefined }));
+const clientFormatStore: ViewerFormat = { locale: "en", timeZone: undefined };
+const formatStore = (): ViewerFormat =>
+  typeof window === "undefined" ? serverFormatStore() : clientFormatStore;
+
+export function setViewerFormat(prefs: { locale?: string | null; timeZone?: string | null }): void {
+  const store = formatStore();
+  if (prefs.locale) store.locale = prefs.locale;
+  if (prefs.timeZone) store.timeZone = prefs.timeZone;
+}
 
 export function fmtMoney(amount: string | number, currency: string): string {
   const value = typeof amount === "string" ? Number.parseFloat(amount) : amount;
   if (!Number.isFinite(value)) return `${amount} ${currency}`;
-  return new Intl.NumberFormat("en", {
+  return new Intl.NumberFormat(formatStore().locale, {
     style: "currency",
     currency,
     currencyDisplay: "code",
@@ -60,19 +85,23 @@ export function approxInPreferred(
 
 export function fmtNumber(value: string | number): string {
   const n = typeof value === "string" ? Number.parseFloat(value) : value;
-  return Number.isFinite(n) ? new Intl.NumberFormat("en").format(n) : String(value);
+  return Number.isFinite(n) ? new Intl.NumberFormat(formatStore().locale).format(n) : String(value);
 }
 
 export function fmtDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
+  const { locale, timeZone } = formatStore();
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(new Date(value));
 }
 
 export function fmtDateTime(value: string | Date | null | undefined): string {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(value),
-  );
+  const { locale, timeZone } = formatStore();
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(new Date(value));
 }
 
 export function timeAgo(value: string | Date): string {

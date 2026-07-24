@@ -26,4 +26,27 @@ export class AppController {
     }
     return { ok: true };
   }
+
+  /** Live public counters for the marketing site (review brand-integrity
+   *  finding: hero vignettes carried fictional numbers). 5-minute cache. */
+  @Public()
+  @Get("stats/public")
+  async publicStats() {
+    const now = Date.now();
+    if (statsCache && now - statsCache.at < 5 * 60_000) return statsCache.value;
+    const [verifiedCompanies, publishedListings, countries] = await Promise.all([
+      prisma.company.count({ where: { verificationStatus: "VERIFIED" } }),
+      prisma.listing.count({ where: { status: "PUBLISHED" } }),
+      prisma.company.findMany({
+        where: { verificationStatus: "VERIFIED" },
+        select: { country: true },
+        distinct: ["country"],
+      }),
+    ]);
+    const value = { verifiedCompanies, publishedListings, countries: countries.length };
+    statsCache = { at: now, value };
+    return value;
+  }
 }
+
+let statsCache: { at: number; value: Record<string, number> } | null = null;

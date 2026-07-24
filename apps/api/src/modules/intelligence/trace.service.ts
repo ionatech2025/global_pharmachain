@@ -100,38 +100,54 @@ export class TraceService {
     return events.sort((a, b) => a.at.localeCompare(b.at) || a.type.localeCompare(b.type));
   }
 
-  /** Seal any canonical events not yet in the chain (append-only). */
+  /**
+   * Seal any canonical events not yet in the chain (append-only). A
+   * per-order advisory lock serialises concurrent first views (review
+   * finding: simultaneous extension raced on the (orderId, seq) unique
+   * index and 500'd the loser); the transaction re-reads the sealed tail
+   * under the lock so each writer extends from the true head.
+   */
   private async extendChain(orderId: string) {
-    const [canonical, sealed] = await Promise.all([
-      this.canonicalEvents(orderId),
-      prisma.traceEvent.findMany({ where: { orderId }, orderBy: { seq: "asc" } }),
-    ]);
-    let prevHash = sealed.length ? (sealed[sealed.length - 1]?.hash as string) : TRACE_GENESIS;
-    for (let i = sealed.length; i < canonical.length; i += 1) {
-      const event = canonical[i] as CanonicalEvent;
-      const payloadHash = await hashPayload(event.payload);
-      const input = {
-        seq: i + 1,
-        type: event.type,
-        at: event.at,
-        payloadHash,
-        prevHash,
-      };
-      const hash = await traceHash(input);
-      await prisma.traceEvent.create({
-        data: {
-          orderId,
-          seq: input.seq,
-          type: input.type,
-          at: input.at,
-          payload: event.payload as Prisma.InputJsonValue,
-          payloadHash,
-          prevHash,
-          hash,
-        },
-      });
-      prevHash = hash;
-    }
+    const canonical = await this.canonicalEvents(orderId);
+    await prisma.$transaction(
+      async (tx) => {
+        // $executeRaw, not $queryRaw: the blocking lock returns SQL `void`,
+        // which queryRaw cannot deserialize (executeRaw discards the row).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trace:${orderId}`})::bigint)`;
+        const sealed = await tx.traceEvent.findMany({
+          where: { orderId },
+          orderBy: { seq: "asc" },
+          select: { hash: true },
+        });
+        let prevHash = sealed.length ? (sealed[sealed.length - 1]?.hash as string) : TRACE_GENESIS;
+        for (let i = sealed.length; i < canonical.length; i += 1) {
+          const event = canonical[i] as CanonicalEvent;
+          const payloadHash = await hashPayload(event.payload);
+          const input = {
+            seq: i + 1,
+            type: event.type,
+            at: event.at,
+            payloadHash,
+            prevHash,
+          };
+          const hash = await traceHash(input);
+          await tx.traceEvent.create({
+            data: {
+              orderId,
+              seq: input.seq,
+              type: input.type,
+              at: input.at,
+              payload: event.payload as Prisma.InputJsonValue,
+              payloadHash,
+              prevHash,
+              hash,
+            },
+          });
+          prevHash = hash;
+        }
+      },
+      { timeout: 15_000 },
+    );
     return { canonical };
   }
 
@@ -237,32 +253,124 @@ export class TraceService {
     };
   }
 
-  /** Platform coverage: orders whose sealed chain verifies end-to-end. */
+  /**
+   * Platform coverage from SEALED chains only (review finding: the previous
+   * version extended + verified 500 chains serially in-request). Sealing
+   * happens on first view and via the daily trace-seal job; here one query
+   * fetches every sealed event and verification is pure CPU.
+   */
   async coverage() {
-    const orders = await prisma.order.findMany({ select: { id: true }, take: 500 });
+    const [orderCount, events] = await Promise.all([
+      prisma.order.count(),
+      prisma.traceEvent.findMany({
+        orderBy: [{ orderId: "asc" }, { seq: "asc" }],
+        select: {
+          orderId: true,
+          seq: true,
+          type: true,
+          at: true,
+          payloadHash: true,
+          prevHash: true,
+          hash: true,
+        },
+        take: 20_000,
+      }),
+    ]);
+    const byOrder = new Map<string, typeof events>();
+    for (const event of events) {
+      const list = byOrder.get(event.orderId) ?? [];
+      list.push(event);
+      byOrder.set(event.orderId, list);
+    }
     let intact = 0;
-    for (const order of orders) {
-      await this.extendChain(order.id);
-      const sealed = await prisma.traceEvent.findMany({
-        where: { orderId: order.id },
-        orderBy: { seq: "asc" },
-      });
-      const chain = await verifyChain(
-        sealed.map((e) => ({
+    for (const chain of byOrder.values()) {
+      const result = await verifyChain(
+        chain.map((e) => ({
           seq: e.seq,
           type: e.type,
-          at: e.at ?? "",
+          at: e.at,
           payloadHash: e.payloadHash,
           prevHash: e.prevHash,
           hash: e.hash,
         })),
       );
-      if (chain.valid && sealed.length > 0) intact += 1;
+      if (result.valid && chain.length > 0) intact += 1;
     }
     return {
-      orders: orders.length,
+      orders: orderCount,
+      sealedChains: byOrder.size,
       intactChains: intact,
-      coveragePct: orders.length ? Math.round((intact / orders.length) * 1000) / 10 : 100,
+      coveragePct: orderCount ? Math.round((intact / orderCount) * 1000) / 10 : 100,
+    };
+  }
+
+  /** Daily job body: seal every order's chain so coverage never depends on
+   *  someone having opened the order (registry: "trace-seal").
+   *
+   *  Serverless-shaped: the function ceiling is 30s, and extendChain is one
+   *  interactive transaction per order, so an unbounded loop times the whole
+   *  dispatcher request out on a cold backlog. Instead: detect stale chains
+   *  with grouped counts (a sealed chain only ever grows, so sealed < canonical
+   *  means work to do), seal newest-first under a time budget, and report the
+   *  remainder — the next run resumes where this one stopped. */
+  async sealAllChains(budgetMs = 15_000) {
+    const deadline = Date.now() + budgetMs;
+    const orders = await prisma.order.findMany({
+      select: { id: true },
+      orderBy: { updatedAt: "desc" },
+      take: 2000,
+    });
+    const [statusEvents, documents, pods, invoices, payments, sealed] = await Promise.all([
+      prisma.orderStatusEvent.groupBy({ by: ["orderId"], _count: { _all: true } }),
+      prisma.document.groupBy({
+        by: ["orderId"],
+        where: { orderId: { not: null }, uploadCompletedAt: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.proofOfDelivery.findMany({ select: { orderId: true } }),
+      prisma.invoice.groupBy({ by: ["orderId"], _count: { _all: true } }),
+      prisma.payment.groupBy({
+        by: ["orderId"],
+        where: { status: "CONFIRMED" },
+        _count: { _all: true },
+      }),
+      prisma.traceEvent.groupBy({ by: ["orderId"], _count: { _all: true } }),
+    ]);
+    const countMap = (rows: { orderId: string | null; _count: { _all: number } }[]) =>
+      new Map(rows.filter((r) => r.orderId).map((r) => [r.orderId as string, r._count._all]));
+    const statusN = countMap(statusEvents);
+    const docN = countMap(documents);
+    const invoiceN = countMap(invoices);
+    const paymentN = countMap(payments);
+    const sealedN = countMap(sealed);
+    const podSet = new Set(pods.map((p) => p.orderId));
+
+    const stale = orders.filter((o) => {
+      const canonical =
+        1 + // order.created
+        (statusN.get(o.id) ?? 0) +
+        (docN.get(o.id) ?? 0) +
+        (podSet.has(o.id) ? 1 : 0) +
+        (invoiceN.get(o.id) ?? 0) +
+        (paymentN.get(o.id) ?? 0);
+      return (sealedN.get(o.id) ?? 0) < canonical;
+    });
+
+    let sealedNow = 0;
+    for (const order of stale) {
+      if (Date.now() >= deadline) break;
+      try {
+        await this.extendChain(order.id);
+        sealedNow += 1;
+      } catch (err) {
+        console.error(`[trace-seal] order ${order.id}:`, err);
+      }
+    }
+    return {
+      checked: orders.length,
+      stale: stale.length,
+      sealed: sealedNow,
+      remaining: stale.length - sealedNow,
     };
   }
 }

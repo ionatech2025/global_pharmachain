@@ -18,9 +18,14 @@ export const metadata: Metadata = {
  * foundation regulator portals (UNBS, URA/NDA, Rwanda FDA, TMDA) integrate
  * against, alongside the signed webhook feed.
  */
-export default async function VerifyPage() {
+export default async function VerifyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ orderNo?: string; hash?: string }>;
+}) {
   // Dynamic render so the per-request CSP nonce reaches the theme bootstrap.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const params = await searchParams;
   return (
     <Providers nonce={nonce}>
       <main className="flex min-h-screen flex-col bg-background">
@@ -35,7 +40,10 @@ export default async function VerifyPage() {
             order reference and the trace hash from the shipment paperwork — if the ledger is intact
             and the hash belongs to it, the event is authentic.
           </p>
-          <VerifyForm />
+          <VerifyForm
+            initialOrderNo={params.orderNo ?? ""}
+            initialHash={/^[0-9a-fA-F]{64}$/.test(params.hash ?? "") ? (params.hash as string) : ""}
+          />
         </div>
       </main>
     </Providers>

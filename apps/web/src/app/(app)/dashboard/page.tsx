@@ -7,7 +7,7 @@ import Link from "next/link";
 import { DashboardRefresh } from "@/components/dashboard-refresh";
 import { CustomizeDashboardButton, type Kpi, KpiGrid } from "@/components/kpi-widgets";
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { DashboardSummary } from "@/lib/api/types";
 
 export const metadata = { title: "Dashboard" };
@@ -58,7 +58,7 @@ export default async function DashboardPage() {
   const api = await apiServer();
   const [summary, me, kpis, dashboardPrefs] = await Promise.all([
     api.get<DashboardSummary>("/dashboard/summary"),
-    api.get<AuthenticatedUser>("/auth/me"),
+    getViewer(),
     api.get<Kpi[]>("/analytics/kpis").catch(() => [] as Kpi[]),
     api
       .get<{ widgets: string[]; available: Array<{ key: string; label: string }> }>("/me/dashboard")

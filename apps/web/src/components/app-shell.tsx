@@ -26,7 +26,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { setViewerFormat } from "@/lib/format";
 import { CommandMenu } from "./command-menu";
 import { IdleSession } from "./idle-session";
 import { Logo, LogoMark } from "./logo";
@@ -125,6 +126,11 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Mirror the viewer's locale into the client-side formatter store so
+  // client-rendered panels format dates/amounts the same way the server did.
+  useEffect(() => {
+    setViewerFormat({ locale: me.locale, timeZone: me.timeZone });
+  }, [me.locale, me.timeZone]);
   const sections = navFor(me);
   const membership = me.membership;
   const unverified = membership && membership.verificationStatus !== "VERIFIED";

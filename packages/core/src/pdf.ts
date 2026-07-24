@@ -17,6 +17,9 @@ export interface PdfTable {
   subtitle?: string;
   columns: string[];
   rows: string[][];
+  /** Optional QR code (dark-module matrix) drawn on the first page — the
+   *  physical-world affordance for /verify (review UX finding). */
+  qr?: { modules: boolean[][]; caption: string };
 }
 
 function escapePdfText(text: string): string {
@@ -87,7 +90,10 @@ export function renderPdf(doc: PdfTable): Uint8Array {
   objects.push(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
   objects.push(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
   for (const [i, lines] of pages.entries()) {
-    const stream = lines.join("\n");
+    let stream = lines.join("\n");
+    if (i === 0 && doc.qr && doc.qr.modules.length > 0) {
+      stream += `\n${renderQr(doc.qr)}`;
+    }
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
         `/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + i * 2} 0 R >>`,
@@ -108,6 +114,29 @@ export function renderPdf(doc: PdfTable): Uint8Array {
   }
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
   return new TextEncoder().encode(body);
+}
+
+/** QR as filled PDF rects, top-right of the first page, with a caption. */
+function renderQr(qr: NonNullable<PdfTable["qr"]>): string {
+  const count = qr.modules.length;
+  const size = 92; // points
+  const cell = size / count;
+  const x0 = PAGE_W - MARGIN - size;
+  const y0 = PAGE_H - MARGIN - size + 14;
+  const ops: string[] = ["0 g"];
+  for (let r = 0; r < count; r += 1) {
+    const row = qr.modules[r] as boolean[];
+    for (let c = 0; c < count; c += 1) {
+      if (!row[c]) continue;
+      const x = x0 + c * cell;
+      const y = y0 + (count - 1 - r) * cell;
+      ops.push(`${x.toFixed(2)} ${y.toFixed(2)} ${cell.toFixed(2)} ${cell.toFixed(2)} re f`);
+    }
+  }
+  ops.push(
+    `BT /F1 7 Tf ${x0.toFixed(2)} ${(y0 - 10).toFixed(2)} Td (${escapePdfText(qr.caption)}) Tj ET`,
+  );
+  return ops.join("\n");
 }
 
 /** CSV export sharing the same table shape. */

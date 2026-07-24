@@ -19,6 +19,7 @@ import { BadgeCheck, Flag, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import { fmtDate } from "@/lib/format";
@@ -120,13 +121,31 @@ export function RateEngagementButton({
             </select>
           </div>
           <div className="grid gap-2">
-            <Label>Rating</Label>
-            <div className="flex items-center gap-1">
+            <Label id="rate-stars-label">Rating</Label>
+            {/* WCAG 2.2 name/role/value: a radiogroup with arrow-key movement,
+                not five unrelated buttons (design-system sweep). */}
+            <div
+              role="radiogroup"
+              aria-labelledby="rate-stars-label"
+              className="flex items-center gap-1"
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setStars((s) => Math.min(5, s + 1));
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setStars((s) => Math.max(1, s - 1));
+                }
+              }}
+            >
               {[1, 2, 3, 4, 5].map((i) => (
                 <button
                   key={i}
                   type="button"
+                  role="radio"
+                  aria-checked={stars === i}
                   aria-label={`${i} star${i > 1 ? "s" : ""}`}
+                  tabIndex={stars === i ? 0 : -1}
                   onClick={() => setStars(i)}
                   className="rounded p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -187,21 +206,13 @@ export function CompanyRatings({
   canContest: boolean;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
 
-  async function contest(ratingId: string) {
-    const reason = window.prompt("Why should the platform review this rating? (min 5 characters)");
-    if (!reason || reason.trim().length < 5) return;
-    setBusy(true);
-    try {
-      await api.post(`/ratings/${ratingId}/flag`, { reason });
-      toast.success("Rating sent to platform moderation");
-      router.refresh();
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+  // ConfirmDialog, not window.prompt (design-system sweep): consistent
+  // styling, focus management and the platform's min-5-character reason rule.
+  async function contest(ratingId: string, reason?: string) {
+    await api.post(`/ratings/${ratingId}/flag`, { reason });
+    toast.success("Rating sent to platform moderation");
+    router.refresh();
   }
 
   return (
@@ -244,15 +255,18 @@ export function CompanyRatings({
                   </span>
                 </span>
                 {canContest && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => contest(r.id)}
-                    aria-label="Contest this rating"
-                  >
-                    <Flag className="size-3.5" />
-                  </Button>
+                  <ConfirmDialog
+                    trigger={
+                      <Button size="sm" variant="ghost" aria-label="Contest this rating">
+                        <Flag className="size-3.5" />
+                      </Button>
+                    }
+                    title="Contest this rating"
+                    description="The platform team reviews contested ratings and either restores or removes them; the decision is audited."
+                    confirmLabel="Send to moderation"
+                    reasonLabel="Why should the platform review this rating?"
+                    onConfirm={(reason) => contest(r.id, reason)}
+                  />
                 )}
               </div>
               {r.comment && <p className="mt-1 text-muted-foreground">{r.comment}</p>}
