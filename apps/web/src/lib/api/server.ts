@@ -44,3 +44,16 @@ export async function apiServer(): Promise<ApiClient> {
     ),
   );
 }
+
+import type { AuthenticatedUser } from "@pharmachain/auth";
+import { cache } from "react";
+
+/**
+ * Request-deduplicated viewer identity (review finding: /auth/me was fetched
+ * 2–4× per request by layout, pages and panels). React cache() memoises per
+ * RSC render; every server component shares one API call.
+ */
+export const getViewer = cache(async (): Promise<AuthenticatedUser> => {
+  const api = await apiServer();
+  return api.get<AuthenticatedUser>("/auth/me");
+});

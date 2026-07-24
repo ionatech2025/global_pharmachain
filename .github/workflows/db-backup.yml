@@ -37,7 +37,7 @@ jobs:
             -pass env:BACKUP_PASSPHRASE
           rm /tmp/pharmachain.dump
       - name: Upload artifact (30-day retention)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: db-backup-${{ github.run_id }}
           path: /tmp/pharmachain.dump.enc

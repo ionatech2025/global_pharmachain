@@ -58,7 +58,16 @@ function AvatarCluster({ className }: { className?: string }) {
  * ticker, the verified-network card, an on-time lane card and a cold-chain
  * chip, staggered over the panel with a gentle float.
  */
-export function HeroMarketCards({ className }: { className?: string }) {
+export function HeroMarketCards({
+  className,
+  verifiedCompanies,
+}: {
+  className?: string;
+  /** Live count from /stats/public — real numbers, not vignette fiction
+   *  (review brand-integrity finding); null falls back to copy without a
+   *  fabricated figure. */
+  verifiedCompanies?: number | null;
+}) {
   return (
     <div aria-hidden className={cn("pointer-events-none relative", className)}>
       {/* Price-index ticker */}
@@ -81,7 +90,9 @@ export function HeroMarketCards({ className }: { className?: string }) {
         className="glass-card animate-float absolute top-[9.5rem] left-0 rounded-2xl p-4"
         style={{ animationDelay: "1.2s" }}
       >
-        <p className="text-2xl font-semibold tracking-tight tabular-nums">1,240+</p>
+        <p className="text-2xl font-semibold tracking-tight tabular-nums">
+          {verifiedCompanies ? verifiedCompanies.toLocaleString("en") : "Growing"}
+        </p>
         <p className="mt-0.5 text-xs text-muted-foreground">Verified companies worldwide</p>
         <AvatarCluster className="mt-3" />
       </div>
@@ -116,12 +127,20 @@ export function HeroMarketCards({ className }: { className?: string }) {
 }
 
 /** Compact ticker pair shown under the hero copy on small screens. */
-export function HeroTickerRow({ className }: { className?: string }) {
+export function HeroTickerRow({
+  className,
+  verifiedCompanies,
+}: {
+  className?: string;
+  verifiedCompanies?: number | null;
+}) {
   return (
     <div aria-hidden className={cn("flex flex-wrap items-center gap-3", className)}>
       <div className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
         <div>
-          <p className="text-lg leading-none font-semibold tracking-tight tabular-nums">1,240+</p>
+          <p className="text-lg leading-none font-semibold tracking-tight tabular-nums">
+            {verifiedCompanies ? verifiedCompanies.toLocaleString("en") : "Growing"}
+          </p>
           <p className="mt-1 text-[11px] text-muted-foreground">Verified companies</p>
         </div>
         <AvatarCluster />
