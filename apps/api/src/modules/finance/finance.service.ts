@@ -281,13 +281,26 @@ export class FinanceService {
     });
   }
 
-  private async orderBalance(orderId: string, total: number) {
-    const confirmed = await prisma.payment.aggregate({
-      where: { orderId, status: "CONFIRMED" },
-      _sum: { amount: true },
-    });
+  /**
+   * What the buyer actually owes: once an invoice is issued its total (which
+   * adds duty/VAT on top of the order contract amount) becomes the basis —
+   * otherwise a fully-invoiced order could never be fully paid.
+   */
+  private async orderBalance(orderId: string, orderTotal: number) {
+    const [confirmed, invoiced] = await Promise.all([
+      prisma.payment.aggregate({
+        where: { orderId, status: "CONFIRMED" },
+        _sum: { amount: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { orderId, status: { in: ["ISSUED", "PAID"] } },
+        _sum: { total: true },
+      }),
+    ]);
     const paid = toNum(confirmed._sum.amount ?? 0);
-    return { paid, balance: Math.max(0, total - paid) };
+    const invoiceTotal = toNum(invoiced._sum?.total ?? 0);
+    const basis = Math.max(orderTotal, invoiceTotal);
+    return { paid, balance: Math.max(0, basis - paid), basis };
   }
 
   /** Payments + running balance, visible on the order (Phase 3 §1). */
@@ -298,8 +311,8 @@ export class FinanceService {
       include: { recordedBy: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     });
-    const { paid, balance } = await this.orderBalance(orderId, toNum(order.totalAmount));
-    return { payments, total: toNum(order.totalAmount), paid, balance, currency: order.currency };
+    const { paid, balance, basis } = await this.orderBalance(orderId, toNum(order.totalAmount));
+    return { payments, total: basis, paid, balance, currency: order.currency };
   }
 
   // ─── Invoices & tax (Phase 3 §2) ───────────────────────────────────────────
