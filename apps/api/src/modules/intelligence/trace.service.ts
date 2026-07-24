@@ -111,7 +111,9 @@ export class TraceService {
     const canonical = await this.canonicalEvents(orderId);
     await prisma.$transaction(
       async (tx) => {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`trace:${orderId}`}))`;
+        // $executeRaw, not $queryRaw: the blocking lock returns SQL `void`,
+        // which queryRaw cannot deserialize (executeRaw discards the row).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trace:${orderId}`})::bigint)`;
         const sealed = await tx.traceEvent.findMany({
           where: { orderId },
           orderBy: { seq: "asc" },
