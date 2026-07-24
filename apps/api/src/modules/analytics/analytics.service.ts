@@ -14,6 +14,12 @@ export interface KpiValue {
 const DAY = 24 * 60 * 60 * 1000;
 const hours = (ms: number) => ms / (60 * 60 * 1000);
 
+// Per-instance 60s KPI cache (review finding: the engine re-computed a dozen
+// query groups on every dashboard render). Instance-local is fine — staleness
+// is bounded at a minute and dashboards already offer manual refresh.
+const KPI_CACHE_TTL_MS = 60_000;
+const kpiCache = new Map<string, { at: number; value: KpiValue[] }>();
+
 /**
  * Role-aware KPI engine (Phase 4 §2): every number is computed from live
  * platform data — order timelines, quotation outcomes, shipment events,
@@ -23,6 +29,15 @@ const hours = (ms: number) => ms / (60 * 60 * 1000);
 export class AnalyticsService {
   async kpis(user: AuthUser, membership: Membership | undefined): Promise<KpiValue[]> {
     if (!membership) return this.platformKpis(user);
+    const cached = kpiCache.get(membership.companyId);
+    if (cached && Date.now() - cached.at < KPI_CACHE_TTL_MS) return cached.value;
+    const value = await this.computeCompanyKpis(membership);
+    kpiCache.set(membership.companyId, { at: Date.now(), value });
+    if (kpiCache.size > 500) kpiCache.clear(); // bounded
+    return value;
+  }
+
+  private async computeCompanyKpis(membership: Membership): Promise<KpiValue[]> {
     const companyId = membership.companyId;
     const since90 = new Date(Date.now() - 90 * DAY);
     const isLogistics = isLogisticsCompanyType(membership.company.type);
@@ -75,17 +90,30 @@ export class AnalyticsService {
         },
       }),
       prisma.shipmentAppointment.count({ where: { companyId, status: "ACTIVE" } }),
-      prisma.orderStatusEvent.findMany({
-        where: {
-          status: { in: ["CUSTOMS_ORIGIN", "CUSTOMS_DESTINATION"] },
-          order: isLogistics
-            ? { appointments: { some: { companyId, status: "ACTIVE" } } }
-            : { OR: [{ buyerCompanyId: companyId }, { sellerCompanyId: companyId }] },
-        },
-        orderBy: { createdAt: "asc" },
-        include: { order: { select: { id: true } } },
-        take: 500,
-      }),
+      // Customs dwell in ONE windowed query (review finding: this was up to
+      // 500 sequential findFirst calls): LEAD() pairs each customs event
+      // with the next non-exception event on the same order.
+      prisma.$queryRaw<Array<{ dwellms: number }>>`
+        SELECT EXTRACT(EPOCH FROM (next_at - "createdAt")) * 1000 AS dwellms
+        FROM (
+          SELECT e."createdAt", e."status",
+                 LEAD(e."createdAt") OVER (PARTITION BY e."orderId" ORDER BY e."createdAt") AS next_at
+          FROM "OrderStatusEvent" e
+          JOIN "Order" o ON o."id" = e."orderId"
+          WHERE e."exception" IS NULL
+            AND (
+              o."buyerCompanyId" = ${companyId}::uuid
+              OR o."sellerCompanyId" = ${companyId}::uuid
+              OR EXISTS (
+                SELECT 1 FROM "ShipmentAppointment" a
+                WHERE a."orderId" = o."id" AND a."companyId" = ${companyId}::uuid
+                  AND a."status" = 'ACTIVE'
+              )
+            )
+        ) t
+        WHERE t."status" IN ('CUSTOMS_ORIGIN', 'CUSTOMS_DESTINATION') AND next_at IS NOT NULL
+        LIMIT 500
+      `,
     ]);
 
     const kpis: KpiValue[] = [];
@@ -127,19 +155,8 @@ export class AnalyticsService {
       detail: `${onTime.length}/${withEta.length} delivery(ies) within ETA (+1 day grace)`,
     });
 
-    // Customs dwell: first customs event → next event on the same order.
-    const dwell: number[] = [];
-    for (const event of customsEvents) {
-      const next = await prisma.orderStatusEvent.findFirst({
-        where: {
-          orderId: event.orderId,
-          createdAt: { gt: event.createdAt },
-          exception: null,
-        },
-        orderBy: { createdAt: "asc" },
-      });
-      if (next) dwell.push(next.createdAt.getTime() - event.createdAt.getTime());
-    }
+    // Customs dwell aggregated from the windowed query above.
+    const dwell = customsEvents.map((row) => Number(row.dwellms)).filter((v) => Number.isFinite(v));
     kpis.push({
       key: "kpi-customs-delay",
       label: "Customs dwell time",

@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
 import { SavedSearches } from "@/components/saved-searches";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
 import { approxInPreferred, convertedPrices, fmtMoney } from "@/lib/format";
 
@@ -51,7 +51,7 @@ export default async function MarketplacePage({
     }),
     api.get<CategoryRow[]>("/catalogue/categories"),
     api.get<ExchangeRateRow[]>("/catalogue/exchange-rates"),
-    api.get<AuthenticatedUser & { preferredCurrency?: string | null }>("/auth/me"),
+    getViewer(),
   ]);
   const preferredCurrency = me.preferredCurrency ?? null;
 

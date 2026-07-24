@@ -253,32 +253,67 @@ export class TraceService {
     };
   }
 
-  /** Platform coverage: orders whose sealed chain verifies end-to-end. */
+  /**
+   * Platform coverage from SEALED chains only (review finding: the previous
+   * version extended + verified 500 chains serially in-request). Sealing
+   * happens on first view and via the daily trace-seal job; here one query
+   * fetches every sealed event and verification is pure CPU.
+   */
   async coverage() {
-    const orders = await prisma.order.findMany({ select: { id: true }, take: 500 });
+    const [orderCount, events] = await Promise.all([
+      prisma.order.count(),
+      prisma.traceEvent.findMany({
+        orderBy: [{ orderId: "asc" }, { seq: "asc" }],
+        select: {
+          orderId: true,
+          seq: true,
+          type: true,
+          at: true,
+          payloadHash: true,
+          prevHash: true,
+          hash: true,
+        },
+        take: 20_000,
+      }),
+    ]);
+    const byOrder = new Map<string, typeof events>();
+    for (const event of events) {
+      const list = byOrder.get(event.orderId) ?? [];
+      list.push(event);
+      byOrder.set(event.orderId, list);
+    }
     let intact = 0;
-    for (const order of orders) {
-      await this.extendChain(order.id);
-      const sealed = await prisma.traceEvent.findMany({
-        where: { orderId: order.id },
-        orderBy: { seq: "asc" },
-      });
-      const chain = await verifyChain(
-        sealed.map((e) => ({
+    for (const chain of byOrder.values()) {
+      const result = await verifyChain(
+        chain.map((e) => ({
           seq: e.seq,
           type: e.type,
-          at: e.at ?? "",
+          at: e.at,
           payloadHash: e.payloadHash,
           prevHash: e.prevHash,
           hash: e.hash,
         })),
       );
-      if (chain.valid && sealed.length > 0) intact += 1;
+      if (result.valid && chain.length > 0) intact += 1;
     }
     return {
-      orders: orders.length,
+      orders: orderCount,
+      sealedChains: byOrder.size,
       intactChains: intact,
-      coveragePct: orders.length ? Math.round((intact / orders.length) * 1000) / 10 : 100,
+      coveragePct: orderCount ? Math.round((intact / orderCount) * 1000) / 10 : 100,
     };
+  }
+
+  /** Daily job body: seal every order's chain so coverage never depends on
+   *  someone having opened the order (registry: "trace-seal"). */
+  async sealAllChains(): Promise<void> {
+    const orders = await prisma.order.findMany({ select: { id: true }, take: 2000 });
+    for (const order of orders) {
+      try {
+        await this.extendChain(order.id);
+      } catch (err) {
+        console.error(`[trace-seal] order ${order.id}:`, err);
+      }
+    }
   }
 }

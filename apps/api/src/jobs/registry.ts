@@ -1,5 +1,6 @@
 import { prisma } from "@pharmachain/db";
 import { logger } from "../lib/logger";
+import { TraceService } from "../modules/intelligence/trace.service";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runDsrSlaJob,
@@ -46,6 +47,7 @@ const JOBS: Record<string, { tier: JobTier; run: () => Promise<void> }> = {
   "fx-refresh": { tier: "daily", run: () => runFxRefreshJob() },
   "scheduled-reports": { tier: "daily", run: () => runScheduledReportsJob() },
   "trust-badges": { tier: "daily", run: () => runTrustBadgeJob() },
+  "trace-seal": { tier: "daily", run: () => new TraceService().sealAllChains() },
 };
 
 export function jobNames(tier?: JobTier): string[] {

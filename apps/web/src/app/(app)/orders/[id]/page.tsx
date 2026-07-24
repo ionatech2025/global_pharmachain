@@ -29,7 +29,7 @@ import { RateEngagementButton } from "@/components/ratings";
 import { OrderStatusBadge } from "@/components/status-badge";
 import { UploadButton } from "@/components/upload-button";
 import { ApiClientError } from "@/lib/api/http";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { DocumentRow, OrderDetail, OrderPayments } from "@/lib/api/types";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNumber } from "@/lib/format";
 import {
@@ -123,15 +123,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     if (err instanceof ApiClientError && err.status === 404) notFound();
     throw err;
   }
-  const [documents, me] = await Promise.all([
+  // One parallel wave (review finding: sequential waterfall): payments fetch
+  // is speculative and 403-tolerant so appointees simply see null.
+  const [documents, me, orderPayments] = await Promise.all([
     api.get<DocumentRow[]>(`/orders/${id}/documents`),
-    api.get<AuthenticatedUser>("/auth/me"),
+    getViewer(),
+    api.get<OrderPayments>(`/orders/${id}/payments`).catch(() => null),
   ]);
-  // Payments are a trade-party view (Phase 3); appointees don't see money.
-  const isTradeParty = order.viewerIsBuyer || order.viewerIsSeller;
-  const orderPayments = isTradeParty
-    ? await api.get<OrderPayments>(`/orders/${id}/payments`).catch(() => null)
-    : null;
   const role = order.viewerRole;
   // Phase 2 §1–3: seller + forwarder run the lifecycle; transporter and
   // clearing agent drive their own legs; buyer confirms final receipt.
@@ -209,7 +207,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       </PageHeader>
 
-      <Card>
+      {/* Section nav (review finding: 8 stacked cards ≈ five screens) —
+          sticky anchors keep the mega-page scannable without a redesign. */}
+      <nav
+        aria-label="Order sections"
+        className="glass-nav sticky top-2 z-30 flex gap-1 overflow-x-auto rounded-full px-2 py-1.5 text-sm"
+      >
+        {[
+          ["#progress", "Progress"],
+          ["#logistics", "Logistics"],
+          ["#tracking", "Tracking"],
+          ...(orderPayments ? [["#money", "Money"]] : []),
+          ["#documents", "Documents"],
+          ["#trust", "Trust"],
+        ].map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            className="shrink-0 rounded-full px-3 py-1 text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <Card id="progress" className="scroll-mt-24">
         <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm">Shipment progress</CardTitle>
@@ -238,7 +260,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div id="logistics" className="grid scroll-mt-24 gap-4 md:grid-cols-2">
         {/* Logistics partners (Phase 2 §2) */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
@@ -317,7 +339,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {/* GPS tracking + POD (Phase 2 §3) */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div id="tracking" className="grid scroll-mt-24 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Route tracking</CardTitle>
@@ -471,7 +493,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </Card>
       </div>
 
-      <Card>
+      <Card id="documents" className="scroll-mt-24">
         <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm">Order documents</CardTitle>
@@ -526,7 +548,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       {/* Payments & invoice (Phase 3 §1–2) */}
       {orderPayments && (
-        <Card>
+        <Card id="money" className="scroll-mt-24">
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm">Payments & invoice</CardTitle>
@@ -594,7 +616,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       )}
 
       {/* Traceability ledger (Phase 5 §2) */}
-      <TraceCard orderId={order.id} />
+      <div id="trust" className="scroll-mt-24 space-y-4">
+        <TraceCard orderId={order.id} />
+      </div>
 
       {/* Exceptions & disputes (Phase 2 §4) */}
       <Card>

@@ -93,14 +93,22 @@ export function PushOptIn() {
     );
   }
   return (
-    <Button
-      size="sm"
-      variant={state === "on" ? "outline" : "default"}
-      disabled={busy}
-      onClick={state === "on" ? disable : enable}
-    >
-      <BellRing className="size-4" />
-      {state === "on" ? "Disable push on this device" : "Enable push on this device"}
-    </Button>
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        size="sm"
+        variant={state === "on" ? "outline" : "default"}
+        disabled={busy}
+        onClick={state === "on" ? disable : enable}
+      >
+        <BellRing className="size-4" />
+        {state === "on" ? "Disable push on this device" : "Enable push on this device"}
+      </Button>
+      {state === "off" && (
+        <p className="max-w-64 text-right text-[11px] text-muted-foreground">
+          Your browser will ask for permission. On iPhone, install the app first (Share → Add to
+          Home Screen).
+        </p>
+      )}
+    </div>
   );
 }

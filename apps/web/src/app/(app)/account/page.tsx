@@ -1,14 +1,12 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { COMPANY_ROLE_LABELS } from "@pharmachain/core";
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
+import { getViewer } from "@/lib/api/server";
 import { AccountPanels } from "./account-panels";
 
 export const metadata = { title: "Account" };
 
 export default async function AccountPage() {
-  const api = await apiServer();
-  const me = await api.get<AuthenticatedUser>("/auth/me");
+  const me = await getViewer();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">

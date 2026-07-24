@@ -141,9 +141,23 @@ const FOOTER_GROUPS = [
   },
 ];
 
+async function publicStats(): Promise<{ verifiedCompanies: number } | null> {
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmachain-seven.vercel.app";
+  try {
+    const res = await fetch(`${base}/api/backend/stats/public`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { verifiedCompanies: number };
+  } catch {
+    return null;
+  }
+}
+
 export default async function LandingPage() {
   const session = await auth();
   if (session) redirect("/dashboard");
+  const stats = await publicStats();
 
   return (
     <Providers>
@@ -248,10 +262,16 @@ export default async function LandingPage() {
                       <Lock className="size-4" /> GDPR-ready by design
                     </li>
                   </ul>
-                  <HeroTickerRow className="mt-10 lg:hidden" />
+                  <HeroTickerRow
+                    className="mt-10 lg:hidden"
+                    verifiedCompanies={stats?.verifiedCompanies}
+                  />
                 </div>
 
-                <HeroMarketCards className="hidden min-h-[26rem] lg:block" />
+                <HeroMarketCards
+                  className="hidden min-h-[26rem] lg:block"
+                  verifiedCompanies={stats?.verifiedCompanies}
+                />
               </div>
             </div>
           </section>

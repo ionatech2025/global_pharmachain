@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Res } from "@nestjs/common";
 import { idParamSchema, renderCsv, renderPdf } from "@pharmachain/core";
 import type { FastifyReply } from "fastify";
+import QRCode from "qrcode";
 import { z } from "zod";
 import {
   CurrentMembership,
@@ -101,6 +102,21 @@ export class IntelligenceController {
   ) {
     const data = await this.traceService.chainFor(user, membership, params.id);
     const table = this.traceService.reportTable(data);
+    // QR → public /verify prefilled with this chain's head hash: scanning the
+    // paperwork replaces typing 64 hex characters (review UX finding).
+    const headHash = String(data.verification.headHash);
+    if (/^[0-9a-f]{64}$/.test(headHash)) {
+      const verifyUrl = `${process.env.APP_URL ?? "https://pharmachain-seven.vercel.app"}/verify?orderNo=${encodeURIComponent(data.orderNo)}&hash=${headHash}`;
+      const code = QRCode.create(verifyUrl, { errorCorrectionLevel: "M" });
+      const size = code.modules.size;
+      const modules: boolean[][] = [];
+      for (let r = 0; r < size; r += 1) {
+        const row: boolean[] = [];
+        for (let c = 0; c < size; c += 1) row.push(Boolean(code.modules.get(r, c)));
+        modules.push(row);
+      }
+      table.qr = { modules, caption: "Scan to verify authenticity" };
+    }
     res.header("content-type", "application/pdf");
     res.header("content-disposition", `attachment; filename="trace-${data.orderNo}.pdf"`);
     return res.send(Buffer.from(renderPdf(table)));

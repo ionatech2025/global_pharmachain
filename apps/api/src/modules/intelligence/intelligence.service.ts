@@ -121,7 +121,7 @@ export class IntelligenceService {
       durationsByMode.set("ANY", [...(durationsByMode.get("ANY") ?? []), days]);
     }
     const mean = (values: number[] | undefined) =>
-      values && values.length ? values.reduce((s, v) => s + v, 0) / values.length : null;
+      values?.length ? values.reduce((s, v) => s + v, 0) / values.length : null;
     // Statistical honesty (review finding): a baseline built on fewer than
     // MIN_BASELINE_SAMPLES deliveries — or shorter than a day, an artefact
     // of same-day demo corrections — must not raise alarms. Past-ETA stays a
@@ -185,7 +185,9 @@ export class IntelligenceService {
       }));
   }
 
-  /** Composite supplier recommendations (Phase 5 §1). */
+  /** Composite supplier recommendations (Phase 5 §1). Batched (review
+   *  finding: the per-seller loop issued ~3 × N queries): three grouped
+   *  queries cover every candidate at once. */
   async supplierRecommendations(categoryId?: string) {
     const sellers = await prisma.company.findMany({
       where: {
@@ -199,45 +201,68 @@ export class IntelligenceService {
       select: { id: true, name: true, country: true, trustedBadgeAt: true },
       take: 30,
     });
-    const results = [];
-    for (const seller of sellers) {
-      const [rating, quotes, deliveredOnTime] = await Promise.all([
-        prisma.rating.aggregate({
-          where: { targetCompanyId: seller.id, status: "PUBLISHED" },
-          _avg: { stars: true },
-          _count: true,
-        }),
-        prisma.quotation.findMany({
-          where: { supplierCompanyId: seller.id, status: { not: "SUPERSEDED" } },
-          select: { status: true },
-        }),
-        prisma.orderStatusEvent.findMany({
-          where: { status: "DELIVERED", order: { sellerCompanyId: seller.id, eta: { not: null } } },
-          include: { order: { select: { eta: true } } },
-        }),
-      ]);
-      const won = quotes.filter((q) => q.status === "ACCEPTED").length;
-      const winRate = quotes.length ? won / quotes.length : null;
-      const onTime = deliveredOnTime.length
-        ? deliveredOnTime.filter(
-            (e) => e.createdAt.getTime() <= (e.order.eta as Date).getTime() + DAY,
-          ).length / deliveredOnTime.length
-        : null;
-      const stars = rating._count ? (rating._avg.stars ?? 0) / 5 : null;
+    if (sellers.length === 0) return [];
+    const sellerIds = sellers.map((s) => s.id);
+    const [ratings, quotes, delivered] = await Promise.all([
+      prisma.rating.groupBy({
+        by: ["targetCompanyId"],
+        where: { targetCompanyId: { in: sellerIds }, status: "PUBLISHED" },
+        _avg: { stars: true },
+        _count: true,
+        orderBy: { targetCompanyId: "asc" },
+      }),
+      prisma.quotation.groupBy({
+        by: ["supplierCompanyId", "status"],
+        where: { supplierCompanyId: { in: sellerIds }, status: { not: "SUPERSEDED" } },
+        _count: true,
+        orderBy: [{ supplierCompanyId: "asc" }, { status: "asc" }],
+      }),
+      prisma.orderStatusEvent.findMany({
+        where: {
+          status: "DELIVERED",
+          order: { sellerCompanyId: { in: sellerIds }, eta: { not: null } },
+        },
+        select: { createdAt: true, order: { select: { sellerCompanyId: true, eta: true } } },
+      }),
+    ]);
+    const ratingBySeller = new Map(ratings.map((r) => [r.targetCompanyId, r]));
+    const quotesBySeller = new Map<string, { total: number; won: number }>();
+    for (const q of quotes) {
+      const bucket = quotesBySeller.get(q.supplierCompanyId) ?? { total: 0, won: 0 };
+      bucket.total += q._count;
+      if (q.status === "ACCEPTED") bucket.won += q._count;
+      quotesBySeller.set(q.supplierCompanyId, bucket);
+    }
+    const deliveriesBySeller = new Map<string, { total: number; onTime: number }>();
+    for (const e of delivered) {
+      const sellerId = e.order.sellerCompanyId;
+      const bucket = deliveriesBySeller.get(sellerId) ?? { total: 0, onTime: 0 };
+      bucket.total += 1;
+      if (e.createdAt.getTime() <= (e.order.eta as Date).getTime() + DAY) bucket.onTime += 1;
+      deliveriesBySeller.set(sellerId, bucket);
+    }
+
+    const results = sellers.map((seller) => {
+      const rating = ratingBySeller.get(seller.id);
+      const quoteStats = quotesBySeller.get(seller.id);
+      const deliveryStats = deliveriesBySeller.get(seller.id);
+      const winRate = quoteStats?.total ? quoteStats.won / quoteStats.total : null;
+      const onTime = deliveryStats?.total ? deliveryStats.onTime / deliveryStats.total : null;
+      const stars = rating?._count ? (rating._avg?.stars ?? 0) / 5 : null;
       const parts = [stars, onTime, winRate].filter((v): v is number => v !== null);
       const score = parts.length
         ? Math.round((parts.reduce((s, v) => s + v, 0) / parts.length) * 1000) / 10
         : null;
       const reasons: string[] = [];
-      if (rating._count)
+      if (rating?._count)
         reasons.push(
-          `${(rating._avg.stars ?? 0).toFixed(1)}★ across ${rating._count} verified rating(s)`,
+          `${(rating._avg?.stars ?? 0).toFixed(1)}★ across ${rating._count} verified rating(s)`,
         );
       if (onTime !== null) reasons.push(`${Math.round(onTime * 100)}% on-time deliveries`);
       if (winRate !== null) reasons.push(`${Math.round(winRate * 100)}% quotation win rate`);
       if (seller.trustedBadgeAt) reasons.push("Trusted Supplier badge");
-      results.push({ ...seller, score, reasons });
-    }
+      return { ...seller, score, reasons };
+    });
     return results.sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).slice(0, 10);
   }
 

@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "@pharmachain/auth";
 import { isLogisticsCompanyType } from "@pharmachain/core";
 import {
+  Activity,
   Building2,
   Code2,
   FileText,
@@ -54,6 +55,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
           { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
           { href: "/admin/parameters", label: "Parameters & FX", icon: Settings2 },
           { href: "/admin/logins", label: "Login activity", icon: Users },
+          { href: "/admin/jobs", label: "Job health", icon: Activity },
           { href: "/admin/audit", label: "Audit logs", icon: ScrollText },
           { href: "/admin/data-requests", label: "Data requests", icon: UserRound },
         ],
@@ -79,6 +81,11 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
       },
     ];
   }
+  // Three intent groups (review IA finding: an 11-item flat list) — Trade is
+  // the daily loop, Insight the destination surfaces, Workspace the admin
+  // shell. Developers is a company-admin concern, hidden from other roles
+  // (the command menu still indexes everything).
+  const isCompanyAdmin = me.membership?.role === "COMPANY_ADMIN";
   return [
     {
       section: "Trade",
@@ -89,17 +96,22 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
         { href: "/rfqs", label: "My RFQs", icon: ListChecks },
         { href: "/quotes", label: "Quote inbox", icon: Inbox },
         { href: "/orders", label: "Orders", icon: ShoppingCart },
+      ],
+    },
+    {
+      section: "Insight",
+      items: [
         { href: "/intelligence", label: "Intelligence", icon: Sparkles },
+        { href: "/finance", label: "Finance", icon: Landmark },
       ],
     },
     {
       section: "Workspace",
       items: [
-        { href: "/finance", label: "Finance", icon: Landmark },
-        { href: "/developers", label: "Developers", icon: Code2 },
         { href: "/documents", label: "Documents", icon: FileText },
         { href: "/messages", label: "Messages", icon: MessageSquare },
         { href: "/company", label: "Company", icon: Building2 },
+        ...(isCompanyAdmin ? [{ href: "/developers", label: "Developers", icon: Code2 }] : []),
       ],
     },
   ];
