@@ -12,13 +12,13 @@ import {
   PAYMENT_METHOD_LABELS,
   renderPdf,
 } from "@pharmachain/core";
-import type { Prisma } from "@pharmachain/db";
-import { prisma } from "@pharmachain/db";
+import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
+import { defer } from "../../lib/defer";
 import { getParam } from "../../lib/params";
 import { gatewayById, gatewayFor } from "../../lib/payment-gateways";
 import { emitWebhookEvent } from "../../lib/webhooks";
@@ -65,10 +65,14 @@ export class FinanceService {
     if (order.buyerCompanyId !== membership.companyId) {
       throw forbidden("Only the buyer records outgoing payments");
     }
-    const { balance } = await this.orderBalance(orderId, toNum(order.totalAmount));
-    if (input.amount > balance + 0.005) {
+    // Concurrency-safe cap (review finding: read-then-write races): in-flight
+    // PENDING instalments count toward the cap so two simultaneous payers
+    // cannot jointly over-commit; settled money is never rejected.
+    const { balance, pendingSum } = await this.orderBalance(orderId, toNum(order.totalAmount));
+    const available = Math.max(0, balance - pendingSum);
+    if (input.amount > available + 0.005) {
       throw badRequest(
-        `Amount exceeds the outstanding balance (${order.currency} ${balance.toFixed(2)})`,
+        `Amount exceeds the outstanding balance (${order.currency} ${available.toFixed(2)} after pending instalments)`,
       );
     }
     const gateway =
@@ -160,39 +164,46 @@ export class FinanceService {
       webhookPayload?: Record<string, unknown>;
     },
   ) {
-    const flipped = await prisma.payment.updateMany({
-      where: { id: paymentId, status: "PENDING" },
-      data: {
-        status: outcome,
-        confirmedAt: outcome === "CONFIRMED" ? new Date() : undefined,
-        confirmedById: extra.confirmedById,
-        failureReason: extra.failureReason,
-        ...(extra.note ? { note: extra.note } : {}),
-        ...(extra.webhookPayload
-          ? { webhookPayload: extra.webhookPayload as Prisma.InputJsonValue }
-          : {}),
-      },
-    });
-    if (flipped.count === 0) throw conflict("This payment was already settled");
-    const payment = await prisma.payment.findUniqueOrThrow({
-      where: { id: paymentId },
-      include: {
-        order: {
-          include: {
-            buyerCompany: { select: { id: true, name: true } },
-            sellerCompany: { select: { id: true, name: true } },
+    // P0 remediation (review finding 03): the status flip, ledger entries,
+    // commission and invoice auto-PAID commit in ONE transaction — a crash
+    // can no longer leave a CONFIRMED payment without its bookkeeping, and
+    // the PENDING-conditioned flip keeps the whole path idempotent (replays
+    // roll back with a 409). The commission rate is read before the
+    // transaction so no external call runs inside it.
+    const commissionPct = Number(await getParam(PARAM_KEYS.PLATFORM_COMMISSION_PCT));
+    const payment = await prisma.$transaction(async (tx) => {
+      const flipped = await tx.payment.updateMany({
+        where: { id: paymentId, status: "PENDING" },
+        data: {
+          status: outcome,
+          confirmedAt: outcome === "CONFIRMED" ? new Date() : undefined,
+          confirmedById: extra.confirmedById,
+          failureReason: extra.failureReason,
+          ...(extra.note ? { note: extra.note } : {}),
+          ...(extra.webhookPayload
+            ? { webhookPayload: extra.webhookPayload as Prisma.InputJsonValue }
+            : {}),
+        },
+      });
+      if (flipped.count === 0) throw conflict("This payment was already settled");
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+        include: {
+          order: {
+            include: {
+              buyerCompany: { select: { id: true, name: true } },
+              sellerCompany: { select: { id: true, name: true } },
+            },
           },
         },
-      },
-    });
+      });
+      if (payment.status !== "CONFIRMED") return payment;
 
-    if (payment.status === "CONFIRMED") {
       const amount = toNum(payment.amount);
-      const commissionPct = Number(await getParam(PARAM_KEYS.PLATFORM_COMMISSION_PCT));
       const commission = Math.round(amount * commissionPct) / 100;
-      await prisma.$transaction([
-        prisma.ledgerEntry.create({
-          data: {
+      await tx.ledgerEntry.createMany({
+        data: [
+          {
             companyId: payment.payerCompanyId,
             kind: "PAYMENT_OUT",
             amount: -amount,
@@ -201,9 +212,7 @@ export class FinanceService {
             refId: payment.id,
             note: `Order ${payment.order.orderNo} · ref ${payment.providerRef}`,
           },
-        }),
-        prisma.ledgerEntry.create({
-          data: {
+          {
             companyId: payment.order.sellerCompanyId,
             kind: "PAYMENT_IN",
             amount,
@@ -212,11 +221,9 @@ export class FinanceService {
             refId: payment.id,
             note: `Order ${payment.order.orderNo} · ref ${payment.providerRef}`,
           },
-        }),
-        // Parameterised transaction-fee collection (Phase 3 §1): recorded
-        // against the seller; platform revenue = Σ PLATFORM_FEE entries.
-        prisma.ledgerEntry.create({
-          data: {
+          // Parameterised transaction-fee collection (Phase 3 §1): recorded
+          // against the seller; platform revenue = Σ PLATFORM_FEE entries.
+          {
             companyId: payment.order.sellerCompanyId,
             kind: "PLATFORM_FEE",
             amount: -commission,
@@ -225,31 +232,38 @@ export class FinanceService {
             refId: payment.id,
             note: `Commission ${commissionPct}% on ${payment.providerRef}`,
           },
-        }),
-      ]);
-      // Auto-mark invoices PAID once confirmed payments cover the total.
-      const { paid } = await this.orderBalance(payment.orderId, toNum(payment.order.totalAmount));
-      await prisma.invoice.updateMany({
+        ],
+      });
+      // Auto-mark invoices PAID once confirmed payments cover the total —
+      // computed inside the same transaction for a consistent view.
+      const confirmed = await tx.payment.aggregate({
+        where: { orderId: payment.orderId, status: "CONFIRMED" },
+        _sum: { amount: true },
+      });
+      await tx.invoice.updateMany({
         where: {
           orderId: payment.orderId,
           status: "ISSUED",
-          total: { lte: paid + 0.005 },
+          total: { lte: toNum(confirmed._sum.amount ?? 0) + 0.005 },
         },
         data: { status: "PAID", paidAt: new Date() },
       });
-    }
+      return payment;
+    });
 
     if (payment.status === "CONFIRMED") {
-      void emitWebhookEvent(
-        [payment.payerCompanyId, payment.order.sellerCompanyId],
-        "payment.confirmed",
-        {
-          paymentId: payment.id,
-          providerRef: payment.providerRef,
-          orderNo: payment.order.orderNo,
-          amount: String(payment.amount),
-          currency: payment.currency,
-        },
+      defer(
+        emitWebhookEvent(
+          [payment.payerCompanyId, payment.order.sellerCompanyId],
+          "payment.confirmed",
+          {
+            paymentId: payment.id,
+            providerRef: payment.providerRef,
+            orderNo: payment.order.orderNo,
+            amount: String(payment.amount),
+            currency: payment.currency,
+          },
+        ),
       );
     }
     const label = payment.status === "CONFIRMED" ? "confirmed" : "failed";
@@ -301,9 +315,13 @@ export class FinanceService {
    * otherwise a fully-invoiced order could never be fully paid.
    */
   private async orderBalance(orderId: string, orderTotal: number) {
-    const [confirmed, invoiced] = await Promise.all([
+    const [confirmed, pending, invoiced] = await Promise.all([
       prisma.payment.aggregate({
         where: { orderId, status: "CONFIRMED" },
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: { orderId, status: "PENDING" },
         _sum: { amount: true },
       }),
       prisma.invoice.aggregate({
@@ -312,9 +330,10 @@ export class FinanceService {
       }),
     ]);
     const paid = toNum(confirmed._sum.amount ?? 0);
+    const pendingSum = toNum(pending._sum?.amount ?? 0);
     const invoiceTotal = toNum(invoiced._sum?.total ?? 0);
     const basis = Math.max(orderTotal, invoiceTotal);
-    return { paid, balance: Math.max(0, basis - paid), basis };
+    return { paid, pendingSum, balance: Math.max(0, basis - paid), basis };
   }
 
   /** Payments + running balance, visible on the order (Phase 3 §1). */
@@ -403,73 +422,79 @@ export class FinanceService {
       ...(input.extraLines ?? []),
     ];
 
-    // Per-issuer sequential numbering with a unique-index retry loop.
+    // Per-issuer sequential numbering, atomic with its ledger pair (P0
+    // remediation, review finding 03 class): seq allocation + invoice +
+    // both ledger entries commit together; the unique (issuer, seq) index
+    // turns allocation races into a clean retry of the whole transaction.
     let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | null = null;
     for (let attempt = 0; attempt < 3 && !invoice; attempt += 1) {
-      const last = await prisma.invoice.aggregate({
-        where: { issuerCompanyId: membership.companyId },
-        _max: { seq: true },
-      });
-      const seq = (last._max.seq ?? 0) + 1;
       try {
-        invoice = await prisma.invoice.create({
-          data: {
-            invoiceNo: `INV-${order.sellerCompany.name
-              .replace(/[^A-Za-z]/g, "")
-              .slice(0, 4)
-              .toUpperCase()}-${String(seq).padStart(5, "0")}`,
-            seq,
-            issuerCompanyId: membership.companyId,
-            recipientCompanyId: order.buyerCompanyId,
-            orderId,
-            lines: lines as Prisma.InputJsonValue,
-            subtotal,
-            dutyAmount,
-            vatAmount,
-            total,
-            currency: order.currency,
-            hsCode,
-            originCountry,
-            destCountry,
-            dutyRatePct: rule ? dutyRatePct : null,
-            vatRatePct: rule ? vatRatePct : null,
-            fxRateToUsd: rateToUsd,
-            fxStampedAt: rateToUsd === null ? null : new Date(),
-            paymentTermsDays: input.paymentTermsDays ?? null,
-            issuedById: user.id,
-          },
+        invoice = await prisma.$transaction(async (tx) => {
+          const last = await tx.invoice.aggregate({
+            where: { issuerCompanyId: membership.companyId },
+            _max: { seq: true },
+          });
+          const seq = (last._max.seq ?? 0) + 1;
+          const created = await tx.invoice.create({
+            data: {
+              invoiceNo: `INV-${order.sellerCompany.name
+                .replace(/[^A-Za-z]/g, "")
+                .slice(0, 4)
+                .toUpperCase()}-${String(seq).padStart(5, "0")}`,
+              seq,
+              issuerCompanyId: membership.companyId,
+              recipientCompanyId: order.buyerCompanyId,
+              orderId,
+              lines: lines as Prisma.InputJsonValue,
+              subtotal,
+              dutyAmount,
+              vatAmount,
+              total,
+              currency: order.currency,
+              hsCode,
+              originCountry,
+              destCountry,
+              dutyRatePct: rule ? dutyRatePct : null,
+              vatRatePct: rule ? vatRatePct : null,
+              fxRateToUsd: rateToUsd,
+              fxStampedAt: rateToUsd === null ? null : new Date(),
+              paymentTermsDays: input.paymentTermsDays ?? null,
+              issuedById: user.id,
+            },
+          });
+          await tx.ledgerEntry.createMany({
+            data: [
+              {
+                companyId: membership.companyId,
+                kind: "INVOICE_ISSUED",
+                amount: total,
+                currency: order.currency,
+                refType: "Invoice",
+                refId: created.id,
+                note: created.invoiceNo,
+              },
+              {
+                companyId: order.buyerCompanyId,
+                kind: "INVOICE_RECEIVED",
+                amount: -total,
+                currency: order.currency,
+                refType: "Invoice",
+                refId: created.id,
+                note: created.invoiceNo,
+              },
+            ],
+          });
+          return created;
         });
-      } catch {
-        // unique (issuer, seq) race — recompute and retry
+      } catch (err) {
+        // Unique (issuer, seq) race — the whole transaction rolled back;
+        // recompute and retry. Anything else propagates.
+        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+          throw err;
+        }
       }
     }
     if (!invoice) throw conflict("Could not allocate an invoice number — retry");
-
-    // Ledger both sides (Phase 3 §2).
-    await prisma.$transaction([
-      prisma.ledgerEntry.create({
-        data: {
-          companyId: membership.companyId,
-          kind: "INVOICE_ISSUED",
-          amount: total,
-          currency: order.currency,
-          refType: "Invoice",
-          refId: invoice.id,
-          note: invoice.invoiceNo,
-        },
-      }),
-      prisma.ledgerEntry.create({
-        data: {
-          companyId: order.buyerCompanyId,
-          kind: "INVOICE_RECEIVED",
-          amount: -total,
-          currency: order.currency,
-          refType: "Invoice",
-          refId: invoice.id,
-          note: invoice.invoiceNo,
-        },
-      }),
-    ]);
 
     // Store the invoice PDF as a versioned order document (Phase 3 §2).
     const pdf = renderPdf(this.invoicePdfTable(invoice, order));
@@ -498,13 +523,15 @@ export class FinanceService {
       console.error("[finance] invoice pdf store failed:", err);
     }
 
-    void emitWebhookEvent([order.buyerCompanyId, order.sellerCompanyId], "invoice.issued", {
-      invoiceId: invoice.id,
-      invoiceNo: invoice.invoiceNo,
-      orderNo: order.orderNo,
-      total: String(invoice.total),
-      currency: invoice.currency,
-    });
+    defer(
+      emitWebhookEvent([order.buyerCompanyId, order.sellerCompanyId], "invoice.issued", {
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoiceNo,
+        orderNo: order.orderNo,
+        total: String(invoice.total),
+        currency: invoice.currency,
+      }),
+    );
     await notify({
       companyId: order.buyerCompanyId,
       roles: ["COMPANY_ADMIN", "FINANCE"],

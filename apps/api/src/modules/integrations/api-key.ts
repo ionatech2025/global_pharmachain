@@ -3,6 +3,7 @@ import type { ApiScope } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import type { FastifyRequest } from "fastify";
 import { ApiException } from "../../common/errors";
+import { defer } from "../../lib/defer";
 
 /**
  * Partner/public API keys (Phase 5 §4): `pck_live_<40 hex>` shown once at
@@ -67,7 +68,7 @@ export async function authenticateApiKey(
   }
   // Best-effort usage stamp (at most once a minute per key).
   if (!key.lastUsedAt || now.getTime() - key.lastUsedAt.getTime() > windowMs) {
-    void prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: now } }).catch(() => {});
+    defer(prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: now } }));
   }
   return { keyId: key.id, companyId: key.companyId, scopes: key.scopes };
 }

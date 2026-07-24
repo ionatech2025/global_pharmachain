@@ -1,0 +1,33 @@
+name: Scheduled jobs (frequent)
+
+# Serverless production has no resident cron host (see
+# apps/api/src/jobs/registry.ts), so GitHub Actions drives the HTTP job
+# dispatcher: this workflow runs the frequent tier — RFQ auto-close,
+# quotation expiry, notification-outbox retry, webhook retry, token cleanup.
+# Advisory locks + heartbeats inside the dispatcher make overlaps harmless
+# and freshness observable at /admin (jobs/heartbeats).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: jobs-frequent
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run frequent tier
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS --max-time 240 \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://pharmachain-seven.vercel.app/api/backend/jobs/run?tier=frequent")
+          echo "$response"
+          echo "$response" | grep -q '"ok":false' && { echo "::error::a job reported failure"; exit 1; } || true

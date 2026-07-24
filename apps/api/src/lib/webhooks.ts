@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { WebhookEvent } from "@pharmachain/core";
 import { type Prisma, prisma } from "@pharmachain/db";
+import { defer } from "./defer";
 import { logger } from "./logger";
 
 /**
@@ -37,8 +38,9 @@ export async function emitWebhookEvent(
         } as unknown as Prisma.InputJsonValue,
       })),
     });
-    // Immediate first attempt; failures fall to the retry cron.
-    void runWebhookDeliveryPass().catch(() => {});
+    // Immediate first attempt (waitUntil-registered); failures fall to
+    // the retry job.
+    defer(runWebhookDeliveryPass());
   } catch (err) {
     logger.error("webhook emit failed", { event, error: String(err) });
   }

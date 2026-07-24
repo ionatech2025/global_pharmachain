@@ -14,6 +14,7 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { HybridThrottlerStorage } from "./common/throttler-storage";
 import { env } from "./env";
 import { JobsModule } from "./jobs/jobs.module";
+import { JobsDispatchModule } from "./jobs/jobs-dispatch.module";
 import { AdminModule } from "./modules/admin/admin.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { AnnouncementModule } from "./modules/announcement/announcement.module";
@@ -46,6 +47,7 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     }),
     ScheduleModule.forRoot(),
     // Cron jobs run in-process unless a dedicated worker handles them.
+    JobsDispatchModule,
     ...(env.JOBS_IN_PROCESS ? [JobsModule] : []),
     AuthModule,
     CompanyModule,

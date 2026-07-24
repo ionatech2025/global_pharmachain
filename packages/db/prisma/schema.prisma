@@ -1310,6 +1310,18 @@ model NotificationOutbox {
   @@index([sentAt, nextAttemptAt])
 }
 
+// Freshness record per scheduled job (P0 remediation): written by every run
+// (cron worker or the HTTP dispatcher), it powers the /admin job-health view
+// and the "did the clock tick?" alert that finding 01 lacked.
+model JobHeartbeat {
+  name       String    @id
+  lastRunAt  DateTime
+  lastOkAt   DateTime?
+  lastError  String?
+  durationMs Int?
+  updatedAt  DateTime  @updatedAt
+}
+
 // Shared rate-limit state for the security-sensitive throttles (login, OTP,
 // register, password reset). In-memory counters are per-instance and therefore
 // ineffective on serverless; long-window limits live here instead. Short-window

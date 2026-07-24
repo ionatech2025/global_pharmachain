@@ -3,6 +3,7 @@ import { PREFERENCE_EVENT_TYPES } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { createEmailProvider, type EmailContent, type EmailProvider } from "@pharmachain/email";
+import { defer } from "./defer";
 import { enqueueOutbox } from "./outbox";
 import { sendWebPush, vapidPublicKey } from "./webpush";
 import { createWhatsAppProvider, type WhatsAppProvider } from "./whatsapp";
@@ -95,9 +96,9 @@ async function fanout(input: NotifyInput): Promise<void> {
   // Phase 4 §1: Web Push rides along with every in-app notification (subject
   // to the same per-event email preference — push is an off-platform channel).
   if (vapidPublicKey()) {
-    void pushFanout(userIds, input).catch((err) =>
-      console.error("[notify] push fanout failed:", err),
-    );
+    // waitUntil-registered: a serverless invocation may freeze right after
+    // the response — detached promises would silently lose pushes (P0 fix).
+    defer(pushFanout(userIds, input));
   }
 
   if (!input.emailContent && !input.whatsappText) return;
