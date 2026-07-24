@@ -46,6 +46,7 @@ import {
 import { notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
+import { enabledPaymentMethods } from "../../lib/payment-gateways";
 import { FinanceService } from "./finance.service";
 
 function sendExport(res: FastifyReply, table: PdfTable, format: string, baseName: string) {
@@ -69,6 +70,13 @@ export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
   // ─── Payments ──────────────────────────────────────────────────────────────
+
+  /** Methods something can actually settle (review finding: dead ends). */
+  @RequirePermission("finance:read")
+  @Get("payments/methods")
+  paymentMethods() {
+    return enabledPaymentMethods();
+  }
 
   @RequirePermission("finance:manage")
   @HttpCode(201)

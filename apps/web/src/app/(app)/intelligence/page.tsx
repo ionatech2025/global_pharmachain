@@ -35,7 +35,8 @@ interface DelayRisk {
   elapsedDays: number;
   baselineDays: number | null;
   pastEta: boolean;
-  risk: "HIGH" | "MEDIUM" | "LOW";
+  baselineSamples: number;
+  risk: "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
 }
 interface Stockout {
   material: string;
@@ -158,18 +159,24 @@ export default async function IntelligencePage() {
                     </Link>
                     <span className="flex items-center gap-2 text-xs text-muted-foreground">
                       {r.elapsedDays}d elapsed
-                      {r.baselineDays !== null ? ` / ~${r.baselineDays}d typical` : ""}
-                      <Badge
-                        variant={
-                          r.risk === "HIGH"
-                            ? "destructive"
-                            : r.risk === "MEDIUM"
-                              ? "warning"
-                              : "success"
-                        }
-                      >
-                        {r.risk}
-                      </Badge>
+                      {r.baselineDays !== null
+                        ? ` / ~${r.baselineDays}d typical (n=${r.baselineSamples})`
+                        : ""}
+                      {r.risk === "UNKNOWN" ? (
+                        <Badge variant="secondary">No baseline yet</Badge>
+                      ) : (
+                        <Badge
+                          variant={
+                            r.risk === "HIGH"
+                              ? "destructive"
+                              : r.risk === "MEDIUM"
+                                ? "warning"
+                                : "success"
+                          }
+                        >
+                          {r.risk}
+                        </Badge>
+                      )}
                     </span>
                   </li>
                 ))}

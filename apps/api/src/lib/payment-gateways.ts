@@ -49,6 +49,26 @@ function hmacSignature(secret: string, timestamp: string, ref: string, status: s
   return createHmac("sha256", secret).update(`${timestamp}.${ref}.${status}`).digest("hex");
 }
 
+/** Escrow (Phase 5 §3): the platform never holds funds — instructions guide
+ *  both parties to a third-party escrow agent; the payee confirms release. */
+class ManualEscrowGateway implements PaymentGateway {
+  readonly id = "escrow";
+  async initiate(input: {
+    reference: string;
+    amount: number;
+    currency: string;
+  }): Promise<InitiateResult> {
+    return {
+      provider: this.id,
+      providerRef: input.reference,
+      instructions: `Escrow: agree a third-party escrow agent with your counterparty, deposit ${input.currency} ${input.amount.toFixed(2)} quoting reference ${input.reference}, and confirm here once the agent releases funds. The platform records the movement but never holds it.`,
+    };
+  }
+  verifyWebhook(): WebhookVerdict {
+    return { valid: false, reason: "escrow payments are confirmed in-app by the payee" };
+  }
+}
+
 class ManualBankGateway implements PaymentGateway {
   readonly id = "manual";
   async initiate(input: {
@@ -155,8 +175,33 @@ class FlutterwaveGateway implements PaymentGateway {
   }
 }
 
+/**
+ * Capability gating (review finding: dead-end payments): a method is only
+ * offered when something can actually settle it. Manual methods always can;
+ * CARD/MOBILE_MONEY need a real PSP (Flutterwave env) or the explicitly
+ * enabled sandbox (PAYMENT_SANDBOX=1 — demo deployments, clearly labelled).
+ */
+export interface EnabledMethod {
+  method: PaymentMethod;
+  sandbox: boolean;
+}
+
+export function enabledPaymentMethods(): EnabledMethod[] {
+  const psp = Boolean(process.env.FLUTTERWAVE_SECRET_KEY && process.env.FLUTTERWAVE_VERIF_HASH);
+  const sandbox = process.env.PAYMENT_SANDBOX === "1";
+  const methods: EnabledMethod[] = [
+    { method: "BANK_TRANSFER", sandbox: false },
+    { method: "ESCROW", sandbox: false },
+  ];
+  if (psp || sandbox) {
+    methods.push({ method: "CARD", sandbox: !psp }, { method: "MOBILE_MONEY", sandbox: !psp });
+  }
+  return methods;
+}
+
 export function gatewayFor(method: PaymentMethod): PaymentGateway {
   if (method === "BANK_TRANSFER") return new ManualBankGateway();
+  if (method === "ESCROW") return new ManualEscrowGateway();
   const flwKey = process.env.FLUTTERWAVE_SECRET_KEY;
   const flwHash = process.env.FLUTTERWAVE_VERIF_HASH;
   if (flwKey && flwHash) return new FlutterwaveGateway(flwKey, flwHash);
@@ -167,6 +212,8 @@ export function gatewayById(id: string): PaymentGateway | null {
   switch (id) {
     case "manual":
       return new ManualBankGateway();
+    case "escrow":
+      return new ManualEscrowGateway();
     case "mock":
       return new MockGateway(process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-webhook-secret");
     case "flutterwave": {

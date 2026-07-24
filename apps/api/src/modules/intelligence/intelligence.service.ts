@@ -122,25 +122,43 @@ export class IntelligenceService {
     }
     const mean = (values: number[] | undefined) =>
       values && values.length ? values.reduce((s, v) => s + v, 0) / values.length : null;
+    // Statistical honesty (review finding): a baseline built on fewer than
+    // MIN_BASELINE_SAMPLES deliveries — or shorter than a day, an artefact
+    // of same-day demo corrections — must not raise alarms. Past-ETA stays a
+    // hard signal regardless of history.
+    const MIN_BASELINE_SAMPLES = 5;
+    const MIN_BASELINE_DAYS = 1;
 
     return active.map((order) => {
+      const modeSamples = durationsByMode.get(order.freightMode ?? "ANY") ?? [];
+      const anySamples = durationsByMode.get("ANY") ?? [];
+      const samples = modeSamples.length >= MIN_BASELINE_SAMPLES ? modeSamples : anySamples;
+      const rawBaseline = mean(samples);
       const baseline =
-        mean(durationsByMode.get(order.freightMode ?? "ANY")) ?? mean(durationsByMode.get("ANY"));
+        rawBaseline !== null &&
+        samples.length >= MIN_BASELINE_SAMPLES &&
+        rawBaseline >= MIN_BASELINE_DAYS
+          ? rawBaseline
+          : null;
       const elapsedDays = (Date.now() - order.createdAt.getTime()) / DAY;
       const pastEta = order.eta ? Date.now() > order.eta.getTime() : false;
       const ratio = baseline ? elapsedDays / baseline : null;
-      const risk =
-        pastEta || (ratio !== null && ratio > 1.25)
+      const risk = pastEta
+        ? "HIGH"
+        : ratio !== null && ratio > 1.25
           ? "HIGH"
           : ratio !== null && ratio > 0.9 && orderStatusIndex(order.status) < 10
             ? "MEDIUM"
-            : "LOW";
+            : ratio !== null
+              ? "LOW"
+              : "UNKNOWN";
       return {
         orderId: order.id,
         orderNo: order.orderNo,
         status: order.status,
         elapsedDays: Math.round(elapsedDays * 10) / 10,
         baselineDays: baseline === null ? null : Math.round(baseline * 10) / 10,
+        baselineSamples: samples.length,
         pastEta,
         risk,
       };

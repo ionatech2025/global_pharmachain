@@ -15,6 +15,8 @@ export interface AuthenticatedUser {
   sessionVersion: number;
   totpEnabled?: boolean;
   preferredCurrency?: string | null;
+  locale?: string | null;
+  timeZone?: string | null;
   membership: {
     companyId: string;
     companyName: string;
