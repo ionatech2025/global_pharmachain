@@ -96,10 +96,14 @@ test.describe
       if (product) await ok(page, `/boms?productListingId=${product.id}`);
     });
 
-    test("RBAC: company user is denied admin endpoints", async () => {
+    test("RBAC: company user is denied admin endpoints with 403, not 401", async () => {
+      // 403 exactly. A 401 tells the web client the session died — providers.tsx
+      // redirects to /login and the app layout calls signOut — so returning 401
+      // here signs a perfectly valid session out instead of showing
+      // access-denied. Accepting either status would not catch that regression.
       for (const path of ["/admin/stats", "/admin/companies", "/admin/audit-logs"]) {
         const res = await page.request.get(`${API_PATH}${path}`);
-        expect([401, 403], `admin guard on ${path}`).toContain(res.status());
+        expect(res.status(), `admin guard on ${path}`).toBe(403);
       }
     });
   });
