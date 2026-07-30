@@ -313,18 +313,45 @@ test.describe
     });
     test.afterAll(async () => page?.context().close());
 
-    test("case 108: clicking a notification navigates to its subject and marks it read", async () => {
-      await page.goto("/notifications");
-      const unreadCount = await page.request.get(`${API_PATH}/notifications/unread-count`);
-      const before = (await unreadCount.json()).count ?? 0;
-      test.skip(before === 0, "no unread notification to click");
+    /** Current unread count for the signed-in buyer. */
+    const unread = async (): Promise<number> =>
+      (await (await page.request.get(`${API_PATH}/notifications/unread-count`)).json()).count ?? 0;
 
+    test("case 108: clicking a notification navigates to its subject and marks it read", async ({
+      browser,
+    }) => {
+      // Case 109 below clears the badge, so on the next run there is nothing
+      // unread left to click and this used to skip itself. Generate a real
+      // notification instead of depending on leftover state: a supplier
+      // quoting on the buyer's open RFQ raises NEW_QUOTATION for the buyer.
+      if ((await unread()) === 0) {
+        const supplier = await signIn(browser, SUPPLIER_ADMIN);
+        const rfqs = await (await page.request.get(`${API_PATH}/rfqs`)).json();
+        const open = (rfqs.items ?? rfqs).find((r: { status: string }) => r.status === "OPEN");
+        if (open) {
+          await supplier.request.post(`${API_PATH}/rfqs/${open.id}/quotations`, {
+            data: {
+              unitPrice: "10.50",
+              currency: "USD",
+              leadTimeDays: 21,
+              validUntil: new Date(Date.now() + 30 * 864e5).toISOString(),
+              notes: "e2e notification fixture",
+            },
+          });
+        }
+        await supplier.context().close();
+        await expect.poll(unread, { timeout: 20_000 }).toBeGreaterThan(0);
+      }
+
+      const before = await unread();
+      expect(before, "no unread notification could be produced").toBeGreaterThan(0);
+
+      await page.goto("/notifications");
       // Notification rows are the buttons inside the list, not "Mark all read".
       await page.locator("ul > li > button").first().click();
       await expect(page).not.toHaveURL(/\/notifications$/, { timeout: 15_000 });
 
-      const after = await (await page.request.get(`${API_PATH}/notifications/unread-count`)).json();
-      expect(after.count).toBeLessThan(before);
+      expect(await unread()).toBeLessThan(before);
     });
 
     test("case 109: 'Mark all read' clears the unread badge", async () => {

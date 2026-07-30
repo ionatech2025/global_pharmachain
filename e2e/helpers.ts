@@ -52,8 +52,13 @@ type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const SESSION_DIR = path.join(process.cwd(), "test-results", ".auth");
 const SESSION_TTL_MS = 20 * 60 * 1000;
 
+/** Keyed by target as well as email: a session captured against a local stack
+ *  carries cookies scoped to that host and is useless against a deployed one.
+ *  Without the target in the key, switching E2E_BASE_URL silently reuses the
+ *  wrong cookies and every sign-in looks like it failed. */
 function sessionFile(email: string): string {
-  return path.join(SESSION_DIR, `${email.replace(/[^a-z0-9]/gi, "_")}.json`);
+  const target = (process.env.E2E_BASE_URL ?? "default").replace(/[^a-z0-9]/gi, "_");
+  return path.join(SESSION_DIR, `${target}__${email.replace(/[^a-z0-9]/gi, "_")}.json`);
 }
 
 function readCachedSession(email: string): StorageState | null {
