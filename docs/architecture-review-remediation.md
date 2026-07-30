@@ -92,7 +92,7 @@ the next-auth bump.
 Every phase gated on: Biome exit 0 → `tsc` clean → unit suites → CI → merge →
 `bash scripts/deploy-vercel.sh` **from the repo root** (confirm the `Aliased`
 line) → a phase-specific Playwright live-check script against production →
-the full e2e suite (`E2E_BASE_URL=https://pharmachain-seven.vercel.app`,
+the full e2e suite (`E2E_BASE_URL=https://global-pharmachain.vercel.app`,
 34 passed / 1 env-skipped). The live checks caught two real production bugs
 (PR #50, PR #52) that unit tests, typecheck and CI all missed — treat
 post-deploy verification as part of the change, not an afterthought.

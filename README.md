@@ -11,7 +11,7 @@ cold-chain events, payments/invoicing/FX with an append-only ledger, push +
 WhatsApp notifications, KPI analytics, ratings, a hash-chained traceability
 ledger with QR verification, outbound webhooks and a public API.
 
-Production: https://pharmachain-seven.vercel.app. The findings of a 2026-07
+Production: https://global-pharmachain.vercel.app. The findings of a 2026-07
 principal architecture review and their remediation are traced in
 [`docs/architecture-review-remediation.md`](docs/architecture-review-remediation.md).
 
@@ -176,7 +176,7 @@ Key properties:
 - `bun run test:e2e` — the real Playwright suite (35 tests: golden path, every
   route with seeded data, endpoint/RBAC negatives, security regression
   checks). It honours `E2E_BASE_URL`; point it at production
-  (`E2E_BASE_URL=https://pharmachain-seven.vercel.app`) to verify a deploy —
+  (`E2E_BASE_URL=https://global-pharmachain.vercel.app`) to verify a deploy —
   without it the suite hits localhost. One throttle test self-skips unless
   `E2E_PROXY_SECRET` carries the deployment's `AUTH_SECRET`.
 

@@ -106,7 +106,7 @@ export class IntelligenceController {
     // paperwork replaces typing 64 hex characters (review UX finding).
     const headHash = String(data.verification.headHash);
     if (/^[0-9a-f]{64}$/.test(headHash)) {
-      const verifyUrl = `${process.env.APP_URL ?? "https://pharmachain-seven.vercel.app"}/verify?orderNo=${encodeURIComponent(data.orderNo)}&hash=${headHash}`;
+      const verifyUrl = `${process.env.APP_URL ?? "https://global-pharmachain.vercel.app"}/verify?orderNo=${encodeURIComponent(data.orderNo)}&hash=${headHash}`;
       const code = QRCode.create(verifyUrl, { errorCorrectionLevel: "M" });
       const size = code.modules.size;
       const modules: boolean[][] = [];
