@@ -47,7 +47,7 @@ export function CommandMenu({ sections, canTrade }: { sections: NavSection[]; ca
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open command palette"
-        className="inline-flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:w-56"
+        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:w-64"
       >
         <Search className="size-4 shrink-0" />
         <span className="hidden sm:inline">Search or jump to…</span>

@@ -461,3 +461,38 @@ export const DEFAULT_WIDGETS: Record<"trade" | "logistics", readonly string[]> =
   trade: ["kpi-lead-time", "kpi-fulfilment", "kpi-on-time", "kpi-quote-win", "kpi-compliance"],
   logistics: ["kpi-active-shipments", "kpi-on-time", "kpi-customs-delay", "kpi-compliance"],
 };
+
+/**
+ * The thirteen order statuses collapsed into the five stages an order actually
+ * passes through, in order. Dashboards chart the stage mix: thirteen slices is
+ * a legend nobody reads, and because the stages are sequential they are drawn
+ * with an ordinal (single-hue) ramp rather than categorical colours.
+ */
+export const ORDER_PIPELINE_STAGES: ReadonlyArray<{
+  key: string;
+  label: string;
+  statuses: readonly OrderStatus[];
+}> = [
+  { key: "confirmed", label: "Confirmed", statuses: ["ORDER_CONFIRMED"] },
+  { key: "collection", label: "Collection", statuses: ["PICKUP_SCHEDULED", "GOODS_COLLECTED"] },
+  {
+    key: "transit",
+    label: "In transit",
+    statuses: ["IN_TRANSIT", "AT_PORT_OF_ORIGIN", "CUSTOMS_ORIGIN", "DEPARTED"],
+  },
+  {
+    key: "arrival",
+    label: "Arrival & clearance",
+    statuses: ["AT_PORT_OF_DESTINATION", "CUSTOMS_DESTINATION", "INLAND_TRANSPORT"],
+  },
+  {
+    key: "delivery",
+    label: "Delivery",
+    statuses: ["OUT_FOR_DELIVERY", "DELIVERED", "DELIVERY_CONFIRMED"],
+  },
+] as const;
+
+/** Reverse lookup so a status row can be bucketed in one map access. */
+export const ORDER_STAGE_BY_STATUS: Record<OrderStatus, string> = Object.fromEntries(
+  ORDER_PIPELINE_STAGES.flatMap((stage) => stage.statuses.map((s) => [s, stage.key])),
+) as Record<OrderStatus, string>;

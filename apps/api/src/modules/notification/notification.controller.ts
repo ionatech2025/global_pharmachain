@@ -23,8 +23,17 @@ export class NotificationController {
     @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
   ) {
     const where = { userId: user.id };
+    // id breaks ties on createdAt. Notifications raised in the same statement
+    // share a timestamp to the millisecond, and without a tiebreaker Postgres
+    // is free to return them in any order — which makes the first row of the
+    // list non-deterministic and lets a paginated read repeat or drop rows.
+    // uuid v7 ids sort by creation time, so this is a stable, meaningful tie.
     const [items, total] = await prisma.$transaction([
-      prisma.notification.findMany({ where, orderBy: { createdAt: "desc" }, ...skipTake(query) }),
+      prisma.notification.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...skipTake(query),
+      }),
       prisma.notification.count({ where }),
     ]);
     return paginate(items, total, query);

@@ -45,8 +45,10 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
+      // Column labels are wayfinding, not content: one step down in size and
+      // weight so the values are what the eye lands on first.
       className={cn(
-        "h-10 whitespace-nowrap px-2 text-left align-middle font-medium text-muted-foreground",
+        "h-9 whitespace-nowrap px-2 text-left align-middle text-xs font-medium tracking-wide text-muted-foreground",
         className,
       )}
       {...props}
