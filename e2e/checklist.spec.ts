@@ -347,8 +347,11 @@ test.describe
       expect(before, "no unread notification could be produced").toBeGreaterThan(0);
 
       await page.goto("/notifications");
-      // Notification rows are the buttons inside the list, not "Mark all read".
-      await page.locator("ul > li > button").first().click();
+      // Target the first UNREAD row, not the first row. The list is ordered by
+      // recency, so the newest notification is frequently one already read —
+      // clicking that navigates correctly but cannot decrement the badge, and
+      // the assertion below would fail on a product that behaved perfectly.
+      await page.locator('ul > li > button[data-unread="true"]').first().click();
       await expect(page).not.toHaveURL(/\/notifications$/, { timeout: 15_000 });
 
       expect(await unread()).toBeLessThan(before);

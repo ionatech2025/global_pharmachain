@@ -380,6 +380,16 @@ export interface DashboardSummary {
   } | null;
 }
 
+/** GET /dashboard/activity — real weekly counts, deltas and the pipeline mix. */
+export interface DashboardActivity {
+  scope: "platform" | "company";
+  trend: Array<{ start: string; label: string; values: Record<string, number> }>;
+  series: Array<{ key: string; label: string }>;
+  deltas: Record<string, { current: number; previous: number }>;
+  windowDays: number;
+  pipeline: Array<{ key: string; label: string; count: number }>;
+}
+
 export interface VerificationChecklist {
   verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED" | "EXPIRED_DOCUMENT";
   rejectionReason: string | null;

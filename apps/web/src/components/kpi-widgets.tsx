@@ -2,7 +2,6 @@
 
 import { DASHBOARD_WIDGETS } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
-import { Card } from "@pharmachain/ui/components/card";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +11,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@pharmachain/ui/components/dialog";
-import { ArrowDown, ArrowUp, Settings2 } from "lucide-react";
-import Link from "next/link";
+import {
+  ArrowDown,
+  ArrowUp,
+  Clock,
+  Gauge,
+  PackageCheck,
+  PackageX,
+  Settings2,
+  ShieldCheck,
+  Stamp,
+  Star,
+  Timer,
+  Trophy,
+  Truck,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { ComponentType } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { StatGrid, StatTile } from "@/components/dashboard/stat-tile";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 
@@ -28,33 +42,47 @@ export interface Kpi {
   href?: string;
 }
 
+/** An icon per measure, so a tile is recognisable before it is read. */
+const KPI_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  "kpi-lead-time": Timer,
+  "kpi-fulfilment": PackageCheck,
+  "kpi-on-time": Clock,
+  "kpi-customs-delay": Stamp,
+  "kpi-quote-win": Trophy,
+  "kpi-response-time": Gauge,
+  "kpi-stockout-risk": PackageX,
+  "kpi-supplier-score": Star,
+  "kpi-compliance": ShieldCheck,
+  "kpi-active-shipments": Truck,
+};
+
+/** Measures where a rising number is the bad news. */
+const RISK_KPIS = new Set(["kpi-stockout-risk", "kpi-compliance"]);
+
 /** Role-specific KPI grid rendered from the user's widget layout (Phase 4 §2). */
 export function KpiGrid({ kpis, widgets }: { kpis: Kpi[]; widgets: string[] }) {
   const byKey = new Map(kpis.map((k) => [k.key, k]));
   const visible = widgets.map((key) => byKey.get(key)).filter((k): k is Kpi => Boolean(k));
   if (visible.length === 0) return null;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {visible.map((kpi) => {
-        const body = (
-          <Card
-            key={`${kpi.key}-card`}
-            className="gap-1 px-4 py-4 transition-colors hover:border-primary/40"
-          >
-            <p className="text-sm font-medium text-muted-foreground">{kpi.label}</p>
-            <p className="text-display mt-1 text-[1.6rem] tabular-nums">{kpi.value}</p>
-            <p className="text-xs text-muted-foreground">{kpi.detail}</p>
-          </Card>
-        );
-        return kpi.href ? (
-          <Link key={kpi.key} href={kpi.href}>
-            {body}
-          </Link>
-        ) : (
-          <div key={kpi.key}>{body}</div>
-        );
-      })}
-    </div>
+    <StatGrid>
+      {visible.map((kpi) => (
+        <StatTile
+          key={kpi.key}
+          label={kpi.label}
+          value={kpi.value}
+          icon={KPI_ICONS[kpi.key]}
+          caption={kpi.detail}
+          href={kpi.href}
+          // A risk measure showing anything but "OK"/"0" is a live exception.
+          tone={
+            RISK_KPIS.has(kpi.key) && kpi.value !== "OK" && kpi.value !== "0"
+              ? "warning"
+              : "default"
+          }
+        />
+      ))}
+    </StatGrid>
   );
 }
 

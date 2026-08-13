@@ -64,13 +64,20 @@ export function NotificationList({ notifications }: { notifications: Paginated<N
             <button
               type="button"
               onClick={() => open(n)}
+              // Unread was carried by a background tint and a bolder weight
+              // alone — both invisible to a screen reader. data-unread exposes
+              // the state to styling and tests; the sr-only word states it.
+              data-unread={n.readAt ? undefined : "true"}
               className={cn(
                 "block w-full px-4 py-3 text-left transition-colors hover:bg-accent",
                 !n.readAt && "bg-primary/5",
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className={cn("text-sm", !n.readAt && "font-medium")}>{n.title}</span>
+                <span className={cn("text-sm", !n.readAt && "font-medium")}>
+                  {!n.readAt && <span className="sr-only">Unread: </span>}
+                  {n.title}
+                </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {timeAgo(n.createdAt)}
                 </span>

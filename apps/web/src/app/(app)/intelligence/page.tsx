@@ -1,14 +1,10 @@
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@pharmachain/ui/components/card";
-import { Download, Sparkles } from "lucide-react";
+import { Download, PackageX, Sparkles, TrendingDown, TrendingUp, Truck, Users } from "lucide-react";
 import Link from "next/link";
+import { ForecastChart } from "@/components/dashboard/charts";
+import { Panel, PanelBody, PanelHeader, Provenance } from "@/components/dashboard/panel";
+import { StatGrid, StatTile } from "@/components/dashboard/stat-tile";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
 import { fmtNumber } from "@/lib/format";
@@ -54,36 +50,27 @@ interface Recommendation {
   trustedBadgeAt: string | null;
 }
 
-/** Inline series chart: history solid, forecast dashed — pure server SVG. */
-function SeriesChart({ history, projected }: { history: number[]; projected: number[] }) {
-  const all = [...history, ...projected];
-  const max = Math.max(...all, 1);
-  const w = 320;
-  const h = 96;
-  const step = w / Math.max(1, all.length - 1);
-  const y = (v: number) => h - 8 - (v / max) * (h - 20);
-  const point = (v: number, i: number) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`;
-  const historyPath = history.map((v, i) => `${i === 0 ? "M" : "L"}${point(v, i)}`).join(" ");
-  const projectedPath = [history[history.length - 1] ?? 0, ...projected]
-    .map((v, i) => `${i === 0 ? "M" : "L"}${point(v, history.length - 1 + i)}`)
-    .join(" ");
-  return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      className="w-full"
-      role="img"
-      aria-label="Demand series with forecast"
-    >
-      <path d={historyPath} fill="none" stroke="var(--color-primary)" strokeWidth="2" />
-      <path
-        d={projectedPath}
-        fill="none"
-        stroke="var(--color-info)"
-        strokeWidth="2"
-        strokeDasharray="5 4"
-      />
-    </svg>
-  );
+/** Month keys arrive as YYYY-MM; the axis wants "Aug" (with the year on turn). */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function monthLabel(key: string): string {
+  const [year, month] = key.split("-");
+  const name = MONTHS[Number(month) - 1] ?? key;
+  return month === "01" ? `${name} ${year?.slice(2) ?? ""}` : name;
+}
+
+/** Labels for a series that continues past its measured months. */
+function projectedLabels(months: string[], extra: number): string[] {
+  const labels = months.map(monthLabel);
+  const last = months.at(-1);
+  if (!last || extra === 0) return labels;
+  const [year, month] = last.split("-").map(Number);
+  for (let i = 1; i <= extra; i++) {
+    const d = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1 + i, 1));
+    labels.push(
+      monthLabel(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`),
+    );
+  }
+  return labels;
 }
 
 export default async function IntelligencePage() {
@@ -97,195 +84,284 @@ export default async function IntelligencePage() {
     api.get<{ categories: unknown[] }>("/intelligence/market-report").catch(() => null),
   ]);
 
+  const nextQuarter = demand.forecast.reduce((sum, v) => sum + v, 0);
+  const lastQuarter = demand.series.slice(-3).reduce((sum, v) => sum + v, 0);
+  const atRisk = delayRisk.filter((r) => r.risk === "HIGH" || r.risk === "MEDIUM").length;
+  const priceRising = prices.direction.toLowerCase().includes("ris");
+  const topScore = recommendations.find((r) => r.score !== null)?.score ?? null;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Intelligence"
         title="Market & supply intelligence"
-        description="Transparent statistics over live platform data — every forecast ships its own backtest accuracy."
+        description="Transparent statistics over live platform data — every forecast ships its own backtest accuracy, and every list its sample size."
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Demand forecast (all categories)</CardTitle>
-            <CardDescription>
-              Monthly RFQ volume, 12 months history + 3 forecast (dashed).{" "}
-              {demand.accuracyMapePct === null
-                ? "Backtest pending — more history needed."
-                : `Backtest accuracy: ${demand.accuracyMapePct.toFixed(1)}% MAPE on held-out months.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SeriesChart history={demand.series} projected={demand.forecast} />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Next 3 months: {demand.forecast.map((v) => fmtNumber(v)).join(" · ")} (from{" "}
-              {demand.sampleSize} RFQs)
-            </p>
-          </CardContent>
-        </Card>
+      <StatGrid>
+        <StatTile
+          // A projected count of RFQs is a whole number of RFQs; the model's
+          // fractional output is an artefact of the arithmetic, not a quantity
+          // anyone can act on.
+          label="Forecast demand"
+          value={fmtNumber(Math.round(nextQuarter))}
+          icon={TrendingUp}
+          delta={{ current: nextQuarter, previous: lastQuarter }}
+          caption="RFQs projected over the next 3 months"
+        />
+        <StatTile
+          // Named for what it measures. MAPE is an ERROR: labelling it
+          // "accuracy" makes 100% read as flawless when it means the forecast
+          // was off by its own magnitude.
+          label="Forecast error"
+          value={demand.accuracyMapePct === null ? "—" : `${demand.accuracyMapePct.toFixed(1)}%`}
+          icon={Sparkles}
+          goodDirection="down"
+          caption={
+            demand.accuracyMapePct === null
+              ? "backtest pending — more history needed"
+              : "mean absolute % error on held-out months — lower is better"
+          }
+        />
+        <StatTile
+          label="Shipments at risk"
+          value={fmtNumber(atRisk)}
+          icon={Truck}
+          goodDirection="down"
+          caption={`of ${delayRisk.length} active shipment(s) tracked`}
+          tone={atRisk > 0 ? "warning" : "default"}
+        />
+        <StatTile
+          label="Unsourced materials"
+          value={fmtNumber(stockouts.length)}
+          icon={PackageX}
+          href="/catalogue"
+          goodDirection="down"
+          caption="active-BOM materials with no live sourcing"
+          tone={stockouts.length > 0 ? "warning" : "default"}
+        />
+      </StatGrid>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Price trend</CardTitle>
-            <CardDescription>
-              Average quoted unit price by month across {prices.sampleSize} quotation(s) — currently{" "}
-              <span className="font-medium">{prices.direction}</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SeriesChart history={prices.series} projected={[]} />
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Panel>
+          <PanelHeader
+            title="Demand forecast"
+            description="Monthly RFQ volume across all categories: 12 months measured, 3 months projected."
+          />
+          <PanelBody>
+            <ForecastChart
+              labels={projectedLabels(demand.months, demand.forecast.length)}
+              history={demand.series}
+              forecast={demand.forecast}
+              emptyNote="No RFQ history to forecast from yet."
+            />
+            <Provenance>
+              {demand.accuracyMapePct === null
+                ? `Backtest pending — more history needed. Based on ${fmtNumber(demand.sampleSize)} RFQ(s).`
+                : `Backtest accuracy ${demand.accuracyMapePct.toFixed(1)}% MAPE on held-out months, from ${fmtNumber(demand.sampleSize)} RFQ(s).`}
+            </Provenance>
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader
+            title="Price trend"
+            description="Average quoted unit price by month."
+            action={
+              <Badge variant={priceRising ? "warning" : "success"}>
+                {priceRising ? (
+                  <TrendingUp className="size-3" />
+                ) : (
+                  <TrendingDown className="size-3" />
+                )}
+                {prices.direction}
+              </Badge>
+            }
+          />
+          <PanelBody>
+            <ForecastChart
+              labels={prices.months.map(monthLabel)}
+              history={prices.series}
+              baseline="fit"
+              emptyNote="No quotations priced yet."
+            />
+            <Provenance>
+              Across {fmtNumber(prices.sampleSize)} quotation(s). Unit prices are normalised to the
+              quoted currency at issue — no FX re-basing.
+            </Provenance>
+          </PanelBody>
+        </Panel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Shipment delay risk</CardTitle>
-            <CardDescription>
-              Active shipments vs the historical time-to-delivered baseline for their freight mode.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Panel>
+          <PanelHeader
+            title="Shipment delay risk"
+            description="Active shipments measured against the historical time-to-delivered baseline for their freight mode."
+          />
+          <PanelBody>
             {delayRisk.length === 0 ? (
               <p className="text-sm text-muted-foreground">No active shipments.</p>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="divide-y">
                 {delayRisk.map((r) => (
-                  <li key={r.orderId} className="flex items-center justify-between gap-2 text-sm">
-                    <Link href={`/orders/${r.orderId}`} className="text-primary hover:underline">
-                      {r.orderNo}
-                    </Link>
-                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {r.elapsedDays}d elapsed
-                      {r.baselineDays !== null
-                        ? ` / ~${r.baselineDays}d typical (n=${r.baselineSamples})`
-                        : ""}
-                      {r.risk === "UNKNOWN" ? (
-                        <Badge variant="secondary">No baseline yet</Badge>
-                      ) : (
-                        <Badge
-                          variant={
-                            r.risk === "HIGH"
-                              ? "destructive"
-                              : r.risk === "MEDIUM"
-                                ? "warning"
-                                : "success"
-                          }
-                        >
-                          {r.risk}
-                        </Badge>
-                      )}
-                    </span>
+                  <li key={r.orderId} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/orders/${r.orderId}`}
+                        className="touch-target min-h-6 text-sm font-medium hover:underline"
+                      >
+                        {r.orderNo}
+                      </Link>
+                      <p className="num-col text-xs text-muted-foreground">
+                        {r.elapsedDays}d elapsed
+                        {r.baselineDays !== null
+                          ? ` · ~${r.baselineDays}d typical (n=${r.baselineSamples})`
+                          : " · no baseline yet"}
+                      </p>
+                    </div>
+                    {r.risk === "UNKNOWN" ? (
+                      <Badge variant="secondary">No baseline</Badge>
+                    ) : (
+                      <Badge
+                        variant={
+                          r.risk === "HIGH"
+                            ? "destructive"
+                            : r.risk === "MEDIUM"
+                              ? "warning"
+                              : "success"
+                        }
+                      >
+                        {r.risk}
+                      </Badge>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Stockout risk (BOM materials)</CardTitle>
-            <CardDescription>Active-BOM materials with no live sourcing.</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader
+            title="Stockout risk"
+            description="Materials on an active bill of materials with no live sourcing RFQ behind them."
+          />
+          <PanelBody>
             {stockouts.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Every BOM material has sourcing activity.
               </p>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="divide-y">
                 {stockouts.map((s) => (
-                  <li key={`${s.product}-${s.material}`} className="text-sm">
-                    <span className="font-medium">{s.material}</span>
-                    <span className="text-muted-foreground">
-                      {" "}
+                  <li key={`${s.product}-${s.material}`} className="py-2.5">
+                    <p className="text-sm font-medium">{s.material}</p>
+                    <p className="text-xs text-muted-foreground">
                       for {s.product} · {s.reason}
-                    </span>
+                    </p>
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Recommended suppliers</CardTitle>
-          <CardDescription>
-            Composite of verified ratings, on-time delivery and quotation win rate.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recommendations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Not enough trading history yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {recommendations.map((r, i) => (
-                <li
-                  key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-display w-7 text-xl text-muted-foreground">{i + 1}</span>
-                    <Link href={`/companies/${r.id}`} className="font-medium hover:underline">
-                      {r.name}
-                    </Link>
-                    <span className="text-xs text-muted-foreground">{r.country}</span>
-                    {r.trustedBadgeAt && <Badge variant="success">Trusted</Badge>}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
+      <div className="grid gap-3 xl:grid-cols-3">
+        <Panel className="xl:col-span-2">
+          <PanelHeader
+            title="Recommended suppliers"
+            description="A composite of verified ratings, on-time delivery and quotation win rate — every input is a recorded outcome, never a paid placement."
+          />
+          <PanelBody>
+            {recommendations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Not enough trading history yet.</p>
+            ) : (
+              <ul className="divide-y">
+                {recommendations.map((r, i) => (
+                  <li key={r.id} className="flex items-center gap-3 py-2.5">
+                    <span className="num-col w-5 shrink-0 text-sm font-semibold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <Link
+                          href={`/companies/${r.id}`}
+                          className="touch-target min-h-6 truncate text-sm font-medium hover:underline"
+                        >
+                          {r.name}
+                        </Link>
+                        {r.trustedBadgeAt && <Badge variant="success">Trusted</Badge>}
+                      </span>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {r.country} · {r.reasons.join(" · ") || "no signals yet"}
+                      </p>
+                    </div>
                     {r.score !== null && (
-                      <span className="text-display mr-2 text-base text-foreground">{r.score}</span>
+                      <div className="flex w-28 shrink-0 items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-primary/12">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{
+                              width: `${Math.min(100, (r.score / Math.max(1, topScore ?? r.score)) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="num-col w-7 text-right text-xs font-semibold">
+                          {r.score}
+                        </span>
+                      </div>
                     )}
-                    {r.reasons.join(" · ") || "no signals yet"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PanelBody>
+        </Panel>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-sm">Market data insights</CardTitle>
-            <CardDescription>
-              Anonymised category-level pricing, demand and trade-volume report — a subscription
-              data product.
-            </CardDescription>
-          </div>
-          {insights ? (
-            <div className="flex gap-2">
-              {(["csv", "pdf"] as const).map((format) => (
-                <Button key={format} asChild size="sm" variant="outline">
-                  <a href={`/api/proxy/intelligence/market-report?format=${format}`} download>
-                    <Download className="size-3.5" /> {format.toUpperCase()}
-                  </a>
+        <Panel>
+          <PanelHeader
+            title="Market data insights"
+            description="Anonymised category-level pricing, demand and trade-volume report — a subscription data product."
+          />
+          <PanelBody className="space-y-3">
+            {insights ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Users className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <p className="text-sm">
+                    Subscription active —{" "}
+                    <span className="font-medium">{insights.categories.length}</span> category
+                    segment(s) in the current report.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {(["csv", "pdf"] as const).map((format) => (
+                    <Button key={format} asChild size="sm" variant="outline">
+                      <a href={`/api/proxy/intelligence/market-report?format=${format}`} download>
+                        <Download className="size-3.5" /> {format.toUpperCase()}
+                      </a>
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Category-level benchmarks across the whole network, with your own company's data
+                  anonymised into the aggregate.
+                </p>
+                <Button asChild size="sm">
+                  <Link href="/company/usage">
+                    <Sparkles className="size-4" /> Subscribe under Usage & credits
+                  </Link>
                 </Button>
-              ))}
-            </div>
-          ) : (
-            <Button asChild size="sm">
-              <Link href="/company/usage">
-                <Sparkles className="size-4" /> Subscribe under Usage & credits
-              </Link>
-            </Button>
-          )}
-        </CardHeader>
-        {insights && (
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Subscription active — {insights.categories.length} category segment(s) in the current
-              report.
-            </p>
-          </CardContent>
-        )}
-      </Card>
+              </>
+            )}
+          </PanelBody>
+        </Panel>
+      </div>
     </div>
   );
 }

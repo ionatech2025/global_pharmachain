@@ -21,7 +21,7 @@ import {
   SheetTrigger,
 } from "@pharmachain/ui/components/sheet";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
+import { ChevronRight, Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -65,10 +65,10 @@ function NavLinks({
   onNavigate?: () => void;
 }) {
   return (
-    <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
+    <nav aria-label="Main" className="flex-1 space-y-6 overflow-y-auto px-3 pb-6">
       {sections.map((section) => (
         <div key={section.section}>
-          <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="px-2.5 pb-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
             {section.section}
           </p>
           <div className="grid gap-0.5">
@@ -80,14 +80,16 @@ function NavLinks({
                   href={item.href}
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
+                  // Solid pill for the current page: at a glance, from across
+                  // the room, one item is lit and the rest recede.
                   className={cn(
-                    "relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
                     active
-                      ? "bg-primary/10 font-medium text-primary before:absolute before:inset-y-1 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary"
+                      ? "bg-primary font-medium text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
-                  <item.icon className="size-4" />
+                  <item.icon className="size-4 shrink-0" />
                   {item.label}
                 </Link>
               );
@@ -99,18 +101,44 @@ function NavLinks({
   );
 }
 
+/** Where you are, in the sidebar's own words — the top bar's left anchor. */
+function Breadcrumb({ sections, pathname }: { sections: NavSection[]; pathname: string }) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+        return (
+          <nav
+            aria-label="Breadcrumb"
+            className="hidden min-w-0 items-center gap-1.5 text-sm lg:flex"
+          >
+            <span className="text-muted-foreground">{section.section}</span>
+            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+            <span className="truncate font-medium">{item.label}</span>
+          </nav>
+        );
+      }
+    }
+  }
+  return null;
+}
+
 function CompanyCard({ me }: { me: AuthenticatedUser }) {
   const membership = me.membership;
   if (!membership) return null;
   return (
-    <div className="border-t px-5 py-3 text-xs text-muted-foreground">
-      <p className="truncate font-medium text-foreground">{membership.companyName}</p>
-      <Badge
-        variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}
-        className="mt-1"
+    <div className="p-3">
+      <Link
+        href="/company"
+        className="block rounded-xl border bg-muted/40 px-3 py-2.5 transition-colors hover:bg-accent"
       >
-        {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
-      </Badge>
+        <p className="truncate text-sm font-medium">{membership.companyName}</p>
+        <Badge
+          variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}
+          className="mt-1.5"
+        >
+          {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
+        </Badge>
+      </Link>
     </div>
   );
 }
@@ -145,8 +173,8 @@ export function AppShell({
         Skip to content
       </a>
 
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 lg:flex">
-        <Link href="/dashboard" className="px-4 py-4">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 lg:flex">
+        <Link href="/dashboard" className="px-5 py-4">
           <Logo markClassName="size-8" />
         </Link>
         <NavLinks sections={sections} pathname={pathname} />
@@ -187,6 +215,8 @@ export function AppShell({
           >
             <LogoMark className="size-8" />
           </Link>
+
+          <Breadcrumb sections={sections} pathname={pathname} />
 
           <div className="ml-auto flex items-center gap-1.5">
             <CommandMenu sections={sections} canTrade={canTrade} />
@@ -229,7 +259,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main id="main" className="flex-1 space-y-4 p-4 lg:p-6">
+        <main id="main" className="mx-auto w-full max-w-[110rem] flex-1 space-y-4 p-4 lg:p-6">
           {announcements.map((a) => (
             <Alert key={a.id} variant="info">
               <Megaphone className="size-4" />
