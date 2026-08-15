@@ -267,19 +267,68 @@ test.describe("US-405 award confirmation", () => {
   }) => {
     const page = await signIn(browser, BUYER_ADMIN);
 
-    // Find the RFQ that actually has an acceptable quotation — the first RFQ in
-    // the list is usually already awarded, which is what made this skip.
-    const rfqs = await (await page.request.get(`${API_PATH}/rfqs`)).json();
-    let rfqId: string | undefined;
-    for (const r of (rfqs.items ?? rfqs).filter((r: { status: string }) => r.status === "OPEN")) {
-      const quotes = await (await page.request.get(`${API_PATH}/rfqs/${r.id}/quotations`)).json();
-      const items = quotes.items ?? quotes;
-      if (items.some((q: { status: string }) => q.status === "ACTIVE")) {
-        rfqId = r.id;
-        break;
+    // Generate the fixture rather than hoping one is lying around. Awarding is
+    // exactly what the golden path does, so every run of this suite consumes an
+    // OPEN-and-quoted RFQ; against a long-lived deployment the demo data runs
+    // dry and this test used to fail on its own precondition.
+    const findQuoted = async (): Promise<string | undefined> => {
+      const rfqs = await (await page.request.get(`${API_PATH}/rfqs`)).json();
+      for (const r of (rfqs.items ?? rfqs).filter((r: { status: string }) => r.status === "OPEN")) {
+        const quotes = await (await page.request.get(`${API_PATH}/rfqs/${r.id}/quotations`)).json();
+        const items = quotes.items ?? quotes;
+        if (items.some((q: { status: string }) => q.status === "ACTIVE")) return r.id;
       }
+      return undefined;
+    };
+
+    let rfqId = await findQuoted();
+    if (!rfqId) {
+      const supplier = await signIn(browser, SUPPLIER_ADMIN);
+      // An RFQ only accepts quotations from the company type it targets, so the
+      // fixture has to aim at whatever the supplier persona actually is —
+      // guessing "SUPPLIER" earns a 403 from a raw-material manufacturer.
+      const me = await (await supplier.request.get(`${API_PATH}/auth/me`)).json();
+      const supplierType = me?.membership?.companyType;
+      expect(supplierType, "supplier persona has no company membership").toBeTruthy();
+
+      const rfqs = await (await page.request.get(`${API_PATH}/rfqs`)).json();
+      let openId = (rfqs.items ?? rfqs).find(
+        (r: { status: string; targetCompanyType: string }) =>
+          r.status === "OPEN" && r.targetCompanyType === supplierType,
+      )?.id;
+      if (!openId) {
+        const raised = await page.request.post(`${API_PATH}/rfqs`, {
+          data: {
+            title: `Award-dialog fixture ${Date.now().toString(36).toUpperCase()}`,
+            quantity: "10",
+            unit: "kg",
+            targetCompanyType: supplierType,
+            deadline: new Date(Date.now() + 10 * 864e5).toISOString(),
+          },
+        });
+        // Naming the status matters: a buyer at its freemium RFQ ceiling fails
+        // here identically to a malformed payload unless the code is reported.
+        expect(raised.ok(), `could not raise a fixture RFQ (HTTP ${raised.status()})`).toBeTruthy();
+        openId = (await raised.json()).id;
+      }
+
+      const quoted = await supplier.request.post(`${API_PATH}/rfqs/${openId}/quotations`, {
+        data: {
+          unitPrice: "12.75",
+          currency: "USD",
+          leadTimeDays: 21,
+          validUntil: new Date(Date.now() + 30 * 864e5).toISOString(),
+          notes: "e2e award-dialog fixture",
+        },
+      });
+      await supplier.context().close();
+      expect(
+        quoted.ok(),
+        `could not seed a quotation to award (HTTP ${quoted.status()})`,
+      ).toBeTruthy();
+      rfqId = await findQuoted();
     }
-    expect(rfqId, "no OPEN RFQ with an active quotation to award").toBeTruthy();
+    expect(rfqId, "no OPEN RFQ to award, and none could be seeded").toBeTruthy();
 
     const before = await page.request.get(`${API_PATH}/orders`);
     const beforeCount = ((await before.json()).items ?? []).length;
