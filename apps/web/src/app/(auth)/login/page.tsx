@@ -16,7 +16,7 @@ import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
-import { ApiClientError, errorMessage } from "@/lib/api/http";
+import { errorMessage } from "@/lib/api/http";
 
 function LoginForm() {
   const router = useRouter();
@@ -59,19 +59,20 @@ function LoginForm() {
             })
           : await signIn("otp", { email, otp, redirect: false });
       if (result?.error) {
-        // Only a FAILED sign-in pays for a probe: it distinguishes "second
-        // factor needed" from bad credentials without doubling the API calls
-        // of every ordinary login.
-        if (mode === "password" && !totpNeeded) {
-          try {
-            await api.post("/auth/login", { email, password });
-          } catch (err) {
-            if (err instanceof ApiClientError && err.code === "TOTP_REQUIRED") {
-              setTotpNeeded(true);
-              toast.info("Enter the 6-digit code from your authenticator app");
-              return;
-            }
-          }
+        // The provider forwards the API's reason as `code`, so a refusal that
+        // is not about the password can say so plainly.
+        if (result.code === "totp_required") {
+          setTotpNeeded(true);
+          toast.info("Enter the 6-digit code from your authenticator app");
+          return;
+        }
+        if (result.code === "rate_limited") {
+          // Being locked out is otherwise indistinguishable from a typo — down
+          // to the correct password being refused (US-205).
+          toast.error(
+            "Too many failed sign-in attempts. Try again in 15 minutes, or reset your password.",
+          );
+          return;
         }
         toast.error(totpNeeded ? "Invalid verification code" : "Invalid email or password");
         return;

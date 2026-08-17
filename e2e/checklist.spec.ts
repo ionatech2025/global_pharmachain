@@ -11,9 +11,9 @@ import { ADMIN_PASSWORD, API_PATH, firstId, signIn } from "./helpers";
  * add runtime without adding signal.
  *
  * Checklist cases: 3, 4 (validation before any API call), 5, 6, 7, 8 (upload
- * through the picker, including the rejections), 57, 58 (comparison tray),
- * 79 (award confirmation is cancellable), 107, 108, 109 (notification centre),
- * 117, 118, 119 (shipment tracker).
+ * through the picker, including the rejections), 35 (the sign-in lockout is
+ * announced), 57, 58 (comparison tray), 79 (award confirmation is cancellable),
+ * 107, 108, 109 (notification centre), 117, 118, 119 (shipment tracker).
  */
 
 const BUYER = "ops@nilepharma.demo";
@@ -460,6 +460,52 @@ test.describe("US-702 shipment tracker", () => {
       timeout: 20_000,
     });
     await page.context().close();
+  });
+});
+
+// ─── US-205: the sign-in lockout is visible (case 35) ────────────────────────
+
+test.describe("US-205 sign-in lockout", () => {
+  test("case 35: the lockout is announced, and one attempt is one recorded failure", async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    // An address with no account behind it. The lockout counts attempts per
+    // email either way, so this exercises the control without locking a demo
+    // user out for 15 minutes — and it doubles as proof that the refusal says
+    // nothing about whether the address is registered.
+    const email = `lockout-${Date.now().toString(36)}@example.test`;
+    const logins = recordApiCalls(page, /\/auth\/(login|callback)/);
+
+    await page.goto("/login");
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      await page.getByLabel("Work email").fill(email);
+      await page.getByLabel("Password").fill("definitely-Wrong-9");
+      await Promise.all([
+        page.waitForResponse((r) => /\/api\/auth\/callback\/credentials/.test(r.url())),
+        page.getByRole("button", { name: "Sign in" }).click(),
+      ]);
+      // The refusals before the threshold stay deliberately generic (US-206).
+      if (attempt === 1) {
+        await expect(page.getByText(/invalid email or password/i).first()).toBeVisible();
+      }
+    }
+
+    // The sixth is refused by the lockout rather than the password, and saying
+    // so is the whole point: otherwise it is indistinguishable from a typo,
+    // right down to the correct password being rejected for 15 minutes.
+    await expect(page.getByText(/too many failed sign-in attempts/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // One visible attempt must cost exactly one API sign-in. A second probe per
+    // failure (which the login form used to make to find out *why* it failed)
+    // doubles every row in the login audit and trips the 5-attempt threshold
+    // after three tries.
+    expect(logins.filter((call) => call.includes("/auth/login"))).toEqual([]);
+    expect(logins).toHaveLength(6);
+    await ctx.close();
   });
 });
 
