@@ -2,7 +2,12 @@ import type { NotificationType, PreferenceEventType } from "@pharmachain/core";
 import { PREFERENCE_EVENT_TYPES } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
-import { createEmailProvider, type EmailContent, type EmailProvider } from "@pharmachain/email";
+import {
+  createEmailProvider,
+  type EmailContent,
+  type EmailProvider,
+  emailConfigFromEnv,
+} from "@pharmachain/email";
 import { defer } from "./defer";
 import { enqueueOutbox } from "./outbox";
 import { sendWebPush, vapidPublicKey } from "./webpush";
@@ -16,11 +21,7 @@ let emailProvider: EmailProvider | undefined;
 let whatsappProvider: WhatsAppProvider | undefined;
 
 function email(): EmailProvider {
-  emailProvider ??= createEmailProvider({
-    provider: process.env.EMAIL_PROVIDER === "resend" ? "resend" : "console",
-    from: process.env.EMAIL_FROM ?? "PharmaChain <no-reply@pharmachain.local>",
-    resendApiKey: process.env.RESEND_API_KEY,
-  });
+  emailProvider ??= createEmailProvider(emailConfigFromEnv());
   return emailProvider;
 }
 

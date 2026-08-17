@@ -9,7 +9,7 @@ cd "$ROOT"
 
 echo "== 1. Build the API serverless bundle =="
 cd apps/api
-EXT="--external @prisma/client --external @node-rs/argon2 --external @nestjs/microservices --external @nestjs/websockets --external @nestjs/platform-express --external class-validator --external class-transformer --external @fastify/view --external @fastify/static --external @apollo/server --external @as-integrations/fastify"
+EXT="--external @prisma/client --external @node-rs/argon2 --external nodemailer --external @nestjs/microservices --external @nestjs/websockets --external @nestjs/platform-express --external class-validator --external class-transformer --external @fastify/view --external @fastify/static --external @apollo/server --external @as-integrations/fastify"
 rm -rf api && mkdir -p api
 bun build src/serverless.ts --outfile api/index.cjs --target node --format cjs $EXT >/dev/null 2>&1
 echo "   bundle: $(du -h api/index.cjs | cut -f1)"
@@ -43,6 +43,9 @@ cp -r node_modules/.prisma/client "$FUNC/node_modules/.prisma/client"
 rm -f "$FUNC/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node"
 cp -r node_modules/@node-rs/argon2 "$FUNC/node_modules/@node-rs/argon2"
 cp -r node_modules/@node-rs/argon2-linux-x64-gnu "$FUNC/node_modules/@node-rs/argon2-linux-x64-gnu"
+# SMTP transport: left unbundled (it resolves its own internals at runtime) and
+# shipped whole — it has no dependencies of its own.
+cp -r node_modules/nodemailer "$FUNC/node_modules/nodemailer"
 cat > "$FUNC/.vc-config.json" <<'JSON'
 {
   "runtime": "nodejs20.x",

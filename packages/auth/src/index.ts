@@ -1,4 +1,4 @@
-import type { NextAuthConfig } from "next-auth";
+import { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { AuthenticatedUser } from "./contracts";
 import "./types";
@@ -10,6 +10,37 @@ export type { AuthenticatedUser } from "./contracts";
 export const SESSION_MAX_AGE_SECONDS = 30 * 60;
 export const SESSION_UPDATE_AGE_SECONDS = 5 * 60;
 export const IDLE_WARNING_AFTER_SECONDS = 25 * 60;
+
+/**
+ * The only refusals the browser is allowed to tell apart. Everything else stays
+ * deliberately indistinguishable: the login form must never hint at which
+ * factor failed or whether an account exists (US-206). Both codes below are
+ * safe on that count — the lockout counts attempts per email address whether or
+ * not the address belongs to an account, so it enumerates nothing.
+ */
+const CLIENT_SAFE_CODES: Record<string, string> = {
+  TOTP_REQUIRED: "totp_required",
+  RATE_LIMITED: "rate_limited",
+};
+
+/**
+ * Auth.js puts `code` on the sign-in result, which is how the login page can
+ * distinguish a lockout from a bad password. Returning null here instead — as
+ * this used to — collapsed every refusal into one generic error, so the page
+ * had to re-post to /auth/login just to find out what happened, and that second
+ * call recorded a second failed attempt for every visible one (US-205).
+ */
+class ApiSignInError extends CredentialsSignin {
+  constructor(code: string) {
+    super();
+    this.code = code;
+  }
+}
+
+async function refusal(res: Response): Promise<ApiSignInError> {
+  const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+  return new ApiSignInError(CLIENT_SAFE_CODES[body?.error?.code ?? ""] ?? "credentials");
+}
 
 async function verifyWithApi(
   apiUrl: string,
@@ -34,9 +65,12 @@ async function verifyWithApi(
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return null;
+    if (!res.ok) throw await refusal(res);
     return (await res.json()) as AuthenticatedUser;
-  } catch {
+  } catch (err) {
+    if (err instanceof CredentialsSignin) throw err;
+    // The API was unreachable or answered something unparseable. There is
+    // nothing true to tell the user apart from "that didn't work".
     return null;
   }
 }

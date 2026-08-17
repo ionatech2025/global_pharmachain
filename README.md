@@ -39,7 +39,7 @@ packages/
   core/           Shared Zod contracts, enums, RBAC matrix, state machines
   db/             Prisma schema (26 models), client singleton, seed
   auth/           Auth.js config factory + server-side JWT decode helper
-  email/          Email providers (console for dev, Resend) + templates
+  email/          Email providers (console for dev, SMTP) + templates
   notifications/  Event fanout: in-app + email (preference-aware) + WhatsApp stub
   ui/             shadcn/ui components, Tailwind 4 theme (dark mode)
   typescript-config/
@@ -103,7 +103,7 @@ flowchart LR
   CRON[GitHub Actions cron<br/>frequent */10 · daily 05:00 UTC]
   DB[(PostgreSQL 18<br/>Prisma 6)]
   R2[(Cloudflare R2<br/>MinIO in dev<br/>server-side PUT · presigned GET)]
-  MAIL[Email provider<br/>console / Resend]
+  MAIL[Email provider<br/>console / SMTP]
   WA[WhatsApp stub]
 
   UI -->|mutations| PROXY
@@ -212,8 +212,8 @@ it) rather than Vercel's git-push builds. Required project env: `AUTH_SECRET`
 and non-default `R2_*` values (Cloudflare R2 — see `.env.example`). Feature env on top: `CRON_SECRET` (job
 dispatcher), `PAYMENT_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY` +
 `VAPID_PRIVATE_KEY` (web push), `PAYMENT_SANDBOX=1` to expose card/mobile
-money without a live Flutterwave key, and optional `WHATSAPP_*` / `RESEND_*`
-provider keys.
+money without a live Flutterwave key, and optional `WHATSAPP_*` / `SMTP_*`
+provider settings.
 
 ### B. Split hosts (containerised API)
 
@@ -355,9 +355,15 @@ Automated by two GitHub Actions workflows — no manual cron required:
 ### Environment
 
 All configuration is environment-driven (12-factor); `.env.example` documents
-every variable. Generate `AUTH_SECRET` with `openssl rand -base64 32`. Set
-`EMAIL_PROVIDER=resend` + `RESEND_API_KEY` for real email; `console` logs to
-stdout for dev.
+every variable. Generate `AUTH_SECRET` with `openssl rand -base64 32`. Email
+goes out over SMTP as soon as `SMTP_HOST` is set (with `SMTP_PORT`, `SMTP_USER`
+and `SMTP_PASSWORD` as your relay needs); leave it empty and messages are logged to
+stdout for dev. `SMTP_SECURE` follows the port when unset — implicit TLS on 465,
+STARTTLS on 587/25 — and `EMAIL_FROM` defaults to `SMTP_USER`, since a relay
+normally rejects a sender it does not own. `EMAIL_PROVIDER` overrides the
+choice: `console` keeps a machine with real credentials printing to the log,
+`smtp` insists on the relay and refuses to start without `SMTP_HOST` rather than
+printing invite and reset links.
 
 ## Design decisions
 

@@ -132,6 +132,17 @@ export function MembersTable({
 }) {
   const router = useRouter();
 
+  // US-202: the API refuses to leave a company without an active Company Admin,
+  // but that last admin can only ever be the viewer — and their own row used to
+  // render no control at all, so the rule was invisible. Say why instead.
+  const activeAdmins = members.filter(
+    (m) => m.role === "COMPANY_ADMIN" && m.user.status === "ACTIVE",
+  ).length;
+  const ownRowReason =
+    activeAdmins === 1
+      ? "You're the only active Company Admin"
+      : "You can't deactivate your own account";
+
   async function changeRole(userId: string, role: CompanyRole) {
     try {
       await api.patch(`/companies/me/members/${userId}/role`, { role });
@@ -204,7 +215,16 @@ export function MembersTable({
             </TableCell>
             {canManage && (
               <TableCell className="text-right">
-                {member.user.id !== meUserId &&
+                {member.user.id === meUserId ? (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <Button size="sm" variant="ghost" disabled>
+                      Deactivate
+                    </Button>
+                    <span className="text-xs text-balance text-muted-foreground">
+                      {ownRowReason}
+                    </span>
+                  </div>
+                ) : (
                   member.user.status !== "INVITED" &&
                   (member.user.status === "ACTIVE" ? (
                     <ConfirmDialog
@@ -223,7 +243,8 @@ export function MembersTable({
                     <Button size="sm" variant="ghost" onClick={() => toggleActive(member)}>
                       Reactivate
                     </Button>
-                  ))}
+                  ))
+                )}
               </TableCell>
             )}
           </TableRow>

@@ -1,0 +1,189 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import net from "node:net";
+import { createEmailProvider, emailConfigFromEnv } from "./provider";
+
+describe("emailConfigFromEnv", () => {
+  test("with nothing configured, mail is printed rather than sent", () => {
+    const config = emailConfigFromEnv({});
+    expect(config.provider).toBe("console");
+    expect(config.from).toBe("PharmaChain <no-reply@pharmachain.local>");
+  });
+
+  test("a configured relay is used without also having to set EMAIL_PROVIDER", () => {
+    expect(emailConfigFromEnv({ SMTP_HOST: "smtp.example.com" }).provider).toBe("smtp");
+    // A stale value from a previous provider must not silence a real relay.
+    expect(
+      emailConfigFromEnv({ SMTP_HOST: "smtp.example.com", EMAIL_PROVIDER: "resend" }).provider,
+    ).toBe("smtp");
+  });
+
+  test("EMAIL_PROVIDER overrides the inference in both directions", () => {
+    expect(
+      emailConfigFromEnv({ SMTP_HOST: "smtp.example.com", EMAIL_PROVIDER: "console" }).provider,
+    ).toBe("console");
+    expect(emailConfigFromEnv({ EMAIL_PROVIDER: "smtp" }).provider).toBe("smtp");
+  });
+
+  test("EMAIL_FROM falls back to the mailbox we authenticate as", () => {
+    expect(emailConfigFromEnv({ SMTP_USER: "relay@example.com" }).from).toBe("relay@example.com");
+    // A relay whose username is not an address leaves the placeholder…
+    expect(emailConfigFromEnv({ SMTP_USER: "apikey" }).from).toBe(
+      "PharmaChain <no-reply@pharmachain.local>",
+    );
+    // …and an explicit EMAIL_FROM always wins.
+    expect(
+      emailConfigFromEnv({ SMTP_USER: "relay@example.com", EMAIL_FROM: "PharmaChain <a@b.c>" })
+        .from,
+    ).toBe("PharmaChain <a@b.c>");
+  });
+
+  test("SMTP_SECURE follows the port when it is not set", () => {
+    expect(emailConfigFromEnv({ SMTP_PORT: "465" }).smtp?.secure).toBe(true);
+    expect(emailConfigFromEnv({ SMTP_PORT: "587" }).smtp?.secure).toBe(false);
+    expect(emailConfigFromEnv({ SMTP_PORT: "25" }).smtp?.secure).toBe(false);
+    // …and an explicit value always wins over the convention.
+    expect(emailConfigFromEnv({ SMTP_PORT: "465", SMTP_SECURE: "false" }).smtp?.secure).toBe(false);
+    expect(emailConfigFromEnv({ SMTP_PORT: "587", SMTP_SECURE: "true" }).smtp?.secure).toBe(true);
+  });
+
+  test("a missing or unusable port falls back to submission on 587", () => {
+    expect(emailConfigFromEnv({}).smtp?.port).toBe(587);
+    expect(emailConfigFromEnv({ SMTP_PORT: "" }).smtp?.port).toBe(587);
+    expect(emailConfigFromEnv({ SMTP_PORT: "not-a-port" }).smtp?.port).toBe(587);
+    expect(emailConfigFromEnv({ SMTP_PORT: "2525" }).smtp?.port).toBe(2525);
+  });
+
+  test("blank credentials mean an unauthenticated relay, not an empty login", () => {
+    const config = emailConfigFromEnv({
+      SMTP_HOST: "smtp.example.com",
+      SMTP_USER: "",
+      SMTP_PASSWORD: "",
+    });
+    expect(config.smtp?.user).toBeUndefined();
+    expect(config.smtp?.password).toBeUndefined();
+  });
+
+  test("reads the password from SMTP_PASSWORD", () => {
+    expect(emailConfigFromEnv({ SMTP_PASSWORD: "s3cret" }).smtp?.password).toBe("s3cret");
+  });
+});
+
+describe("createEmailProvider", () => {
+  test("smtp without a host is a startup failure, not a silent console fallback", () => {
+    // Falling back would print invite and password-reset links to the log while
+    // looking configured — the failure mode this guard exists to prevent.
+    expect(() => createEmailProvider({ provider: "smtp", from: "a@b.c", smtp: {} })).toThrow(
+      "EMAIL_PROVIDER=smtp requires SMTP_HOST to be set",
+    );
+  });
+});
+
+/** Enough of RFC 5321 to accept one message and hand it back to the test. */
+function smtpSink() {
+  const received: { auth?: string; from?: string; to?: string; data: string }[] = [];
+  const server = net.createServer((socket) => {
+    const session: { auth?: string; from?: string; to?: string; data: string } = { data: "" };
+    let inData = false;
+    let buffer = "";
+
+    socket.write("220 test.local ESMTP\r\n");
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      let index = buffer.indexOf("\r\n");
+      while (index !== -1) {
+        const line = buffer.slice(0, index);
+        buffer = buffer.slice(index + 2);
+
+        if (inData) {
+          if (line === ".") {
+            inData = false;
+            received.push({ ...session });
+            socket.write("250 2.0.0 Queued\r\n");
+          } else {
+            // Undo dot-stuffing so the body compares as it was written.
+            session.data += `${line.startsWith("..") ? line.slice(1) : line}\n`;
+          }
+        } else if (/^EHLO|^HELO/i.test(line)) {
+          socket.write("250-test.local\r\n250 AUTH PLAIN LOGIN\r\n");
+        } else if (/^AUTH PLAIN /i.test(line)) {
+          session.auth = Buffer.from(line.slice(11).trim(), "base64").toString("utf8");
+          socket.write("235 2.7.0 Accepted\r\n");
+        } else if (/^MAIL FROM:/i.test(line)) {
+          session.from = line.slice(10).trim();
+          socket.write("250 2.1.0 Ok\r\n");
+        } else if (/^RCPT TO:/i.test(line)) {
+          session.to = line.slice(8).trim();
+          socket.write("250 2.1.5 Ok\r\n");
+        } else if (/^DATA/i.test(line)) {
+          inData = true;
+          socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+        } else if (/^QUIT/i.test(line)) {
+          socket.write("221 2.0.0 Bye\r\n");
+          socket.end();
+        } else {
+          socket.write("250 2.0.0 Ok\r\n");
+        }
+        index = buffer.indexOf("\r\n");
+      }
+    });
+    socket.on("error", () => undefined);
+  });
+  return { server, received };
+}
+
+describe("SmtpEmailProvider", () => {
+  const { server, received } = smtpSink();
+  let port = 0;
+
+  beforeAll(async () => {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    port = (server.address() as net.AddressInfo).port;
+  });
+  afterAll(() => server.close());
+
+  test("delivers the message over SMTP with both MIME parts", async () => {
+    const provider = createEmailProvider({
+      provider: "smtp",
+      from: "PharmaChain <no-reply@pharmachain.test>",
+      smtp: { host: "127.0.0.1", port, secure: false, user: "relay-user", password: "relay-pass" },
+    });
+
+    await provider.send({
+      to: "invitee@example.com",
+      subject: "You're invited to join Nile Pharma Industries",
+      html: "<p>Join <b>Nile Pharma</b></p>",
+      text: "Join Nile Pharma",
+    });
+
+    expect(received).toHaveLength(1);
+    const [message] = received;
+    if (!message) throw new Error("the sink recorded no message");
+    expect(message.auth).toContain("relay-user");
+    expect(message.auth).toContain("relay-pass");
+    expect(message.from).toContain("no-reply@pharmachain.test");
+    expect(message.to).toContain("invitee@example.com");
+    expect(message.data).toContain("You're invited to join Nile Pharma Industries");
+    expect(message.data).toContain("multipart/alternative");
+    // Both parts travel: the HTML for mail clients, the text for everything else.
+    expect(message.data).toContain("Join Nile Pharma");
+    expect(message.data).toContain("Nile Pharma</b>");
+  });
+
+  test("an unreachable relay fails without leaking what was sent", async () => {
+    const provider = createEmailProvider({
+      provider: "smtp",
+      from: "PharmaChain <no-reply@pharmachain.test>",
+      // Port 1 is reserved and refuses immediately.
+      smtp: { host: "127.0.0.1", port: 1, secure: false, user: "relay-user", password: "hunter2" },
+    });
+
+    const send = provider.send({
+      to: "invitee@example.com",
+      subject: "Reset your password",
+      html: "<p>link</p>",
+      text: "link",
+    });
+    await expect(send).rejects.toThrow(/SMTP send failed/);
+    await expect(send).rejects.not.toThrow(/hunter2/);
+  });
+});
