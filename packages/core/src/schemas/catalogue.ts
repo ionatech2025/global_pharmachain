@@ -31,16 +31,12 @@ const listingBase = z.object({
   description: z.string().max(2000).optional(),
 });
 
-// CAS number is mandatory for raw materials (US-302 / questionnaire).
-export const listingCreateSchema = listingBase.superRefine((val, ctx) => {
-  if (val.kind === "RAW_MATERIAL" && !val.casNumber) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["casNumber"],
-      message: "CAS number is required for raw materials",
-    });
-  }
-});
+// A raw material's CAS number is enforced at publish, not at save (US-302) —
+// the same "optional to draft, required to go live" shape as the
+// pharmacopoeia-standards → quality-document check below, so an incomplete
+// listing can still be created and resumed later instead of being rejected
+// outright.
+export const listingCreateSchema = listingBase;
 export type ListingCreate = z.infer<typeof listingCreateSchema>;
 
 export const listingUpdateSchema = listingBase.omit({ kind: true }).partial();

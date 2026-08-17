@@ -180,10 +180,16 @@ export function ListingForm({
                 name="casNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>CAS number{kind === "RAW_MATERIAL" ? " *" : ""}</FormLabel>
+                    <FormLabel>CAS number</FormLabel>
                     <FormControl>
                       <Input placeholder="103-90-2" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    {kind === "RAW_MATERIAL" ? (
+                      <FormDescription>
+                        Required to publish a raw material listing (US-302) — you can save a draft
+                        without it.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

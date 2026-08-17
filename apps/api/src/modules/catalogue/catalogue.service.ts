@@ -157,6 +157,11 @@ export class CatalogueService {
     if (membership.company.profileStatus !== "PUBLISHED") {
       throw forbidden("Publish your company profile before publishing listings");
     }
+    // US-302: raw materials need a CAS number to go live — optional while
+    // drafting, enforced here so an incomplete listing can still be saved.
+    if (listing.kind === "RAW_MATERIAL" && !listing.casNumber) {
+      throw forbidden("Add a CAS number before publishing this raw material listing");
+    }
     // Phase 4 §4: pharmacopoeia claims (BP/USP/IP/EP) are enforced — a
     // listing claiming a standard needs a quality document on file.
     if (listing.standards.length > 0) {
