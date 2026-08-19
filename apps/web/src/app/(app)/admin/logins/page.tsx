@@ -9,9 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@pharmachain/ui/components/table";
-import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PaginationNav } from "@/components/pagination-nav";
 import { apiServer } from "@/lib/api/server";
 import type { LoginActivityRow, Paginated } from "@/lib/api/types";
 import { fmtDateTime } from "@/lib/format";
@@ -35,7 +35,7 @@ export default async function AdminLoginsPage({
     <div className="space-y-4">
       <PageHeader
         title="Login activity"
-        description="Successful and failed attempts with IP and device (US-205)."
+        description="Successful and failed attempts with IP and device."
       >
         <form method="GET" action="/admin/logins">
           <Input
@@ -94,29 +94,14 @@ export default async function AdminLoginsPage({
               ))}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              Page {activity.page} of {activity.totalPages} · {activity.total} attempt(s)
-            </span>
-            <div className="flex gap-2">
-              {activity.page > 1 && (
-                <Link
-                  className="text-primary hover:underline"
-                  href={`/admin/logins?page=${activity.page - 1}${params.email ? `&email=${params.email}` : ""}`}
-                >
-                  Newer
-                </Link>
-              )}
-              {activity.page < activity.totalPages && (
-                <Link
-                  className="text-primary hover:underline"
-                  href={`/admin/logins?page=${activity.page + 1}${params.email ? `&email=${params.email}` : ""}`}
-                >
-                  Older
-                </Link>
-              )}
-            </div>
-          </div>
+          <PaginationNav
+            page={activity.page}
+            totalPages={activity.totalPages}
+            total={activity.total}
+            noun="attempt(s)"
+            basePath="/admin/logins"
+            params={{ email: params.email }}
+          />
         </>
       )}
     </div>

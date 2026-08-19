@@ -43,6 +43,8 @@ export default async function AdminCompanyPage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <PageHeader
+        backHref="/admin/companies"
+        backLabel="Companies"
         title={company.name}
         description={`${COMPANY_TYPE_LABELS[company.type]} · ${company.country} · Reg. ${company.registrationNumber}`}
       >
@@ -55,7 +57,7 @@ export default async function AdminCompanyPage({ params }: { params: Promise<{ i
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Automated checks (US-103)</CardTitle>
+            <CardTitle className="text-sm">Automated checks</CardTitle>
             <CardDescription>
               Presence, expiry and scan status of the required documents.
             </CardDescription>
@@ -126,7 +128,7 @@ export default async function AdminCompanyPage({ params }: { params: Promise<{ i
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Members & overrides (US-203)</CardTitle>
+          <CardTitle className="text-sm">Members & overrides</CardTitle>
           <CardDescription>
             Every override requires a reason, is audited, and emails the affected user.
           </CardDescription>

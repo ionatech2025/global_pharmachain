@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const DEFAULT_PAGE_SIZE = 20; // US-304: 20 results per page
+// One page size for every list in the app, so pagination reads the same
+// wherever you are. 10 keeps a page scannable without scrolling.
+export const DEFAULT_PAGE_SIZE = 10;
 
 export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

@@ -7,6 +7,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   ORDER_DOCUMENT_KINDS,
 } from "../files";
+import { optionalFilter } from "./common";
 
 const linkFields = {
   listingId: z.uuid().optional(),
@@ -18,7 +19,9 @@ const linkFields = {
 // Upload contract (US-102/303/501/602):
 // - verification docs + logo: company-scoped, no entity link
 // - SDS: linked to a listing
-// - order documents: linked to an order
+// - Certificate of Analysis: linked to a listing (the product's standing CoA,
+//   shown in the marketplace) OR to an order (the CoA for that consignment)
+// - other order documents: linked to an order
 // - RFQ/quotation/message attachments: uploaded unlinked, linked by the
 //   create endpoint that consumes them
 export const documentRequestUploadSchema = z
@@ -52,7 +55,20 @@ export const documentRequestUploadSchema = z
     if (val.kind === "SDS" && !val.listingId) {
       ctx.addIssue({ code: "custom", path: ["listingId"], message: "SDS must link to a listing" });
     }
-    if ((ORDER_DOCUMENT_KINDS as readonly DocumentKind[]).includes(val.kind) && !val.orderId) {
+    if (val.kind === "CERTIFICATE_OF_ANALYSIS") {
+      // A CoA is the one order document that also belongs on a catalogue
+      // listing: buyers compare products on it before any order exists.
+      if (!val.listingId && !val.orderId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["listingId"],
+          message: "Certificate of Analysis must link to a listing or an order",
+        });
+      }
+    } else if (
+      (ORDER_DOCUMENT_KINDS as readonly DocumentKind[]).includes(val.kind) &&
+      !val.orderId
+    ) {
       ctx.addIssue({ code: "custom", path: ["orderId"], message: "Must link to an order" });
     }
     if (expiryRequired(val.kind)) {
@@ -74,8 +90,8 @@ export const documentRequestUploadSchema = z
 export type DocumentRequestUpload = z.infer<typeof documentRequestUploadSchema>;
 
 export const documentListQuerySchema = z.object({
-  kind: z.enum(DOCUMENT_KINDS).optional(),
-  orderId: z.uuid().optional(),
-  listingId: z.uuid().optional(),
-  expiringWithinDays: z.coerce.number().int().min(1).max(365).optional(),
+  kind: optionalFilter(z.enum(DOCUMENT_KINDS)),
+  orderId: optionalFilter(z.uuid()),
+  listingId: optionalFilter(z.uuid()),
+  expiringWithinDays: optionalFilter(z.coerce.number().int().min(1).max(365)),
 });

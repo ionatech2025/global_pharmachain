@@ -10,6 +10,7 @@ import {
 } from "@pharmachain/ui/components/card";
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
+import { PasswordInput } from "@pharmachain/ui/components/password-input";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -52,9 +53,8 @@ function ChangePasswordCard() {
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="current">Current password</Label>
-            <Input
+            <PasswordInput
               id="current"
-              type="password"
               autoComplete="current-password"
               required
               value={currentPassword}
@@ -64,9 +64,8 @@ function ChangePasswordCard() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="new">New password</Label>
-              <Input
+              <PasswordInput
                 id="new"
-                type="password"
                 autoComplete="new-password"
                 required
                 minLength={12}
@@ -76,9 +75,8 @@ function ChangePasswordCard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirm">Confirm new password</Label>
-              <Input
+              <PasswordInput
                 id="confirm"
-                type="password"
                 autoComplete="new-password"
                 required
                 value={confirm}
@@ -222,7 +220,7 @@ function DataPrivacyCard() {
       <CardHeader>
         <CardTitle className="text-sm">Your data</CardTitle>
         <CardDescription>
-          Export a copy of your personal data, or request account deletion (30-day SLA, US-1003).
+          Export a copy of your personal data, or request account deletion (30-day SLA).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
@@ -441,10 +439,9 @@ function TotpCard({ initiallyEnabled }: { initiallyEnabled: boolean }) {
           <form onSubmit={disable} className="flex flex-wrap items-end gap-2">
             <div className="min-w-44 flex-1">
               <Label htmlFor="totp-disable-password">Password</Label>
-              <Input
+              <PasswordInput
                 id="totp-disable-password"
                 className="mt-1"
-                type="password"
                 required
                 autoComplete="current-password"
                 value={password}

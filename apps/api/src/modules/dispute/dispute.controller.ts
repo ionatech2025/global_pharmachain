@@ -5,6 +5,7 @@ import {
   disputeCreateSchema,
   disputeResolveSchema,
   idParamSchema,
+  optionalFilter,
 } from "@pharmachain/core";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -20,7 +21,7 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
 import { DisputeService } from "./dispute.service";
 
-const adminListQuerySchema = z.object({ status: z.enum(DISPUTE_STATUSES).optional() });
+const adminListQuerySchema = z.object({ status: optionalFilter(z.enum(DISPUTE_STATUSES)) });
 
 @Controller()
 export class DisputeController {

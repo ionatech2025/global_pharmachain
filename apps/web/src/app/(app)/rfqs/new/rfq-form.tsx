@@ -224,7 +224,7 @@ export function RfqForm({
                       }
                     />
                   </FormControl>
-                  <FormDescription>Past deadlines are rejected (US-401 TC2).</FormDescription>
+                  <FormDescription>Past deadlines are rejected.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -30,9 +30,23 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-4">
+      {/*
+       * Which side of this RFQ you are on decides what the page does, so it is
+       * stated rather than implied. A supplier reaching this page from the
+       * Quote inbox sees a quotation form; QA read that as the buyer being
+       * asked to resubmit someone else's quote. The eyebrow and the back link
+       * both name the role, so the panel below is never a surprise.
+       */}
       <PageHeader
+        backHref={rfq.viewerIsBuyer ? "/rfqs" : "/quotes"}
+        backLabel={rfq.viewerIsBuyer ? "My RFQs" : "Quote inbox"}
+        eyebrow={rfq.viewerIsBuyer ? "RFQ you raised" : "RFQ you can quote on"}
         title={`${rfq.refNo} — ${rfq.title}`}
-        description={`Buyer: ${rfq.buyerCompany.name}`}
+        description={
+          rfq.viewerIsBuyer
+            ? `Raised by your company · ${rfq.buyerCompany.name}`
+            : `Buyer: ${rfq.buyerCompany.name}`
+        }
       >
         <RfqStatusBadge status={rfq.status} />
         {rfq.viewerIsBuyer && rfq.status === "OPEN" && <CancelRfqButton rfqId={rfq.id} />}

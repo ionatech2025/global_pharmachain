@@ -1254,6 +1254,17 @@ model CreditRequest {
   note          String?
   decidedAt     DateTime?
   createdAt     DateTime     @default(now())
+  // In-platform settlement of the platform fee. Nullable throughout: a request
+  // raised before checkout existed, or paid by arrangement, still settles
+  // through the admin queue. Card/mobile-money requests are confirmed by the
+  // provider webhook keyed on paymentRef; bank transfer carries instructions
+  // and is confirmed by the platform team.
+  paymentMethod       PaymentMethod?
+  paymentProvider     String?
+  paymentRef          String?    @unique
+  paymentInstructions String?
+  paymentInitiatedAt  DateTime?
+  webhookPayload      Json?
 
   company     Company @relation(fields: [companyId], references: [id])
   requestedBy User    @relation(fields: [requestedById], references: [id])

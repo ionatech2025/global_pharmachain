@@ -139,6 +139,16 @@ export class RfqController {
 export class QuotationController {
   constructor(private readonly rfqService: RfqService) {}
 
+  /** Quotations this company has sent (any status but SUPERSEDED). */
+  @RequirePermission("quotation:read")
+  @Get("mine")
+  listMine(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.rfqService.myQuotations(membership, query);
+  }
+
   @RequirePermission("quotation:write")
   @RequireVerified()
   @Post(":id/resubmit")

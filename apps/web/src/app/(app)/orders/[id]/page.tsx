@@ -171,6 +171,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <PageHeader
+        backHref="/orders"
+        backLabel="Orders"
         title={`Order ${order.orderNo}`}
         description={`${order.title} · from RFQ ${order.rfq.refNo}`}
       >
@@ -446,7 +448,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Status history</CardTitle>
-            <CardDescription>Every change is timestamped with its note (US-702).</CardDescription>
+            <CardDescription>Every change is timestamped with its note.</CardDescription>
           </CardHeader>
           <CardContent>
             {order.statusEvents.length === 0 ? (
@@ -498,7 +500,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div>
             <CardTitle className="text-sm">Order documents</CardTitle>
             <CardDescription>
-              Grouped by type, newest first; superseded versions are retained (US-501/502).
+              Grouped by type, newest first; superseded versions are retained.
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">

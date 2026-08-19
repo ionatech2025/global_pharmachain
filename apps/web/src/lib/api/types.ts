@@ -51,6 +51,9 @@ export interface CompanyRef {
 
 export type CompanyMe = Jsonify<Company> & {
   _count: { members: number; listings: number };
+  /** Newest completed COMPANY_LOGO upload, or null when none exists. */
+  logoDocumentId: string | null;
+  logoFileName: string | null;
 };
 
 /** GET /companies/me wraps the company with the caller's role. */
@@ -68,9 +71,13 @@ export type MemberRow = Jsonify<CompanyUserRole> & {
 
 export type ListingRow = Jsonify<Listing> & {
   category: Pick<CategoryRow, "id" | "name" | "slug">;
+  /** SDS versions, newest first. */
   documents: Array<{ id: string; fileName: string; version: number }>;
   hasSds: boolean;
   sdsMissing: boolean;
+  /** Current Certificate of Analysis for this listing, or null. */
+  coaDocument: { id: string; fileName: string; version: number } | null;
+  hasCoa: boolean;
   company?: CompanyRef;
 };
 
@@ -98,6 +105,18 @@ export type RfqDetail = Jsonify<Rfq> & {
 export type QuotationRow = Jsonify<Quotation> & {
   supplierCompany: CompanyRef;
   documents: Array<{ id: string; fileName: string }>;
+};
+
+/** GET /quotations/mine — a quotation seen from the supplier's own side. */
+export type MyQuotationRow = Jsonify<Quotation> & {
+  rfq: {
+    id: string;
+    refNo: string;
+    title: string;
+    deadline: string;
+    status: string;
+    buyerCompany: CompanyRef;
+  };
 };
 
 export type OrderRow = Jsonify<Order> & {

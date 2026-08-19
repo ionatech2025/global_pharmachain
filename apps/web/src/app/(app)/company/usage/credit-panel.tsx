@@ -4,9 +4,10 @@ import {
   CREDIT_KIND_LABELS,
   CREDIT_KINDS,
   type CreditKind,
+  PAYMENT_METHOD_LABELS,
+  type PaymentMethod,
   type SubscriptionTier,
 } from "@pharmachain/core";
-import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
@@ -15,7 +16,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@pharmachain/ui/components/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@pharmachain/ui/components/dialog";
 import { Input } from "@pharmachain/ui/components/input";
+import { Label } from "@pharmachain/ui/components/label";
 import {
   Table,
   TableBody,
@@ -24,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@pharmachain/ui/components/table";
+import { CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -31,10 +43,22 @@ import { CreditStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { CreditRequestRow } from "@/lib/api/types";
+
+/** GET /billing/payment-methods — what this deployment can actually settle. */
+interface EnabledMethod {
+  method: PaymentMethod;
+  sandbox: boolean;
+}
+
 import { fmtDate, fmtMoney } from "@/lib/format";
 
-/** Manual billing flow (US-907): request credits → pay off-platform → the
- *  platform team confirms receipt, raising this month's effective limit. */
+/**
+ * In-platform billing (US-907, QA round 2): request credits → pay here → the
+ * confirmation raises this month's effective limit. Card and mobile money
+ * confirm automatically on the provider webhook; bank transfer and escrow show
+ * a quotable reference and are confirmed by the platform team. Money between
+ * two trading companies stays off-platform, by design.
+ */
 export function CreditRequestPanel({
   credits,
   canRequest,
@@ -101,7 +125,7 @@ export function CreditRequestPanel({
         count: Number(count),
       });
       toast.success(
-        `Request submitted — fee ${fmtMoney(created.fee, "USD")}. The platform team confirms once payment is received.`,
+        `Request created — fee ${fmtMoney(created.fee, created.currency)}. Pay it below to activate the credits.`,
       );
       router.refresh();
     } catch (err) {
@@ -159,7 +183,7 @@ export function CreditRequestPanel({
                 {flat
                   ? "(one-off)"
                   : `(${fmtMoney(feePerCredit ?? "0", fees.currency)} per credit)`}{" "}
-                — payable off-platform, confirmed by the platform team.
+                — pay it here as soon as the request is created.
               </p>
             )}
           </form>
@@ -176,6 +200,7 @@ export function CreditRequestPanel({
                 <TableHead>Credits</TableHead>
                 <TableHead>Fee</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,6 +213,9 @@ export function CreditRequestPanel({
                   <TableCell>
                     <CreditStatusBadge status={c.status} />
                   </TableCell>
+                  <TableCell className="text-right">
+                    {c.status === "PENDING_PAYMENT" && <PayFeeDialog request={c} />}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -195,5 +223,149 @@ export function CreditRequestPanel({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * In-platform checkout for one pending fee.
+ *
+ * Two shapes behind one button, because the settlement differs: card and
+ * mobile money hand off to the provider and confirm on its webhook, so the
+ * dialog just says "watch this space"; bank transfer and escrow produce a
+ * reference to quote, and the payer tells us once they have sent it — which
+ * queues it for the platform team rather than granting anything.
+ */
+function PayFeeDialog({ request }: { request: CreditRequestRow }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [methods, setMethods] = useState<EnabledMethod[] | null>(null);
+  const [method, setMethod] = useState<PaymentMethod>("BANK_TRANSFER");
+  const [instructions, setInstructions] = useState<string | null>(
+    request.paymentInstructions ?? null,
+  );
+  const [reference, setReference] = useState<string | null>(request.paymentRef ?? null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || methods) return;
+    api
+      .get<EnabledMethod[]>("/billing/payment-methods")
+      .then((m) => {
+        setMethods(m);
+        if (m[0]) setMethod(m[0].method);
+      })
+      .catch(() => setMethods([]));
+  }, [open, methods]);
+
+  const selfConfirming = method === "CARD" || method === "MOBILE_MONEY";
+
+  async function startPayment() {
+    setBusy(true);
+    try {
+      const result = await api.post<{ request: CreditRequestRow; instructions: string }>(
+        `/billing/credit-requests/${request.id}/pay`,
+        { method },
+      );
+      setInstructions(result.instructions);
+      setReference(result.request.paymentRef ?? null);
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function declarePaid() {
+    setBusy(true);
+    try {
+      await api.post(`/billing/credit-requests/${request.id}/declare-paid`);
+      toast.success("Thanks — the platform team will confirm once the funds land.");
+      setOpen(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <CreditCard className="size-3.5" /> Pay {fmtMoney(request.fee, request.currency)}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pay platform fee</DialogTitle>
+          <DialogDescription>
+            {fmtMoney(request.fee, request.currency)} for {request.count}{" "}
+            {CREDIT_KIND_LABELS[request.kind as CreditKind] ?? request.kind}. Credits activate as
+            soon as the payment is confirmed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3">
+          <div className="grid gap-2">
+            <Label htmlFor={`method-${request.id}`}>Payment method</Label>
+            <select
+              id={`method-${request.id}`}
+              className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50"
+              value={method}
+              disabled={busy || methods === null}
+              onChange={(e) => {
+                setMethod(e.target.value as PaymentMethod);
+                setInstructions(null);
+                setReference(null);
+              }}
+            >
+              {(methods ?? []).map((m) => (
+                <option key={m.method} value={m.method}>
+                  {PAYMENT_METHOD_LABELS[m.method]}
+                  {m.sandbox ? " (sandbox)" : ""}
+                </option>
+              ))}
+            </select>
+            {methods?.length === 0 && (
+              <p className="text-xs text-destructive">
+                No payment method is enabled on this deployment — contact the platform team.
+              </p>
+            )}
+          </div>
+
+          {instructions && (
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <p className="whitespace-pre-wrap">{instructions}</p>
+              {reference && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Reference: <span className="font-mono text-foreground">{reference}</span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {!instructions ? (
+            <Button
+              onClick={startPayment}
+              disabled={busy || methods === null || methods.length === 0}
+            >
+              {busy ? "Starting…" : "Continue"}
+            </Button>
+          ) : selfConfirming ? (
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Done — awaiting confirmation
+            </Button>
+          ) : (
+            <Button onClick={declarePaid} disabled={busy}>
+              {busy ? "Sending…" : "I have sent this payment"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

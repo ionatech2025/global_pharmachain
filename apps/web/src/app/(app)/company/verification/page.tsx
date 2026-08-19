@@ -45,7 +45,7 @@ export default async function VerificationPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Verification"
-        description="Upload the required documents; the platform team reviews them (US-102/105). Re-uploads create a new version — prior versions are retained."
+        description="Upload the required documents; the platform team reviews them. Re-uploads create a new version — prior versions are retained."
       >
         <VerificationStatusBadge status={checklist.verificationStatus} />
       </PageHeader>

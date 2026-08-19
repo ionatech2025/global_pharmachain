@@ -94,7 +94,7 @@ server components call the API directly with a typed client.
 | Virus scan (marks uploads clean) | `api/document` scan step | Phase 2: ClamAV / vendor API |
 | WhatsApp channel (console log + silent email/in-app fallback) | `packages/notifications` | Phase 2: WhatsApp Business API |
 | SMS/WhatsApp OTP delivery (email OTP is live) | `packages/email` OTP template + channel adapters | Phase 2 |
-| Payment for credit requests (manual admin confirm) | `api/billing` + `api/admin` | Phase 2: gateway |
+| Payment for credit requests | `api/billing` (gateway checkout + webhook settlement) + `api/admin` (bank-transfer confirmation) | Done |
 | Exchange rates (admin-managed, display-only) | `api/admin` FX endpoints | Phase 2: live FX feed |
 | Playwright e2e | `e2e/` | Since grown into the real 35-test suite (golden path, routes, endpoints, security) — run with `E2E_BASE_URL` against any deployment |
 

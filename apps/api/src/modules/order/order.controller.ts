@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from "@nestjs/common";
 import {
   idParamSchema,
+  optionalFilter,
   paginate,
   paginationQuerySchema,
   requiredShipmentDocKinds,
@@ -22,7 +23,7 @@ import { resolveShipmentRole } from "../../lib/shipment-access";
 import { DocumentService } from "../document/document.service";
 
 const orderListQuerySchema = paginationQuerySchema.extend({
-  role: z.enum(["buyer", "seller"]).optional(),
+  role: optionalFilter(z.enum(["buyer", "seller"])),
 });
 type OrderListQuery = z.infer<typeof orderListQuerySchema>;
 

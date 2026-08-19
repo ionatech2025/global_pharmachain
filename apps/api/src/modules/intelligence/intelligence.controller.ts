@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query, Res } from "@nestjs/common";
-import { idParamSchema, renderCsv, renderPdf } from "@pharmachain/core";
+import { idParamSchema, optionalFilter, renderCsv, renderPdf } from "@pharmachain/core";
 import type { FastifyReply } from "fastify";
 import QRCode from "qrcode";
 import { z } from "zod";
@@ -15,7 +15,7 @@ import type { AuthUser, Membership } from "../../lib/context";
 import { IntelligenceService } from "./intelligence.service";
 import { TraceService } from "./trace.service";
 
-const categoryQuerySchema = z.object({ categoryId: z.uuid().optional() });
+const categoryQuerySchema = z.object({ categoryId: optionalFilter(z.uuid()) });
 const formatQuerySchema = z.object({ format: z.enum(["json", "csv", "pdf"]).default("json") });
 const publicVerifySchema = z.object({
   orderNo: z.string().min(4).max(40),

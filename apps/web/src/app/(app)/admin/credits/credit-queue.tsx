@@ -1,5 +1,6 @@
 "use client";
 
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Table,
@@ -50,6 +51,7 @@ export function CreditQueue({ requests }: { requests: AdminCreditRequestRow[] })
           <TableHead>Type</TableHead>
           <TableHead>Credits</TableHead>
           <TableHead>Fee</TableHead>
+          <TableHead>Payment</TableHead>
           <TableHead />
         </TableRow>
       </TableHeader>
@@ -71,6 +73,23 @@ export function CreditQueue({ requests }: { requests: AdminCreditRequestRow[] })
             <TableCell>{request.kind}</TableCell>
             <TableCell>{request.count}</TableCell>
             <TableCell className="font-medium">{fmtMoney(request.fee, request.currency)}</TableCell>
+            {/* The reference the payer was given — what a bank statement line
+                is reconciled against before Confirm is clicked. */}
+            <TableCell className="text-xs">
+              {request.paymentRef ? (
+                <>
+                  <span className="font-mono">{request.paymentRef}</span>
+                  <p className="text-muted-foreground">
+                    {request.paymentMethod
+                      ? (PAYMENT_METHOD_LABELS[request.paymentMethod as PaymentMethod] ??
+                        request.paymentMethod)
+                      : "—"}
+                  </p>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Not started</span>
+              )}
+            </TableCell>
             <TableCell className="space-x-1 text-right">
               <Button
                 size="sm"

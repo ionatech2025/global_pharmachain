@@ -69,7 +69,7 @@ export const PARAM_DEFINITIONS: readonly ParamDefinition[] = [
     key: PARAM_KEYS.CREDIT_FEE_CURRENCY,
     type: "currency",
     defaultValue: "USD",
-    description: "ISO 4217 currency the per-credit fees are charged in (US-907)",
+    description: "ISO 4217 currency the per-credit fees are charged in",
   },
   {
     key: PARAM_KEYS.COMPANY_USER_LIMIT,

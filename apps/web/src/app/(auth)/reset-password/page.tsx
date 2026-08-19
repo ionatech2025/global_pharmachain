@@ -8,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@pharmachain/ui/components/card";
-import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
+import { PasswordInput } from "@pharmachain/ui/components/password-input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -48,9 +48,8 @@ function ResetForm() {
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="password">New password</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={8}
               autoComplete="new-password"

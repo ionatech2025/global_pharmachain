@@ -11,3 +11,14 @@ export function generateRefNo(prefix: string, now = new Date()): string {
   for (const b of bytes) suffix += ALPHABET[b % ALPHABET.length];
   return `${prefix}-${now.getUTCFullYear()}-${suffix}`;
 }
+
+/**
+ * Short, human-quotable payment reference (`PAY-M3K9XQ7B2`). Unlike
+ * generateRefNo it carries no date segment — it is read aloud over the phone
+ * and typed into a bank transfer narration, so shorter is better.
+ */
+export function refCode(prefix: string): string {
+  const stamp = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `${prefix}-${stamp}${rand}`;
+}

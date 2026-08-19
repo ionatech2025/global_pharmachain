@@ -30,10 +30,7 @@ export default async function OrdersPage({
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Orders"
-        description="Confirmed orders with live shipment status (US-405/702)."
-      >
+      <PageHeader title="Orders" description="Confirmed orders with live shipment status.">
         <div className="flex gap-1 text-sm">
           {[
             ["", "All"],

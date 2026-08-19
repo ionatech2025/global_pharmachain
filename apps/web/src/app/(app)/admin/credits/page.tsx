@@ -13,7 +13,7 @@ export default async function AdminCreditsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Credit requests"
-        description="Payments are handled off-platform (US-907); confirm once the fee is received — the company's limit rises immediately for the current month."
+        description="Card and mobile-money fees confirm themselves on the provider webhook. These are the bank-transfer and escrow ones: match the reference against the statement, then confirm — the company's limit rises immediately for the current month."
       />
       <CreditQueue requests={requests} />
     </div>

@@ -7,6 +7,7 @@ import {
   type ListingUpdate,
   listingCreateSchema,
   listingUpdateSchema,
+  optionalFilter,
 } from "@pharmachain/core";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -22,8 +23,8 @@ import type { AuthUser, Membership } from "../../lib/context";
 import { CatalogueService } from "./catalogue.service";
 
 const myListingsQuerySchema = z.object({
-  status: z.enum(["DRAFT", "PUBLISHED", "DEACTIVATED"]).optional(),
-  kind: z.enum(["RAW_MATERIAL", "FINISHED_PRODUCT"]).optional(),
+  status: optionalFilter(z.enum(["DRAFT", "PUBLISHED", "DEACTIVATED"])),
+  kind: optionalFilter(z.enum(["RAW_MATERIAL", "FINISHED_PRODUCT"])),
 });
 type MyListingsQuery = z.infer<typeof myListingsQuerySchema>;
 

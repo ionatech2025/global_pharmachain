@@ -19,6 +19,7 @@ import {
   creditDecisionSchema,
   exchangeRateUpsertSchema,
   idParamSchema,
+  optionalFilter,
   PARAM_DEFINITIONS,
   paginate,
   paginationQuerySchema,
@@ -39,18 +40,21 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import { env } from "../../env";
 import type { AuthUser } from "../../lib/context";
 import { invalidateParamCache } from "../../lib/params";
+import { BillingService } from "../billing/billing.service";
 import { platformStats } from "../dashboard/dashboard.service";
 import { AdminService } from "./admin.service";
 
 const companiesQuerySchema = paginationQuerySchema.extend({
-  status: z.enum(["PENDING_VERIFICATION", "VERIFIED", "REJECTED", "EXPIRED_DOCUMENT"]).optional(),
-  q: z.string().max(120).optional(),
+  status: optionalFilter(
+    z.enum(["PENDING_VERIFICATION", "VERIFIED", "REJECTED", "EXPIRED_DOCUMENT"]),
+  ),
+  q: optionalFilter(z.string().max(120)),
 });
 type CompaniesQuery = z.infer<typeof companiesQuerySchema>;
 
 const loginActivityQuerySchema = paginationQuerySchema.extend({
-  userId: z.uuid().optional(),
-  email: z.string().max(200).optional(),
+  userId: optionalFilter(z.uuid()),
+  email: optionalFilter(z.string().max(200)),
 });
 type LoginActivityQuery = z.infer<typeof loginActivityQuerySchema>;
 
@@ -64,7 +68,10 @@ type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
 @SuperAdminOnly()
 @Controller("admin")
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly billingService: BillingService,
+  ) {}
 
   @Get("stats")
   stats() {
@@ -523,60 +530,13 @@ export class AdminController {
     @Req() req: FastifyRequest,
   ) {
     const confirm = body.decision === "CONFIRM";
-    const result = await prisma.creditRequest.updateMany({
-      where: { id: params.id, status: "PENDING_PAYMENT" },
-      data: {
-        status: confirm ? "CONFIRMED" : "REJECTED",
-        confirmedById: user.id,
-        decidedAt: new Date(),
-        note: body.note,
-      },
-    });
-    if (result.count === 0) throw conflict("This credit request was already decided");
-    const request = await prisma.creditRequest.findUniqueOrThrow({
-      where: { id: params.id },
-      include: { company: { select: { name: true } } },
-    });
-    // Phase 4 §3: confirmed monetisation purchases take effect immediately —
-    // featured placement runs 30 days; premium verification upgrades the tier.
-    if (confirm && request.kind === "FEATURED") {
-      await prisma.company.update({
-        where: { id: request.companyId },
-        data: {
-          subscriptionTier: "FEATURED",
-          featuredUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
-    }
-    if (confirm && request.kind === "DATA_INSIGHTS") {
-      await prisma.company.update({
-        where: { id: request.companyId },
-        data: { insightsUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
-      });
-    }
-    if (confirm && request.kind === "VERIFICATION_PREMIUM") {
-      await prisma.company.update({
-        where: { id: request.companyId },
-        data: { subscriptionTier: "PREMIUM" },
-      });
-    }
-    await notify({
-      companyId: request.companyId,
-      roles: ["COMPANY_ADMIN"],
-      type: "CREDIT_UPDATE",
-      title: confirm ? "Credits confirmed" : "Credit request rejected",
-      body: confirm
-        ? `${request.count} ${request.kind} credit(s) are now active for this month.`
-        : `Your ${request.kind} credit request was rejected. ${body.note ?? ""}`,
-      href: "/company/usage",
-      emailContent: genericEventEmail({
-        title: confirm ? "Credits confirmed" : "Credit request rejected",
-        body: confirm
-          ? `Payment received — ${request.count} ${request.kind} credit(s) added to ${request.company.name}'s allowance this month.`
-          : `The credit request was rejected. ${body.note ?? ""}`,
-        url: `${env.APP_URL}/company/usage`,
-      }),
-    });
+    // Same settlement path the provider webhook uses, so the grants a
+    // confirmed purchase unlocks cannot drift between the two routes.
+    const request = await this.billingService.settle(
+      params.id,
+      confirm ? "CONFIRMED" : "REJECTED",
+      { confirmedById: user.id, note: body.note },
+    );
     setAudit(req, {
       action: confirm ? "credit.confirm" : "credit.reject",
       entityType: "CreditRequest",

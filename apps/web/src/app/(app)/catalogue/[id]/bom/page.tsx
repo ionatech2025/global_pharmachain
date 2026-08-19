@@ -26,8 +26,10 @@ export default async function BomPage({ params }: { params: Promise<{ id: string
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
+        backHref={`/catalogue/${id}`}
+        backLabel={listing.name}
         title={`BOM — ${listing.name}`}
-        description="Versions are never overwritten; one version is Active at a time (US-801/803)."
+        description="Versions are never overwritten; one version is Active at a time."
       />
       <BomManager
         productListingId={id}

@@ -377,8 +377,13 @@ export class DocumentService {
         select: { verificationStatus: true, profileStatus: true },
       });
       allowed = owner?.verificationStatus === "VERIFIED" && owner?.profileStatus === "PUBLISHED";
-    } else if (document.listing && document.kind === "SDS") {
-      // US-303: SDS downloadable by any authenticated buyer on a published listing
+    } else if (
+      document.listing &&
+      (document.kind === "SDS" || document.kind === "CERTIFICATE_OF_ANALYSIS")
+    ) {
+      // US-303: SDS downloadable by any authenticated buyer on a published
+      // listing. A listing's Certificate of Analysis is published on the same
+      // terms — it is the quality evidence buyers shortlist suppliers on.
       allowed =
         document.listing.status === "PUBLISHED" &&
         document.listing.company.verificationStatus === "VERIFIED";

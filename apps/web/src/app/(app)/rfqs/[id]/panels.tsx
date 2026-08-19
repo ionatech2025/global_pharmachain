@@ -138,9 +138,12 @@ export function BuyerQuotations({
           <CardTitle className="text-sm">Quotations ({quotations.length})</CardTitle>
           <CardDescription>Latest version per supplier; withdrawn/expired marked.</CardDescription>
         </div>
+        {/* Nothing to sort with an empty table — the controls read as live
+            actions otherwise, which QA flagged on a zero-quotation RFQ. */}
         <div className="flex gap-1 text-xs">
           <Button
             size="sm"
+            disabled={quotations.length === 0}
             variant={sort === "price" ? "secondary" : "ghost"}
             onClick={() => resort("price")}
           >
@@ -148,6 +151,7 @@ export function BuyerQuotations({
           </Button>
           <Button
             size="sm"
+            disabled={quotations.length === 0}
             variant={sort === "leadTime" ? "secondary" : "ghost"}
             onClick={() => resort("leadTime")}
           >
@@ -347,11 +351,13 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
       <CardHeader className="flex-row items-center justify-between">
         <div>
           <CardTitle className="text-sm">
-            {existing ? `Your quotation (v${existing.version})` : "Submit a quotation"}
+            {existing
+              ? `Your company's quotation (v${existing.version})`
+              : "Submit your company's quotation"}
           </CardTitle>
           <CardDescription>
             {open
-              ? "Resubmitting before the deadline replaces your previous version."
+              ? `This is the offer your company sends ${rfq.buyerCompany.name}. Resubmitting before the deadline replaces your previous version.`
               : "This RFQ is no longer accepting quotations."}
           </CardDescription>
         </div>

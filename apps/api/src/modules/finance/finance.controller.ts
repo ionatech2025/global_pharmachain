@@ -159,11 +159,13 @@ export class FinanceController {
   ) {
     // Flutterwave signs via header; mirror it into the payload for the adapter.
     const verifHash = req.headers["verif-hash"];
-    const payment = await this.financeService.handleWebhook(params.provider, {
+    // One endpoint settles both order payments and platform fees; the
+    // reference decides which, and both carry a `status` worth echoing back.
+    const settled = await this.financeService.handleWebhook(params.provider, {
       ...body,
       ...(verifHash ? { _verifHash: verifHash } : {}),
     });
-    return { ok: true, status: payment.status };
+    return { ok: true, status: settled.status };
   }
 
   // ─── Invoices ──────────────────────────────────────────────────────────────

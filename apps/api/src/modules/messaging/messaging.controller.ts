@@ -3,6 +3,7 @@ import {
   idParamSchema,
   type MessageCreate,
   messageCreateSchema,
+  optionalFilter,
   type ThreadLookup,
   threadLookupSchema,
 } from "@pharmachain/core";
@@ -18,7 +19,7 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
 import { MessagingService } from "./messaging.service";
 
-const afterQuerySchema = z.object({ after: z.iso.datetime().optional() });
+const afterQuerySchema = z.object({ after: optionalFilter(z.iso.datetime()) });
 type AfterQuery = z.infer<typeof afterQuerySchema>;
 
 @Controller("threads")

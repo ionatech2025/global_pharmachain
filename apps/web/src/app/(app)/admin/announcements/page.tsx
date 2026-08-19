@@ -18,7 +18,7 @@ export default async function AdminAnnouncementsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Announcements"
-        description="Shown as a banner and in the notification centre for the chosen audience until expiry or retraction (US-902). No emails are sent."
+        description="Shown as a banner and in the notification centre for the chosen audience until expiry or retraction. No emails are sent."
       />
       <AnnouncementManager announcements={announcements} companies={companies.items} />
     </div>
