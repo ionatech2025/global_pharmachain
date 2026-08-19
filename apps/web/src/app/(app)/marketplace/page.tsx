@@ -12,6 +12,7 @@ import {
 } from "@pharmachain/ui/components/table";
 import Link from "next/link";
 import { CompareButton, CompareTray } from "@/components/compare";
+import { DocumentChip } from "@/components/document-chip";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
@@ -59,7 +60,7 @@ export default async function MarketplacePage({
     <div className="space-y-4">
       <PageHeader
         title="Marketplace"
-        description="Search verified suppliers' published listings (US-304)."
+        description="Search verified suppliers' published listings."
       />
 
       <form className="flex flex-wrap items-end gap-2" action="/marketplace" method="get">
@@ -140,7 +141,7 @@ export default async function MarketplacePage({
                 <TableHead>Category</TableHead>
                 <TableHead>Origin</TableHead>
                 <TableHead>Price</TableHead>
-                <TableHead>SDS</TableHead>
+                <TableHead>COA</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -148,7 +149,13 @@ export default async function MarketplacePage({
               {results.items.map((l) => (
                 <TableRow key={l.id}>
                   <TableCell className="font-medium">
-                    {l.name}
+                    {/* QA finding: the table only opened the *company*, but the
+                        buyer's interest is the product. The listing name is now
+                        the primary link; the supplier column still opens the
+                        company profile. */}
+                    <Link href={`/marketplace/${l.id}`} className="text-primary hover:underline">
+                      {l.name}
+                    </Link>
                     {l.casNumber && (
                       <span className="ml-2 text-xs text-muted-foreground">CAS {l.casNumber}</span>
                     )}
@@ -194,12 +201,19 @@ export default async function MarketplacePage({
                     )}
                   </TableCell>
                   <TableCell>
-                    {l.sdsMissing ? (
-                      <Badge variant="warning">SDS missing</Badge>
-                    ) : l.hasSds ? (
-                      <Badge variant="success">SDS</Badge>
+                    {/* The Certificate of Analysis is what buyers shortlist on,
+                        so it holds the column. The SDS hazard warning stays —
+                        it is a safety signal, not a quality one — but sits
+                        underneath rather than taking the header. */}
+                    {l.coaDocument ? (
+                      <DocumentChip id={l.coaDocument.id} fileName={l.coaDocument.fileName} />
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">No COA</span>
+                    )}
+                    {l.sdsMissing && (
+                      <Badge variant="warning" className="mt-1">
+                        SDS missing
+                      </Badge>
                     )}
                   </TableCell>
                   <TableCell>

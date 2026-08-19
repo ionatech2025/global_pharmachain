@@ -1,9 +1,8 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import type { UsageEvaluation } from "@pharmachain/core";
 import { Meter } from "@/components/dashboard/charts";
 import { Panel, PanelBody, PanelHeader } from "@/components/dashboard/panel";
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { CreditRequestRow, UsageSummary } from "@/lib/api/types";
 import { CreditRequestPanel } from "./credit-panel";
 
@@ -45,14 +44,15 @@ export default async function UsagePage() {
   const [usage, credits, me] = await Promise.all([
     api.get<UsageSummary>("/companies/me/usage"),
     api.get<CreditRequestRow[]>("/billing/credit-requests"),
-    api.get<AuthenticatedUser>("/auth/me"),
+    // Request-deduplicated: the layout already fetched this.
+    getViewer(),
   ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Usage & credits"
-        description="Freemium monthly allowances reset each calendar month (UTC). Confirmed credits raise this month's limit (US-906/907)."
+        description="Freemium monthly allowances reset each calendar month (UTC). Confirmed credits raise this month's limit."
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <UsageCard title="RFQs created" usage={usage.rfq} />

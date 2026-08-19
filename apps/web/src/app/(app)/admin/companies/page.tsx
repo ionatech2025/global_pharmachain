@@ -1,6 +1,5 @@
 import { COMPANY_TYPE_LABELS } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
-import { Input } from "@pharmachain/ui/components/input";
 import {
   Table,
   TableBody,
@@ -11,6 +10,7 @@ import {
 } from "@pharmachain/ui/components/table";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
+import { LiveSearch } from "@/components/live-search";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
 import { VerificationStatusBadge } from "@/components/status-badge";
@@ -39,19 +39,14 @@ export default async function AdminCompaniesPage({
         title="Companies"
         description="All registered companies; open one to manage verification, tier and members."
       >
-        <form method="GET" action="/admin/companies">
-          <Input
-            name="q"
-            aria-label="Search companies"
-            placeholder="Search by name…"
-            defaultValue={params.q}
-            className="w-56"
-          />
-        </form>
+        <LiveSearch label="Search companies" placeholder="Search by name…" className="w-64" />
       </PageHeader>
 
       {companies.items.length === 0 ? (
-        <EmptyState title="No companies found" hint="Try a different search." />
+        <EmptyState
+          title="No companies found"
+          hint="No company matches that name — clear the search to see all registered companies."
+        />
       ) : (
         <>
           <Table>

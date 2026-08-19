@@ -380,8 +380,12 @@ printing invite and reset links.
 6. Virus scanning and "automated document checks" are pluggable stubs (the
    checks — presence/expiry/type — are real; the scanner interface is stubbed).
 7. Multi-currency is display-only, converted through admin-managed rates.
-8. Credit/tier billing is manual admin confirmation (US-907) — no payment
-   gateway in Phase 1.
+8. Credit/tier billing is paid in-platform through the same gateway
+   abstraction order payments use (`apps/api/src/lib/payment-gateways.ts`):
+   card and mobile money settle on the provider webhook, bank transfer
+   produces a quotable reference the platform team confirms in
+   `/admin/credits`. Escrow is excluded — it is a B2B instrument. Money
+   between two trading companies stays off-platform by design.
 9. Bun is the package manager and API runtime; the web app runs on the Node
    runtime (Next.js standalone) for stability. NestJS injectables must use
    value imports (`import { XService }`), never `import type` — type-only

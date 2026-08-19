@@ -25,8 +25,10 @@ export default async function NewRfqPage({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader
+        backHref="/rfqs"
+        backLabel="My RFQs"
         title="Raise an RFQ"
-        description="Visible only to verified companies in the target category (US-401)."
+        description="Visible only to verified companies in the target category."
       />
       <RfqForm
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}

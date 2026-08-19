@@ -1,6 +1,5 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { InviteRow, MemberRow } from "@/lib/api/types";
 import { InvitePanel, MembersTable } from "./members-panel";
 
@@ -11,7 +10,8 @@ export default async function MembersPage() {
   const [members, invites, me] = await Promise.all([
     api.get<MemberRow[]>("/companies/me/members"),
     api.get<InviteRow[]>("/companies/me/invites"),
-    api.get<AuthenticatedUser>("/auth/me"),
+    // Request-deduplicated: the layout already fetched this.
+    getViewer(),
   ]);
   const isAdmin = me.membership?.role === "COMPANY_ADMIN";
 
@@ -19,7 +19,7 @@ export default async function MembersPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Team members"
-        description="Invite colleagues and manage their roles (US-201/202). At least one active Company Admin is always required."
+        description="Invite colleagues and manage their roles. At least one active Company Admin is always required."
       />
       {isAdmin && <InvitePanel invites={invites} />}
       <MembersTable members={members} meUserId={me.id} canManage={isAdmin} />

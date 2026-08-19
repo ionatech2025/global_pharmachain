@@ -1,27 +1,60 @@
 import { Injectable } from "@nestjs/common";
 import type { CatalogueSearch, ListingCreate, ListingUpdate } from "@pharmachain/core";
 import { paginate, skipTake } from "@pharmachain/core";
-import type { Prisma } from "@pharmachain/db";
+import type { DocumentKind, Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { forbidden, notFound } from "../../common/errors";
 import type { Membership } from "../../lib/context";
 
+const DOC_SELECT = { id: true, fileName: true, version: true, kind: true } as const;
+
+/**
+ * Both listing-scoped document kinds come back in one relation read — Prisma
+ * cannot alias a relation twice in an include — and are split by kind below.
+ */
 const LISTING_INCLUDE = {
   category: { select: { id: true, name: true, slug: true } },
   documents: {
-    where: { kind: "SDS", status: "ACTIVE", uploadCompletedAt: { not: null } },
-    select: { id: true, fileName: true, version: true },
+    where: {
+      kind: { in: ["SDS", "CERTIFICATE_OF_ANALYSIS"] },
+      status: "ACTIVE",
+      uploadCompletedAt: { not: null },
+    },
+    select: DOC_SELECT,
     orderBy: { version: "desc" },
-    take: 1,
   },
 } satisfies Prisma.ListingInclude;
 
-/** US-303: hazardous-classified materials without an SDS get a warning badge. */
-function withSdsFlags<T extends { ghsClassification: string | null; documents: unknown[] }>(
-  listing: T,
-) {
-  const hasSds = listing.documents.length > 0;
-  return { ...listing, hasSds, sdsMissing: Boolean(listing.ghsClassification) && !hasSds };
+interface ListingDocument {
+  id: string;
+  fileName: string;
+  version: number;
+  kind: DocumentKind;
+}
+
+/**
+ * US-303: hazardous-classified materials without an SDS get a warning badge.
+ * The Certificate of Analysis is the quality evidence buyers shortlist on, so
+ * the marketplace shows it beside the price; only the current version is
+ * surfaced, older ones stay retrievable through /documents.
+ *
+ * `documents` keeps its original meaning — the SDS versions — so existing
+ * callers are unaffected by the CoA joining the same relation read.
+ */
+function withDocumentFlags<
+  T extends { ghsClassification: string | null; documents: ListingDocument[] },
+>(listing: T) {
+  const sds = listing.documents.filter((d) => d.kind === "SDS");
+  const coaDocument = listing.documents.find((d) => d.kind === "CERTIFICATE_OF_ANALYSIS") ?? null;
+  const hasSds = sds.length > 0;
+  return {
+    ...listing,
+    documents: sds,
+    hasSds,
+    sdsMissing: Boolean(listing.ghsClassification) && !hasSds,
+    hasCoa: coaDocument !== null,
+    coaDocument,
+  };
 }
 
 @Injectable()
@@ -68,7 +101,7 @@ export class CatalogueService {
 
     // Premium/Featured placement (US-905) within the page for relevance sort.
     const tierRank = { FEATURED: 0, PREMIUM: 1, FREEMIUM: 2 } as const;
-    const items = rows.map(withSdsFlags);
+    const items = rows.map(withDocumentFlags);
     if (query.sort === "relevance") {
       items.sort(
         (a, b) => tierRank[a.company.subscriptionTier] - tierRank[b.company.subscriptionTier],
@@ -95,7 +128,7 @@ export class CatalogueService {
       include: LISTING_INCLUDE,
       orderBy: { updatedAt: "desc" },
     });
-    return rows.map(withSdsFlags);
+    return rows.map(withDocumentFlags);
   }
 
   async create(membership: Membership, body: ListingCreate) {
@@ -136,7 +169,7 @@ export class CatalogueService {
       listing.company.verificationStatus === "VERIFIED" &&
       listing.company.profileStatus === "PUBLISHED";
     if (!isOwner && !isPublic && !isSuperAdmin) throw notFound("Listing not found");
-    return withSdsFlags(listing);
+    return withDocumentFlags(listing);
   }
 
   async update(membership: Membership, id: string, body: ListingUpdate) {

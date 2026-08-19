@@ -1,9 +1,8 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { Badge } from "@pharmachain/ui/components/badge";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { ThreadRow } from "@/lib/api/types";
 import { timeAgo } from "@/lib/format";
 
@@ -20,7 +19,8 @@ export default async function MessagesPage() {
   const api = await apiServer();
   const [threads, me] = await Promise.all([
     api.get<ThreadRow[]>("/threads"),
-    api.get<AuthenticatedUser>("/auth/me"),
+    // Request-deduplicated: the layout already fetched this.
+    getViewer(),
   ]);
   const myCompanyId = me.membership?.companyId;
 
@@ -28,7 +28,7 @@ export default async function MessagesPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Messages"
-        description="Conversations are tied to an RFQ, quotation or order — open one from its page (US-601)."
+        description="Conversations are tied to an RFQ, quotation or order — open one from its page."
       />
 
       {threads.length === 0 ? (

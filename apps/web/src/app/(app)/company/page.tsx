@@ -21,6 +21,16 @@ export default async function CompanyPage() {
   // GET /companies/me returns { company, role } — unwrap to the flat company.
   const { company } = await api.get<CompanyMeResponse>("/companies/me");
 
+  // Short-lived signed URL so the profile page can show the logo that is
+  // actually live, not just an upload button.
+  let logoUrl: string | null = null;
+  if (company.logoDocumentId) {
+    logoUrl = await api
+      .get<{ url: string }>(`/documents/${company.logoDocumentId}/download-url`)
+      .then((r) => r.url)
+      .catch(() => null);
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
@@ -71,7 +81,7 @@ export default async function CompanyPage() {
         </CardContent>
       </Card>
 
-      <ProfileForm company={company} />
+      <ProfileForm company={company} logoUrl={logoUrl} />
     </div>
   );
 }

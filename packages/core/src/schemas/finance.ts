@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CURRENCIES, KYC_RISK_LEVELS, PAYMENT_METHODS } from "../enums";
+import { optionalFilter } from "./common";
 
 // ─── Payments (Phase 3 §1) ───────────────────────────────────────────────────
 
@@ -73,8 +74,11 @@ export const scheduledReportSchema = z.object({
 export type ScheduledReportInput = z.infer<typeof scheduledReportSchema>;
 
 export const reportQuerySchema = z.object({
-  from: z.iso.datetime().optional(),
-  to: z.iso.datetime().optional(),
-  format: z.enum(["json", "csv", "xls", "pdf"]).default("json"),
+  from: optionalFilter(z.iso.datetime()),
+  to: optionalFilter(z.iso.datetime()),
+  format: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["json", "csv", "xls", "pdf"]).default("json"),
+  ),
 });
 export type ReportQuery = z.infer<typeof reportQuerySchema>;

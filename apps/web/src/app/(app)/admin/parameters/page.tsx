@@ -16,7 +16,7 @@ export default async function AdminParametersPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Parameters & exchange rates"
-        description="Values are validated by type and take effect within a minute; old and new values are audited (US-904)."
+        description="Values are validated by type and take effect within a minute; old and new values are audited."
       />
       <ParametersPanel parameters={parameters} />
       <ExchangeRatesPanel rates={rates} />

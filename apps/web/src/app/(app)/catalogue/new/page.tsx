@@ -12,8 +12,10 @@ export default async function NewListingPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
+        backHref="/catalogue"
+        backLabel="My catalogue"
         title="Add a listing"
-        description="Rich technical detail helps buyers find and trust your listing (US-302)."
+        description="Rich technical detail helps buyers find and trust your listing. Save it, then attach the Certificate of Analysis and SDS on the next screen."
       />
       <ListingForm categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
     </div>

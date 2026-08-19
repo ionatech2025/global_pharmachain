@@ -1,5 +1,12 @@
-import { Body, Controller, Get, Post, Req } from "@nestjs/common";
-import { type CreditRequestCreate, creditRequestCreateSchema, PARAM_KEYS } from "@pharmachain/core";
+import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  type CreditPaymentStart,
+  type CreditRequestCreate,
+  creditPaymentStartSchema,
+  creditRequestCreateSchema,
+  idParamSchema,
+  PARAM_KEYS,
+} from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
@@ -14,14 +21,30 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getParam } from "../../lib/params";
+import { enabledPaymentMethods } from "../../lib/payment-gateways";
+import { BillingService } from "./billing.service";
 
 /**
- * Pay-per-use credits beyond the Freemium limit (US-907). Payment happens
- * off-platform; a super admin confirms receipt, which raises this month's
- * effective limit (see billing/usage.ts).
+ * Pay-per-use credits beyond the Freemium limit (US-907). The fee is paid
+ * inside the platform through the same gateways order payments use: card and
+ * mobile money settle on the provider webhook, bank transfer and escrow
+ * produce a quotable reference the platform team confirms against. Either way
+ * a confirmed request raises this month's effective limit (billing/usage.ts).
  */
 @Controller("billing")
 export class BillingController {
+  constructor(private readonly billingService: BillingService) {}
+
+  /**
+   * Payment methods this deployment can settle a *platform fee* with. Escrow
+   * is excluded on purpose: it exists so two trading companies can put money
+   * with a third party, which is meaningless for a fee owed to the platform.
+   */
+  @RequirePermission("usage:read")
+  @Get("payment-methods")
+  paymentMethods() {
+    return enabledPaymentMethods().filter((m) => m.method !== "ESCROW");
+  }
   @RequirePermission("usage:read")
   @Get("credit-requests")
   list(@CurrentMembership() membership: Membership) {
@@ -103,6 +126,43 @@ export class BillingController {
       entityType: "CreditRequest",
       entityId: request.id,
       newValues: { kind: body.kind, count: body.count, fee: fee.toString() },
+    });
+    return request;
+  }
+
+  /** Start checkout for a pending fee — returns the payment instructions. */
+  @RequirePermission("company:manage")
+  @Post("credit-requests/:id/pay")
+  async pay(
+    @CurrentMembership() membership: Membership,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(creditPaymentStartSchema)) body: CreditPaymentStart,
+    @Req() req: FastifyRequest,
+  ) {
+    const result = await this.billingService.initiatePayment(membership, params.id, body.method);
+    setAudit(req, {
+      action: "credit.payment-initiate",
+      entityType: "CreditRequest",
+      entityId: params.id,
+      newValues: { method: body.method, ref: result.request.paymentRef },
+    });
+    return result;
+  }
+
+  /** Bank transfer / escrow only: "I have sent the money" — not a grant. */
+  @RequirePermission("company:manage")
+  @Post("credit-requests/:id/declare-paid")
+  async declarePaid(
+    @CurrentUser() user: AuthUser,
+    @CurrentMembership() membership: Membership,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const request = await this.billingService.declarePaid(user, membership, params.id);
+    setAudit(req, {
+      action: "credit.payment-declared",
+      entityType: "CreditRequest",
+      entityId: params.id,
     });
     return request;
   }

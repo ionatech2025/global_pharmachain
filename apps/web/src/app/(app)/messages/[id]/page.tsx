@@ -1,7 +1,6 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { notFound } from "next/navigation";
 import { ApiClientError } from "@/lib/api/http";
-import { apiServer } from "@/lib/api/server";
+import { apiServer, getViewer } from "@/lib/api/server";
 import type { ThreadMessages } from "@/lib/api/types";
 import { ThreadView } from "./thread-view";
 
@@ -11,14 +10,17 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const api = await apiServer();
 
-  let initial: ThreadMessages;
-  try {
-    initial = await api.get<ThreadMessages>(`/threads/${id}/messages`);
-  } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) notFound();
-    throw err;
+  // getViewer() is the request-deduplicated /auth/me the layout already
+  // fetched, so this costs nothing beyond the thread read it runs alongside.
+  const [messagesResult, me] = await Promise.all([
+    api.get<ThreadMessages>(`/threads/${id}/messages`).catch((err: unknown) => err),
+    getViewer(),
+  ]);
+  if (messagesResult instanceof Error) {
+    if (messagesResult instanceof ApiClientError && messagesResult.status === 404) notFound();
+    throw messagesResult;
   }
-  const me = await api.get<AuthenticatedUser>("/auth/me");
+  const initial = messagesResult as ThreadMessages;
 
   return <ThreadView threadId={id} initial={initial} meUserId={me.id} />;
 }

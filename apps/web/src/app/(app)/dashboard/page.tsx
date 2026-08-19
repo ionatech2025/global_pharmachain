@@ -651,7 +651,9 @@ export default async function DashboardPage() {
             label="Active quotations"
             value={fmtNumber(c.activeQuotations)}
             icon={Inbox}
-            href="/quotes"
+            // The count is quotations this company SENT, so it opens the sent
+            // view rather than the inbox of RFQs still waiting for an offer.
+            href="/quotes?view=sent"
             delta={activity.deltas.quotations}
             caption={`${fmtNumber(activity.deltas.quotations?.current ?? 0)} sent in ${window} days`}
             spark={sparkFor(activity, "quotations")}

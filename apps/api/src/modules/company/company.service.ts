@@ -19,16 +19,36 @@ const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializ
 @Injectable()
 export class CompanyService {
   async getMyCompany(companyId: string) {
-    return prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      include: {
-        _count: {
-          select: {
-            members: true,
-            listings: { where: { status: "PUBLISHED" } },
+    // The logo rides along so the profile page can show what is currently
+    // published rather than an upload button that looks like nothing happened.
+    const [company, logo] = await Promise.all([
+      prisma.company.findUniqueOrThrow({
+        where: { id: companyId },
+        include: {
+          _count: {
+            select: {
+              members: true,
+              listings: { where: { status: "PUBLISHED" } },
+            },
           },
         },
+      }),
+      this.currentLogo(companyId),
+    ]);
+    return { ...company, logoDocumentId: logo?.id ?? null, logoFileName: logo?.fileName ?? null };
+  }
+
+  /** Newest completed COMPANY_LOGO upload, or null. */
+  private currentLogo(companyId: string) {
+    return prisma.document.findFirst({
+      where: {
+        ownerCompanyId: companyId,
+        kind: "COMPANY_LOGO",
+        status: "ACTIVE",
+        uploadCompletedAt: { not: null },
       },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, fileName: true },
     });
   }
 
@@ -277,16 +297,7 @@ export class CompanyService {
       },
     });
     if (!company) throw notFound("Company profile not found");
-    const logo = await prisma.document.findFirst({
-      where: {
-        ownerCompanyId: companyId,
-        kind: "COMPANY_LOGO",
-        status: "ACTIVE",
-        uploadCompletedAt: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
+    const logo = await this.currentLogo(companyId);
     return { ...company, logoDocumentId: logo?.id ?? null };
   }
 }

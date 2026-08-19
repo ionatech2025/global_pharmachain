@@ -11,6 +11,7 @@ import {
 } from "@pharmachain/ui/components/card";
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
+import { PasswordInput } from "@pharmachain/ui/components/password-input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
@@ -74,9 +75,8 @@ function InviteForm() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Choose a password</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={8}
               autoComplete="new-password"

@@ -31,17 +31,18 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
   const { id } = await params;
   const api = await apiServer();
 
-  let company: PublicCompany;
-  try {
-    company = await api.get<PublicCompany>(`/companies/${id}`);
-  } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) notFoundPage();
-    throw err;
-  }
-  const [ratings, me] = await Promise.all([
+  // Ratings and the viewer only need the id from the URL, so all three reads
+  // leave together instead of queueing behind the company fetch.
+  const [companyResult, ratings, me] = await Promise.all([
+    api.get<PublicCompany>(`/companies/${id}`).catch((err: unknown) => err),
     api.get<CompanyRatingsData>(`/companies/${id}/ratings`).catch(() => null),
     getViewer().catch(() => null),
   ]);
+  if (companyResult instanceof Error) {
+    if (companyResult instanceof ApiClientError && companyResult.status === 404) notFoundPage();
+    throw companyResult;
+  }
+  const company = companyResult as PublicCompany;
 
   // US-301: render the uploaded logo via a short-lived signed URL.
   let logoUrl: string | null = null;

@@ -186,8 +186,8 @@ export function ListingForm({
                     </FormControl>
                     {kind === "RAW_MATERIAL" ? (
                       <FormDescription>
-                        Required to publish a raw material listing (US-302) — you can save a draft
-                        without it.
+                        Required to publish a raw material listing — you can save a draft without
+                        it.
                       </FormDescription>
                     ) : null}
                     <FormMessage />
@@ -207,9 +207,7 @@ export function ListingForm({
                         value={field.value ?? ""}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Hazard-classified materials need an SDS (US-303).
-                    </FormDescription>
+                    <FormDescription>Hazard-classified materials need an SDS.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

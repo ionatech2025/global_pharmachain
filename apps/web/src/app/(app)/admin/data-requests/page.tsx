@@ -13,7 +13,7 @@ export default async function AdminDataRequestsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Data deletion requests"
-        description="GDPR requests, oldest first — process within 30 days (US-1003). Anonymizing tombstones the user's personal data and deactivates the account."
+        description="GDPR requests, oldest first — process within 30 days. Anonymizing tombstones the user's personal data and deactivates the account."
       />
       <DeletionQueue requests={requests} />
     </div>

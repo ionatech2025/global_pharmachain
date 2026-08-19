@@ -19,7 +19,7 @@ export default async function NotificationsPage({
   const api = await apiServer();
   const [notifications, prefs] = await Promise.all([
     api.get<Paginated<NotificationRow>>("/notifications", {
-      query: { page: params.page ?? 1, pageSize: 20 },
+      query: { page: params.page ?? 1 },
     }),
     api.get<PreferencesResponse>("/notifications/preferences"),
   ]);
@@ -28,7 +28,7 @@ export default async function NotificationsPage({
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Notifications"
-        description="In-app notifications are always on; choose which events also reach you by email or WhatsApp (US-605/606)."
+        description="In-app notifications are always on; choose which events also reach you by email or WhatsApp."
       >
         <PushOptIn />
       </PageHeader>

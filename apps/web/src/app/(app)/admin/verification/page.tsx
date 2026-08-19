@@ -34,7 +34,7 @@ export default async function VerificationQueuePage({
     <div className="space-y-4">
       <PageHeader
         title="Verification queue"
-        description="Sorted by submission date; open a company to run checks and decide (US-103/104)."
+        description="Sorted by submission date; open a company to run checks and decide."
       >
         <div className="flex gap-1 text-sm">
           {[

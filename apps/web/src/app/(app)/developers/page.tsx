@@ -59,13 +59,51 @@ export default async function DevelopersPage() {
       <PageHeader
         eyebrow="Integrations"
         title="Developers"
-        description="Partner API keys, signed webhooks and the endpoint reference — the surface ERP, accounting and port-community connectors consume."
+        description="Connect PharmaChain to the systems your company already runs on."
       >
         <div className="flex gap-2">
           <CreateWebhookButton />
           <CreateApiKeyButton />
         </div>
       </PageHeader>
+
+      {/*
+       * QA asked twice what this section is for. It is optional plumbing, not
+       * part of the trading loop, so the page now opens by saying who needs it
+       * and what it replaces — and says plainly that ignoring it costs nothing.
+       */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">What this section is for</CardTitle>
+          <CardDescription>
+            Optional. Everything here can also be done by hand in PharmaChain — this is for
+            companies that would rather their own systems did it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <p className="font-medium">Stop re-keying orders</p>
+            <p className="text-muted-foreground">
+              Pull your PharmaChain orders, quantities and totals straight into your ERP or
+              accounting system instead of copying them across.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium">React the moment something changes</p>
+            <p className="text-muted-foreground">
+              A webhook calls your system when an order is created, a shipment moves or a payment is
+              confirmed — no one has to watch this screen.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium">Who sets this up</p>
+            <p className="text-muted-foreground">
+              Your IT team or software vendor. If nobody has asked you for an API key, you do not
+              need anything on this page.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

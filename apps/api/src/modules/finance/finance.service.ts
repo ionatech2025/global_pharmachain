@@ -10,6 +10,7 @@ import {
   LEDGER_ENTRY_LABELS,
   PARAM_KEYS,
   PAYMENT_METHOD_LABELS,
+  refCode,
   renderPdf,
 } from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
@@ -22,18 +23,15 @@ import { defer } from "../../lib/defer";
 import { getParam } from "../../lib/params";
 import { enabledPaymentMethods, gatewayById, gatewayFor } from "../../lib/payment-gateways";
 import { emitWebhookEvent } from "../../lib/webhooks";
+import { BillingService } from "../billing/billing.service";
 import { buildStorageKey, putObject } from "../document/storage";
-
-function refCode(prefix: string): string {
-  const stamp = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `${prefix}-${stamp}${rand}`;
-}
 
 const toNum = (d: Prisma.Decimal | number | string) => Number(d);
 
 @Injectable()
 export class FinanceService {
+  constructor(private readonly billingService: BillingService) {}
+
   private async loadOrderForParty(membership: Membership, orderId: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -307,11 +305,22 @@ export class FinanceService {
     const payment = await prisma.payment.findUnique({
       where: { providerRef: verdict.providerRef },
     });
-    if (!payment) throw notFound("No payment matches this reference");
-    return this.settlePayment(payment.id, verdict.status, {
-      webhookPayload: body,
-      failureReason: verdict.status === "FAILED" ? "Provider reported failure" : undefined,
-    });
+    if (payment) {
+      return this.settlePayment(payment.id, verdict.status, {
+        webhookPayload: body,
+        failureReason: verdict.status === "FAILED" ? "Provider reported failure" : undefined,
+      });
+    }
+    // The same provider settles platform fees (credits, featured placement,
+    // verification packages), which are CreditRequests rather than order
+    // Payments. One webhook endpoint, two reference namespaces (PAY-/FEE-).
+    const credit = await this.billingService.settleByReference(
+      verdict.providerRef,
+      verdict.status,
+      body,
+    );
+    if (!credit) throw notFound("No payment matches this reference");
+    return credit;
   }
 
   /**

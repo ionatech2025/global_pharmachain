@@ -11,6 +11,7 @@ import {
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
 import { Textarea } from "@pharmachain/ui/components/textarea";
+import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,7 +21,14 @@ import { errorMessage } from "@/lib/api/http";
 import type { CompanyMe } from "@/lib/api/types";
 
 /** Public marketplace profile (US-301): what verified buyers/suppliers see. */
-export function ProfileForm({ company }: { company: CompanyMe }) {
+export function ProfileForm({
+  company,
+  logoUrl,
+}: {
+  company: CompanyMe;
+  /** Signed URL for the current logo, or null when none is uploaded. */
+  logoUrl: string | null;
+}) {
   const router = useRouter();
   const [description, setDescription] = useState(company.profileDescription ?? "");
   const [countries, setCountries] = useState(company.countriesOfOperation.join(", "));
@@ -65,15 +73,39 @@ export function ProfileForm({ company }: { company: CompanyMe }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/*
+         * QA finding: after uploading a logo the panel looked untouched — same
+         * "Upload logo" button, no sign anything had landed. The uploaded
+         * image is now the confirmation, and the button says "Replace logo"
+         * once one exists.
+         */}
         <div className="mb-4 flex items-center gap-3 border-b pb-4">
+          {logoUrl ? (
+            // biome-ignore lint/performance/noImgElement: signed URL, not a static asset
+            <img
+              src={logoUrl}
+              alt={`${company.name} logo`}
+              className="size-14 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+            />
+          ) : (
+            <div className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+              <ImageIcon className="size-5" aria-hidden />
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium">Company logo</p>
             <p className="text-xs text-muted-foreground">
-              PNG or JPG, up to 10 MB — shown on your public profile (US-301).
+              {company.logoFileName
+                ? `${company.logoFileName} — live on your public profile.`
+                : "PNG or JPG, up to 10 MB — shown on your public profile."}
             </p>
           </div>
           <div className="ml-auto">
-            <UploadButton kind="COMPANY_LOGO" label="Upload logo" />
+            <UploadButton
+              kind="COMPANY_LOGO"
+              label={logoUrl ? "Replace logo" : "Upload logo"}
+              replacesDocumentId={company.logoDocumentId ?? undefined}
+            />
           </div>
         </div>
         <form onSubmit={save} className="grid gap-4">

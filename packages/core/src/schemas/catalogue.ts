@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { LISTING_KINDS, PHARMACOPOEIA_STANDARDS } from "../enums";
 import { paginationQuerySchema } from "../pagination";
-import { currencySchema, decimalString } from "./common";
+import { currencySchema, decimalString, optionalFilter } from "./common";
 
 const listingBase = z.object({
   kind: z.enum(LISTING_KINDS),
@@ -43,11 +43,14 @@ export const listingUpdateSchema = listingBase.omit({ kind: true }).partial();
 export type ListingUpdate = z.infer<typeof listingUpdateSchema>;
 
 export const catalogueSearchSchema = paginationQuerySchema.extend({
-  q: z.string().max(120).optional(),
-  kind: z.enum(LISTING_KINDS).optional(),
-  categoryId: z.uuid().optional(),
-  country: z.string().max(56).optional(),
-  certification: z.string().max(80).optional(),
-  sort: z.enum(["relevance", "company"]).default("relevance"),
+  q: optionalFilter(z.string().max(120)),
+  kind: optionalFilter(z.enum(LISTING_KINDS)),
+  categoryId: optionalFilter(z.uuid()),
+  country: optionalFilter(z.string().max(56)),
+  certification: optionalFilter(z.string().max(80)),
+  sort: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["relevance", "company"]).default("relevance"),
+  ),
 });
 export type CatalogueSearch = z.infer<typeof catalogueSearchSchema>;

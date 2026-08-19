@@ -17,6 +17,14 @@
  *     unambiguous wherever they appear.
  */
 :root {
+  /*
+   * Native form controls (<select> popups, date pickers, scrollbars) are painted
+   * by the OS, not by these tokens. Without color-scheme the browser renders an
+   * option list on a light system background while the page paints dark text on
+   * it, so the options are unreadable in dark mode. Declaring the scheme is the
+   * only fix that reaches inside the popup — it cannot be styled with CSS.
+   */
+  color-scheme: light;
   --radius: 0.75rem;
   /* Canvas sits a step below the card so panels lift off it without a heavy
      border — the separation dashboards live on. */
@@ -78,6 +86,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.13 0.006 250);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.165 0.007 250);

@@ -7,7 +7,7 @@ import {
 } from "../enums";
 import { paginationQuerySchema } from "../pagination";
 import { PARAM_KEYS } from "../params";
-import { currencySchema, decimalString } from "./common";
+import { currencySchema, decimalString, optionalFilter } from "./common";
 
 export const verificationDecisionSchema = z
   .object({
@@ -85,10 +85,10 @@ export const creditDecisionSchema = z.object({
 });
 
 export const auditLogQuerySchema = paginationQuerySchema.extend({
-  actorUserId: z.uuid().optional(),
-  actorEmail: z.string().max(320).optional(),
-  entityType: z.string().max(60).optional(),
-  companyId: z.uuid().optional(),
-  from: z.iso.datetime().optional(),
-  to: z.iso.datetime().optional(),
+  actorUserId: optionalFilter(z.uuid()),
+  actorEmail: optionalFilter(z.string().max(320)),
+  entityType: optionalFilter(z.string().max(60)),
+  companyId: optionalFilter(z.uuid()),
+  from: optionalFilter(z.iso.datetime()),
+  to: optionalFilter(z.iso.datetime()),
 });

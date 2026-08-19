@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from "@pharmachain/ui/components/form";
 import { Input } from "@pharmachain/ui/components/input";
+import { PasswordInput } from "@pharmachain/ui/components/password-input";
 import {
   Select,
   SelectContent,
@@ -207,7 +208,7 @@ export default function RegisterPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" autoComplete="new-password" {...field} />
+                          <PasswordInput autoComplete="new-password" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

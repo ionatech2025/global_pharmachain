@@ -16,6 +16,7 @@ import {
   dashboardPrefSchema,
   idParamSchema,
   localePrefSchema,
+  optionalFilter,
   type PushSubscribeInput,
   pushSubscribeSchema,
   RATING_STATUSES,
@@ -42,7 +43,7 @@ import type { AuthUser, Membership } from "../../lib/context";
 import { AnalyticsService } from "./analytics.service";
 import { RatingService } from "./rating.service";
 
-const ratingListQuerySchema = z.object({ status: z.enum(RATING_STATUSES).optional() });
+const ratingListQuerySchema = z.object({ status: optionalFilter(z.enum(RATING_STATUSES)) });
 
 @Controller()
 export class AnalyticsController {

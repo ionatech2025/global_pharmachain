@@ -149,6 +149,40 @@ export class RfqService {
     return paginate(items, total, query);
   }
 
+  /**
+   * Quotations this company has sent, newest first — the other half of the
+   * quoting workspace. The Quote inbox answers "what can I quote on?"; this
+   * answers "what did I quote, and where did it land?", which is what the
+   * dashboard's "Active quotations" count is actually counting.
+   */
+  async myQuotations(membership: Membership, query: PaginationQuery) {
+    const where = {
+      supplierCompanyId: membership.companyId,
+      status: { not: "SUPERSEDED" },
+    } satisfies Prisma.QuotationWhereInput;
+    const [items, total] = await prisma.$transaction([
+      prisma.quotation.findMany({
+        where,
+        include: {
+          rfq: {
+            select: {
+              id: true,
+              refNo: true,
+              title: true,
+              deadline: true,
+              status: true,
+              buyerCompany: { select: { id: true, name: true, country: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        ...skipTake(query),
+      }),
+      prisma.quotation.count({ where }),
+    ]);
+    return paginate(items, total, query);
+  }
+
   async getRfq(user: AuthUser, membership: Membership | undefined, rfqId: string) {
     const rfq = await prisma.rfq.findUnique({
       where: { id: rfqId },

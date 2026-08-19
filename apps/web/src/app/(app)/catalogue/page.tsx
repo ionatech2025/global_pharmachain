@@ -27,7 +27,7 @@ export default async function CataloguePage() {
     <div className="space-y-4">
       <PageHeader
         title="My catalogue"
-        description="Raw materials and finished products your company offers (US-302)."
+        description="Raw materials and finished products your company offers."
       >
         <Button asChild>
           <Link href="/catalogue/new">Add listing</Link>
@@ -51,6 +51,7 @@ export default async function CataloguePage() {
               <TableHead>Kind</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Price</TableHead>
+              <TableHead>COA</TableHead>
               <TableHead>SDS</TableHead>
               <TableHead>Status</TableHead>
               <TableHead />
@@ -76,6 +77,15 @@ export default async function CataloguePage() {
                 <TableCell className="text-muted-foreground">{l.category.name}</TableCell>
                 <TableCell>
                   {fmtMoney(l.price, l.currency)} / {l.unit}
+                </TableCell>
+                {/* Mirrors the marketplace so a supplier sees exactly what a
+                    buyer sees on their own listing. */}
+                <TableCell>
+                  {l.hasCoa ? (
+                    <Badge variant="success">COA v{l.coaDocument?.version}</Badge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {l.sdsMissing ? (

@@ -60,7 +60,12 @@ export function createApiClient(
   ): Promise<T> {
     const url = new URL(`${baseUrl}${path}`, "http://placeholder.local");
     for (const [key, value] of Object.entries(opts.query ?? {})) {
-      if (value !== undefined) url.searchParams.set(key, String(value));
+      // "" means "no filter", not "match the empty string". Pages forward raw
+      // searchParams straight from a GET form, and an unset <select> submits
+      // an empty value — sending `categoryId=` made the API's `z.uuid()`
+      // reject the whole request, so a plain marketplace search rendered the
+      // error boundary instead of results.
+      if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
     }
     // Relative base (browser/proxy) keeps a relative URL; absolute base wins.
     const target = baseUrl.startsWith("http") ? url.toString() : `${url.pathname}${url.search}`;
