@@ -1,5 +1,10 @@
+import { ORDER_STATUS_LABELS, type OrderStatus } from "@pharmachain/core";
 import { expect, type Page, test } from "@playwright/test";
 import { ADMIN_PASSWORD, API_PATH, firstId, signIn } from "./helpers";
+
+/** The label the UI actually renders for an order status. */
+const orderStatusLabel = (status: unknown) =>
+  ORDER_STATUS_LABELS[status as OrderStatus] ?? String(status);
 
 /**
  * Browser-level regression for the Phase 1 MVP test checklist.
@@ -433,15 +438,19 @@ test.describe("US-702 shipment tracker", () => {
     await page.goto(`/orders/${orderId}`);
 
     // Case 117 — the order's current stage is rendered, not just a raw enum.
-    const label = String(detail.status).toLowerCase().replace(/_/g, " ");
-    await expect(page.getByText(new RegExp(label, "i")).first()).toBeVisible({ timeout: 20_000 });
+    // Assert against the app's own label map rather than munging the enum:
+    // underscores-to-spaces silently disagrees with several real labels
+    // ("CUSTOMS_ORIGIN" renders as "Customs (origin)"), so the old form passed
+    // or failed purely on which stage the first order happened to be in.
+    await expect(page.getByText(orderStatusLabel(detail.status)).first()).toBeVisible({
+      timeout: 20_000,
+    });
 
     // Case 118 — every recorded transition is listed.
     const events = detail.statusEvents ?? [];
     expect(events.length).toBeGreaterThan(0);
     for (const ev of events.slice(0, 3)) {
-      const evLabel = String(ev.status).toLowerCase().replace(/_/g, " ");
-      await expect(page.getByText(new RegExp(evLabel, "i")).first()).toBeVisible();
+      await expect(page.getByText(orderStatusLabel(ev.status)).first()).toBeVisible();
     }
     await page.context().close();
   });
@@ -481,7 +490,7 @@ test.describe("US-205 sign-in lockout", () => {
     await page.goto("/login");
     for (let attempt = 1; attempt <= 6; attempt++) {
       await page.getByLabel("Work email").fill(email);
-      await page.getByLabel("Password").fill("definitely-Wrong-9");
+      await page.getByLabel("Password", { exact: true }).fill("definitely-Wrong-9");
       await Promise.all([
         page.waitForResponse((r) => /\/api\/auth\/callback\/credentials/.test(r.url())),
         page.getByRole("button", { name: "Sign in" }).click(),
@@ -522,7 +531,9 @@ test.describe("US-205 idle session", () => {
 
     await page.goto("/login");
     await page.getByLabel("Work email").fill(BUYER);
-    await page.getByLabel("Password").fill(process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1");
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill(process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
 

@@ -80,7 +80,10 @@ async function captureSession(
   const page = await ctx.newPage();
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  // `exact` matters: the field carries a show/hide toggle labelled "Show
+  // password", and Playwright matches accessible names by substring — a bare
+  // getByLabel("Password") resolves to both and fails strict mode.
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   const state = await ctx.storageState();
@@ -124,7 +127,7 @@ export async function signInFresh(
   const page = await (await browser.newContext()).newPage();
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   return page;

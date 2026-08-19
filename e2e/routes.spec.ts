@@ -43,7 +43,7 @@ test.describe("Register flow (creates real data)", () => {
     await page.getByLabel("Contact phone").fill("+256700000001");
     await page.getByLabel("Full name").fill("Route Tester");
     await page.getByLabel("Work email").fill(`route.${tag.toLowerCase()}@example.com`);
-    await page.getByLabel("Password").fill("Route-Test-Pass-1");
+    await page.getByLabel("Password", { exact: true }).fill("Route-Test-Pass-1");
     await page.getByRole("button", { name: /register company/i }).click();
     await expect(page).toHaveURL(/\/login\?registered=1/, { timeout: 30_000 });
     await page.context().close();

@@ -55,6 +55,7 @@ function ChangePasswordCard() {
             <Label htmlFor="current">Current password</Label>
             <PasswordInput
               id="current"
+              fieldName="current password"
               autoComplete="current-password"
               required
               value={currentPassword}
@@ -66,6 +67,7 @@ function ChangePasswordCard() {
               <Label htmlFor="new">New password</Label>
               <PasswordInput
                 id="new"
+                fieldName="new password"
                 autoComplete="new-password"
                 required
                 minLength={12}
@@ -77,6 +79,7 @@ function ChangePasswordCard() {
               <Label htmlFor="confirm">Confirm new password</Label>
               <PasswordInput
                 id="confirm"
+                fieldName="confirmed password"
                 autoComplete="new-password"
                 required
                 value={confirm}

@@ -16,7 +16,19 @@ import { Input } from "./input";
  * for keyboard users than the mouse/AT affordance it provides. Screen readers
  * still reach it in browse mode, and aria-pressed reports the current state.
  */
-function PasswordInput({ className, ...props }: Omit<React.ComponentProps<typeof Input>, "type">) {
+function PasswordInput({
+  className,
+  fieldName = "password",
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "type"> & {
+  /**
+   * What this field holds, lower-case, for the toggle's accessible name:
+   * "current password" → "Show current password". Set it wherever a page has
+   * more than one password field, or every toggle announces itself
+   * identically and a screen-reader user cannot tell them apart.
+   */
+  fieldName?: string;
+}) {
   const [visible, setVisible] = React.useState(false);
   const Icon = visible ? EyeOff : Eye;
 
@@ -32,7 +44,7 @@ function PasswordInput({ className, ...props }: Omit<React.ComponentProps<typeof
         type="button"
         tabIndex={-1}
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Hide password" : "Show password"}
+        aria-label={`${visible ? "Hide" : "Show"} ${fieldName}`}
         aria-pressed={visible}
         disabled={props.disabled}
         className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-50"
