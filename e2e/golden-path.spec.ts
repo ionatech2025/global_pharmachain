@@ -83,10 +83,16 @@ test.describe
       await expect(row).toBeVisible();
       await row.getByRole("link").first().click();
 
-      await expect(page.getByText(/submit a quotation/i)).toBeVisible();
+      // The panel names the owner of the quotation ("your company's"), because
+      // QA read the unqualified wording as being asked to edit someone else's
+      // offer. `.` spans either apostrophe form so the assertion survives a
+      // straight-to-typographic swap.
+      await expect(page.getByText(/submit your company.s quotation/i)).toBeVisible();
       await page.getByLabel(/unit price/i).fill("13.75");
       await page.getByRole("button", { name: /submit quotation/i }).click();
-      await expect(page.getByText(/your quotation \(v1\)/i)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(/your company.s quotation \(v1\)/i)).toBeVisible({
+        timeout: 20_000,
+      });
       await page.context().close();
     });
 
