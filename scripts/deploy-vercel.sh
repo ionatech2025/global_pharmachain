@@ -72,4 +72,17 @@ print("   routes now:", len(routes))
 PY
 
 echo "== 6. Deploy =="
-vercel deploy --prebuilt --prod 2>&1 | tee /tmp/vd.log | grep -E 'Production|Aliased|Error' || true
+# `| grep ... || true` used to swallow the outcome: a failed upload still left
+# the script exiting 0, so a deploy that never landed looked like a success.
+# Take vercel's own status from PIPESTATUS and fail loudly on it.
+set +e
+vercel deploy --prebuilt --prod 2>&1 | tee /tmp/vd.log
+status=${PIPESTATUS[0]}
+set -e
+grep -E 'Production|Aliased' /tmp/vd.log || true
+if [ "$status" -ne 0 ]; then
+  echo "   DEPLOY FAILED (vercel exit $status) — nothing was released:"
+  tail -20 /tmp/vd.log | sed 's/^/     /'
+  exit "$status"
+fi
+echo "   released"
