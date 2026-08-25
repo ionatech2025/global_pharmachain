@@ -22,7 +22,7 @@ import { ChromeCube, ChromeSphere } from "@/components/chrome-motif";
 import { HeroMarketCards, HeroTickerRow } from "@/components/glass-panels";
 import { HeroGlobe } from "@/components/hero-globe";
 import { Logo, LogoMark } from "@/components/logo";
-import { Providers } from "@/components/providers";
+import { ThemeOnlyProviders } from "@/components/providers";
 import { RouteMarquee } from "@/components/route-marquee";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { API_URL } from "@/env";
@@ -160,7 +160,7 @@ export default async function LandingPage() {
   const stats = await publicStats();
 
   return (
-    <Providers>
+    <ThemeOnlyProviders>
       <div className="flex min-h-screen flex-col bg-background">
         {/* Announcement topbar */}
         <div className="border-b bg-muted/40">
@@ -488,6 +488,6 @@ export default async function LandingPage() {
           </div>
         </footer>
       </div>
-    </Providers>
+    </ThemeOnlyProviders>
   );
 }

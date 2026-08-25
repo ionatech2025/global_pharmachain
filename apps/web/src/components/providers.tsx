@@ -48,3 +48,30 @@ export function Providers({
     </ThemeProvider>
   );
 }
+
+/**
+ * Theme only, for pages with no client-side data fetching or toasts (the
+ * public landing page) — skips shipping react-query + sonner's JS to every
+ * anonymous visitor (Lighthouse: this was the biggest first-party script in
+ * the landing page's bootup-time breakdown, and the landing page's tree has
+ * zero useQuery/useMutation/toast calls to justify it).
+ */
+export function ThemeOnlyProviders({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode;
+  nonce?: string;
+}) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      nonce={nonce}
+    >
+      {children}
+    </ThemeProvider>
+  );
+}
