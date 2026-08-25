@@ -215,12 +215,18 @@ export default async function LandingPage() {
           <section className="px-3 sm:px-5">
             <div className="sky-scope relative mx-auto -mt-[4.25rem] w-full max-w-[86rem] overflow-hidden rounded-[1.75rem] bg-panel-sky shadow-[0_48px_110px_-48px_oklch(0.32_0.11_250/0.6)] sm:rounded-[2.5rem]">
               <div aria-hidden className="absolute inset-0 bg-panel-grid opacity-45" />
-              {/* Wireframe globe rising behind the market cards (≥lg) */}
-              <div aria-hidden className="absolute inset-0 hidden overflow-hidden lg:block">
-                <HeroGlobe
-                  aurora={false}
-                  className="absolute -right-[10%] -bottom-[52%] aspect-square w-[56%] max-w-none opacity-90"
-                />
+              {/* Wireframe globe, centred in the hero's right column (≥lg).
+                  Mirrors the content grid's own column template with a blank
+                  first cell, so the globe's centring lands in the same
+                  right-hand track as the market cards it sits behind. */}
+              <div
+                aria-hidden
+                className="absolute inset-0 hidden overflow-hidden lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:px-14"
+              >
+                <div />
+                <div className="flex items-center justify-center">
+                  <HeroGlobe aurora={false} className="aspect-square w-full max-w-[28rem]" />
+                </div>
               </div>
 
               <div className="relative grid gap-12 px-6 pt-28 pb-14 sm:px-10 sm:pt-32 lg:grid-cols-[1.05fr_0.95fr] lg:px-14 lg:pb-24">

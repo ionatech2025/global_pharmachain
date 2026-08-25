@@ -1,3 +1,4 @@
+import { cn } from "@pharmachain/ui/lib/utils";
 import { useId } from "react";
 
 /**
@@ -7,8 +8,12 @@ import { useId } from "react";
  * meridian group spins 360° around the centre so the longitude lines sweep
  * through every angle (the reference hero's technique) while the latitude
  * bands stay put — plus pulsing supply-route arcs, a rotating specular sheen
- * and a spinning orbit ring. Pure inline SVG/CSS — no canvas, no runtime JS,
- * no external assets — and every animation is neutralised by the global
+ * and a spinning orbit ring. The sphere also tilts in real CSS 3D
+ * (perspective on .globe-scene, rotateX/rotateY on .animate-globe-tilt),
+ * with the glass backdrop, wireframe and rim highlight depth-offset via
+ * translateZ so the tilt reads as layered parallax rather than a flat card
+ * turning. Pure inline SVG/CSS — no canvas, no runtime JS, no external
+ * assets — and every animation is neutralised by the global
  * prefers-reduced-motion kill switch. Square 360×360 space so a rounded-full
  * glass layer aligns with the sphere. Adapted from The Drop's hero.
  */
@@ -56,7 +61,10 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
   const meridGrad = `merid-${uid}`;
   const glow = `glow-${uid}`;
   return (
-    <div className={className} aria-hidden>
+    // `relative` is load-bearing, not decorative: the internal layers below
+    // (aurora blobs, .globe-scene) are `absolute inset-0` and need this root
+    // to be their containing block regardless of how a caller positions it.
+    <div className={cn("relative", className)} aria-hidden>
       {/* Drifting aurora blobs — the glass orb frosts these. Skipped when the
           globe sits fully inside a panel: the blobs clip at this wrapper's
           rectangular bounds, which reads as a seam on the panel gradient. */}
@@ -68,9 +76,13 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
       )}
 
       <div className="globe-scene absolute inset-0 grid place-items-center">
-        <div className="relative aspect-square w-[88%]">
-          {/* Glass orb — frosted, rim-lit */}
-          <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5 shadow-[0_40px_90px_-40px_oklch(0.4_0.1_250/0.55)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.035]" />
+        <div className="animate-globe-tilt relative aspect-square w-[88%]">
+          {/* Glass orb — frosted, rim-lit. Pulled back in Z so the wireframe
+              and rim visibly separate from it as the sphere tilts. */}
+          <div
+            className="absolute inset-0 rounded-full border border-white/25 bg-white/5 shadow-[0_40px_90px_-40px_oklch(0.4_0.1_250/0.55)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.035]"
+            style={{ transform: "translateZ(-16px)" }}
+          />
           {/* Rotating specular sheen — the lit side turning */}
           <div className="absolute inset-0 overflow-hidden rounded-full">
             <div className="animate-globe-sheen absolute inset-[-25%] bg-[conic-gradient(from_0deg,transparent_0deg,var(--globe-halo)_55deg,transparent_130deg,transparent_360deg)]" />
@@ -78,8 +90,14 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
           {/* Fixed top-left specular highlight */}
           <div className="absolute inset-0 rounded-full bg-[radial-gradient(55%_45%_at_34%_28%,oklch(1_0_0/0.45),transparent_58%)] dark:bg-[radial-gradient(55%_45%_at_34%_28%,oklch(1_0_0/0.16),transparent_58%)]" />
 
-          {/* Wireframe sphere + routes */}
-          <svg viewBox="0 0 360 360" className="relative size-full" role="presentation">
+          {/* Wireframe sphere + routes — brought forward in Z, ahead of the
+              glass backdrop, for the tilt's parallax. */}
+          <svg
+            viewBox="0 0 360 360"
+            className="relative size-full"
+            style={{ transform: "translateZ(14px)" }}
+            role="presentation"
+          >
             <defs>
               <linearGradient id={arcGrad} x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor="var(--color-primary)" stopOpacity="0" />
@@ -214,8 +232,11 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
             ))}
           </svg>
 
-          {/* Glass rim highlight over everything */}
-          <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/20 dark:ring-white/10" />
+          {/* Glass rim highlight over everything — frontmost in Z */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/20 dark:ring-white/10"
+            style={{ transform: "translateZ(26px)" }}
+          />
         </div>
       </div>
     </div>
