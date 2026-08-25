@@ -22,8 +22,8 @@ import { ChromeCube, ChromeSphere } from "@/components/chrome-motif";
 import { HeroMarketCards, HeroTickerRow } from "@/components/glass-panels";
 import { HeroGlobe } from "@/components/hero-globe";
 import { Logo, LogoMark } from "@/components/logo";
-import { ThemeOnlyProviders } from "@/components/providers";
 import { RouteMarquee } from "@/components/route-marquee";
+import { ThemeOnlyProviders } from "@/components/theme-only-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { API_URL } from "@/env";
 
