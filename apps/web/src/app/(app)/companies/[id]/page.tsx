@@ -1,4 +1,3 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { COMPANY_TYPE_LABELS, type CompanyType } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
@@ -61,7 +60,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-start gap-4">
         {logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
+          // biome-ignore lint/performance/noImgElement: signed URL, not a static asset
           <img
             src={logoUrl}
             alt={`${company.name} logo`}
