@@ -25,6 +25,7 @@ import { Logo, LogoMark } from "@/components/logo";
 import { Providers } from "@/components/providers";
 import { RouteMarquee } from "@/components/route-marquee";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { API_URL } from "@/env";
 
 export const metadata: Metadata = {
   title: { absolute: "PharmaChain — the global verified pharmaceutical marketplace" },
@@ -142,9 +143,8 @@ const FOOTER_GROUPS = [
 ];
 
 async function publicStats(): Promise<{ verifiedCompanies: number } | null> {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmachain-seven.vercel.app";
   try {
-    const res = await fetch(`${base}/api/backend/stats/public`, {
+    const res = await fetch(`${API_URL}/stats/public`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;
@@ -180,10 +180,10 @@ export default async function LandingPage() {
         </div>
 
         {/* Floating glass pill nav */}
-        <header className="sticky top-3 z-40 px-3 sm:px-6">
-          <div className="glass-nav mx-auto flex h-14 w-full max-w-5xl items-center justify-between rounded-full pr-2.5 pl-4 sm:pl-5">
+        <header className="sticky top-3 z-40 px-2 sm:px-6">
+          <div className="glass-nav mx-auto flex h-14 w-full max-w-5xl items-center justify-between rounded-full pr-2 pl-3 sm:pr-2.5 sm:pl-5">
             <Link href="/" aria-label="PharmaChain home">
-              <Logo markClassName="size-8" wordClassName="text-lg sm:text-xl" />
+              <Logo markClassName="size-7 sm:size-8" wordClassName="text-base sm:text-xl" />
             </Link>
             <nav className="hidden items-center gap-1 md:flex" aria-label="Landing sections">
               {NAV_LINKS.map((link) => (
@@ -201,9 +201,9 @@ export default async function LandingPage() {
               <Button asChild variant="ghost" className="hidden rounded-full sm:inline-flex">
                 <Link href="/login">Sign in</Link>
               </Button>
-              <Button asChild className="rounded-full px-5">
+              <Button asChild className="rounded-full px-3.5 sm:px-5">
                 <Link href="/register">
-                  Get started <ArrowRight />
+                  Get started <ArrowRight className="hidden sm:inline" />
                 </Link>
               </Button>
             </div>

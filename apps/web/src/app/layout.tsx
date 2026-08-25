@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Anton, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorker } from "@/components/service-worker";
+import { SITE_URL } from "@/env";
 
 // Self-hosted via next/font: same-origin, preloaded, size-adjusted fallback —
 // no external font request and no layout shift.
@@ -11,7 +12,6 @@ const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" 
 // Condensed grotesque reserved for display headlines (marketing surfaces).
 const fontDisplay = Anton({ weight: "400", subsets: ["latin"], variable: "--font-anton" });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmachain-seven.vercel.app";
 const SHARE_DESCRIPTION =
   "The global verified network for pharmaceutical sourcing and logistics — RFQs, quotations, orders, shipment tracking and compliant document exchange, worldwide.";
 
@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   title: { default: "PharmaChain", template: "%s · PharmaChain" },
   description: "B2B pharmaceutical sourcing and procurement platform",
   applicationName: "PharmaChain",
+  // Explicit canonical: without it, the wrong-domain history this site has
+  // had (metadataBase once fell back to a stale alias) can leave crawlers
+  // with duplicate-content signals pointing at more than one host.
+  alternates: { canonical: "/" },
   // manifest.ts is auto-linked; these add iOS standalone/PWA support.
   appleWebApp: {
     capable: true,
