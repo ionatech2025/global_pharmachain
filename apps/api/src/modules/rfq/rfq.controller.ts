@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import {
   idParamSchema,
   type PaginationQuery,
@@ -43,6 +44,10 @@ export class RfqController {
 
   @RequirePermission("rfq:write")
   @RequireVerified()
+  // Business-record creation rides the generic 300/60s default everywhere
+  // else in this file/module — tightened here since it's the one endpoint
+  // that mints a new RFQ, not just reads or transitions an existing one.
+  @Throttle({ default: { limit: 20, ttl: 10 * 60 * 1000 } })
   @Post()
   async create(
     @CurrentUser() user: AuthUser,
@@ -116,6 +121,7 @@ export class RfqController {
 
   @RequirePermission("quotation:write")
   @RequireVerified()
+  @Throttle({ default: { limit: 30, ttl: 10 * 60 * 1000 } })
   @Post(":id/quotations")
   async submitQuotation(
     @CurrentUser() user: AuthUser,
@@ -151,6 +157,7 @@ export class QuotationController {
 
   @RequirePermission("quotation:write")
   @RequireVerified()
+  @Throttle({ default: { limit: 30, ttl: 10 * 60 * 1000 } })
   @Post(":id/resubmit")
   async resubmit(
     @CurrentUser() user: AuthUser,
@@ -187,6 +194,10 @@ export class QuotationController {
   }
 
   @RequirePermission("rfq:write")
+  // Also creates an Order — the highest-value write in this controller.
+  // The web client already guards its own accept button against
+  // double-submission; this is defense in depth against a direct API call.
+  @Throttle({ default: { limit: 20, ttl: 10 * 60 * 1000 } })
   @Post(":id/accept")
   async accept(
     @CurrentUser() user: AuthUser,

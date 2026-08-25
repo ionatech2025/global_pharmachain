@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Sse } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import {
   idParamSchema,
   type MessageCreate,
@@ -71,6 +72,10 @@ export class MessagingController {
   }
 
   @RequirePermission("message:write")
+  // Message spam is the classic abuse vector on any messaging feature —
+  // generous enough for a real back-and-forth conversation, bounded
+  // against a script hammering one thread.
+  @Throttle({ default: { limit: 60, ttl: 5 * 60 * 1000 } })
   @Post(":id/messages")
   async post(
     @CurrentUser() user: AuthUser,

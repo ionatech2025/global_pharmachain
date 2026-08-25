@@ -27,6 +27,36 @@ export function PageSkeleton({ rows = 8 }: { rows?: number }) {
 }
 
 /**
+ * Card-shaped route loading state, for detail pages (an order, an RFQ, a
+ * marketplace listing, a company profile) that render as stacked sections
+ * rather than PageSkeleton's table rows — inheriting the row-shaped
+ * skeleton there made the layout visibly swap shape once real content
+ * streamed in.
+ */
+export function DetailSkeleton() {
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading" className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-7 w-64 max-w-full" />
+        </div>
+        <Skeleton className="h-9 w-28 rounded-md" />
+      </div>
+      <Skeleton className="h-28 w-full rounded-2xl" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-56 w-full rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Dashboard-shaped skeleton. Mirrors the real anatomy block for block —
  * masthead, tile row, chart beside the pipeline, table beside the attention
  * column — so the layout never jumps when the data lands.

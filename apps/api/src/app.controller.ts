@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { prisma } from "@pharmachain/db";
+import { emailConfigFromEnv } from "@pharmachain/email";
 import { Public } from "./common/decorators";
 import { ApiException } from "./common/errors";
 
@@ -24,7 +25,12 @@ export class AppController {
     } catch {
       throw new ApiException(503, "NOT_READY", "Database unreachable");
     }
-    return { ok: true };
+    // Informational, not gating: object storage already refuses to boot on a
+    // dev-default config (env.ts) — SMTP has no such guard and silently
+    // falls back to logging instead of sending (mailer.ts), so it's worth
+    // surfacing here rather than adding a live network call to a probe
+    // that's meant to stay cheap and stable.
+    return { ok: true, checks: { email: emailConfigFromEnv().provider } };
   }
 
   /** Live public counters for the marketing site (review brand-integrity
