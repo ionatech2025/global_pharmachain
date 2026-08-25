@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { Providers } from "@/components/providers";
+import { ThemeOnlyProviders } from "@/components/theme-only-providers";
 import { VerifyForm } from "./verify-form";
 
 export const metadata: Metadata = {
@@ -27,7 +27,7 @@ export default async function VerifyPage({
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const params = await searchParams;
   return (
-    <Providers nonce={nonce}>
+    <ThemeOnlyProviders nonce={nonce}>
       <main className="flex min-h-screen flex-col bg-background">
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-10">
           <Link href="/" aria-label="PharmaChain home" className="mb-8">
@@ -46,6 +46,6 @@ export default async function VerifyPage({
           />
         </div>
       </main>
-    </Providers>
+    </ThemeOnlyProviders>
   );
 }
