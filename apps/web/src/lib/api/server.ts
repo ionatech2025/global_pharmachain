@@ -7,13 +7,20 @@ import { type ApiClient, ApiClientError, createApiClient } from "./http";
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
 
 /** US-204: a 403 during server rendering lands on a clear not-authorised
- *  screen instead of the generic error boundary. */
-function withForbiddenRedirect(client: ApiClient): ApiClient {
+ *  screen instead of the generic error boundary. A 401 — the session died
+ *  server-side (expired, revoked, sessionVersion bumped) between page
+ *  loads — sends the visitor back to sign in instead of the generic error
+ *  boundary too; the live idle-timeout case is handled client-side and
+ *  never reaches this guard. */
+function withAuthRedirects(client: ApiClient): ApiClient {
   const guard = async <T>(run: () => Promise<T>): Promise<T> => {
     try {
       return await run();
     } catch (err) {
-      if (err instanceof ApiClientError && err.status === 403) redirect("/forbidden");
+      if (err instanceof ApiClientError) {
+        if (err.status === 403) redirect("/forbidden");
+        if (err.status === 401) redirect("/login");
+      }
       throw err;
     }
   };
@@ -37,7 +44,7 @@ export async function apiServer(): Promise<ApiClient> {
     token = store.get(name)?.value;
     if (token) break;
   }
-  return withForbiddenRedirect(
+  return withAuthRedirects(
     createApiClient(
       API_URL,
       (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}),

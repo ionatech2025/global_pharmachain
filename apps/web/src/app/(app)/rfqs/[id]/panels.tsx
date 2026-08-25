@@ -107,6 +107,7 @@ export function BuyerQuotations({
   const [quotations, setQuotations] = useState(initial);
   const [sort, setSort] = useState<"price" | "leadTime">("price");
   const [accepting, setAccepting] = useState<QuotationRow | null>(null);
+  const [busy, setBusy] = useState(false);
   const canAward = rfqStatus === "OPEN" || rfqStatus === "CLOSED";
 
   async function resort(next: "price" | "leadTime") {
@@ -118,6 +119,7 @@ export function BuyerQuotations({
 
   async function accept() {
     if (!accepting) return;
+    setBusy(true);
     try {
       const order = await api.post<{ id: string; orderNo: string }>(
         `/quotations/${accepting.id}/accept`,
@@ -128,6 +130,8 @@ export function BuyerQuotations({
     } catch (err) {
       toast.error(errorMessage(err));
       setAccepting(null);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -269,10 +273,12 @@ export function BuyerQuotations({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAccepting(null)}>
+              <Button variant="outline" disabled={busy} onClick={() => setAccepting(null)}>
                 Back
               </Button>
-              <Button onClick={accept}>Accept & create order</Button>
+              <Button disabled={busy} onClick={accept}>
+                {busy ? "Creating order…" : "Accept & create order"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
