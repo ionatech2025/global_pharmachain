@@ -27,10 +27,29 @@ import { ThemeOnlyProviders } from "@/components/theme-only-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { API_URL } from "@/env";
 
+const SHARE_DESCRIPTION =
+  "The global verified network for pharmaceutical sourcing and logistics — RFQs, quotations, orders, shipment tracking and compliant document exchange, worldwide.";
+
 export const metadata: Metadata = {
   title: { absolute: "PharmaChain — the global verified pharmaceutical marketplace" },
   description:
     "Source pharmaceutical raw materials and finished products from verified companies worldwide. RFQs, quotations, orders, shipment tracking and compliant document exchange — with a full audit trail.",
+  // Scoped to this page on purpose — see the comment in layout.tsx on why
+  // these don't live at the root.
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "PharmaChain",
+    title: "PharmaChain — the global verified pharmaceutical marketplace",
+    description: SHARE_DESCRIPTION,
+    url: "/",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PharmaChain — the global verified pharmaceutical marketplace",
+    description: SHARE_DESCRIPTION,
+  },
 };
 
 const NAV_LINKS = [

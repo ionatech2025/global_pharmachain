@@ -12,9 +12,6 @@ const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" 
 // Condensed grotesque reserved for display headlines (marketing surfaces).
 const fontDisplay = Anton({ weight: "400", subsets: ["latin"], variable: "--font-anton" });
 
-const SHARE_DESCRIPTION =
-  "The global verified network for pharmaceutical sourcing and logistics — RFQs, quotations, orders, shipment tracking and compliant document exchange, worldwide.";
-
 export const metadata: Metadata = {
   // Absolute base so the file-convention opengraph-image / twitter-image and
   // any relative URLs resolve to fully-qualified links in share previews.
@@ -22,31 +19,20 @@ export const metadata: Metadata = {
   title: { default: "PharmaChain", template: "%s · PharmaChain" },
   description: "B2B pharmaceutical sourcing and procurement platform",
   applicationName: "PharmaChain",
-  // Explicit canonical: without it, the wrong-domain history this site has
-  // had (metadataBase once fell back to a stale alias) can leave crawlers
-  // with duplicate-content signals pointing at more than one host.
-  alternates: { canonical: "/" },
   // manifest.ts is auto-linked; these add iOS standalone/PWA support.
   appleWebApp: {
     capable: true,
     title: "PharmaChain",
     statusBarStyle: "default",
   },
-  // Social share card (the opengraph-image.png / twitter-image.png file
-  // conventions supply the image + dimensions automatically).
-  openGraph: {
-    type: "website",
-    siteName: "PharmaChain",
-    title: "PharmaChain — the global verified pharmaceutical marketplace",
-    description: SHARE_DESCRIPTION,
-    url: "/",
-    locale: "en_US",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "PharmaChain — the global verified pharmaceutical marketplace",
-    description: SHARE_DESCRIPTION,
-  },
+  // alternates/openGraph/twitter deliberately live on the landing page's own
+  // metadata (page.tsx), not here: Next doesn't deep-merge these nested
+  // objects across the layout tree, so a value set at this root level wins
+  // wholesale on every route that doesn't declare its own — a hardcoded
+  // canonical/og:url of "/" here was shipping on /marketplace, /dashboard,
+  // every authenticated route, not just the page it was written for. Found
+  // via a Lighthouse pass on inner (authenticated) pages, not the landing
+  // page itself, where the bug was invisible.
 };
 
 export const viewport: Viewport = {
