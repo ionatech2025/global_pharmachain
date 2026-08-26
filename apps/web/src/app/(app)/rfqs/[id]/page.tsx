@@ -52,7 +52,7 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
         {rfq.viewerIsBuyer && rfq.status === "OPEN" && <CancelRfqButton rfqId={rfq.id} />}
       </PageHeader>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-sm">Requirement</CardTitle>

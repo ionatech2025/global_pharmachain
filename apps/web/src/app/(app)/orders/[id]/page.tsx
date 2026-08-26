@@ -1,4 +1,3 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import {
   DOCUMENT_KIND_LABELS,
   type DocumentKind,
@@ -176,7 +175,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         title={`Order ${order.orderNo}`}
         description={`${order.title} · from RFQ ${order.rfq.refNo}`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {order.coldChain && (
             <Badge variant="info">
               <Snowflake className="size-3" /> Cold chain

@@ -51,7 +51,7 @@ export function TraceCard({ orderId }: { orderId: string }) {
           </CardDescription>
         </div>
         {data && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={verified ? "success" : "destructive"}>
               {verified ? (
                 <>

@@ -367,7 +367,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
               : "This RFQ is no longer accepting quotations."}
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {existing && <QuotationStatusBadge status={existing.status} />}
           <Button size="sm" variant="ghost" onClick={() => openThread(router, { rfqId: rfq.id })}>
             <MessageSquare className="size-4" /> Message buyer

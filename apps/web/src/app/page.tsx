@@ -317,7 +317,7 @@ export default async function LandingPage() {
           {/* Audiences */}
           <section id="network" className="scroll-mt-24">
             <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
-              <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-end">
                 <div>
                   <p className="eyebrow text-primary">Who it's for</p>
                   <h2 className="text-display mt-4 text-3xl sm:text-[2.6rem]">

@@ -15,7 +15,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <Providers nonce={nonce}>
-      <main className="grid min-h-screen bg-background lg:grid-cols-2">
+      <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-2">
         <div className="relative flex min-h-screen flex-col px-5 py-5 sm:px-8">
           <div className="flex items-center justify-between">
             <Link href="/" aria-label="Back to PharmaChain home">
