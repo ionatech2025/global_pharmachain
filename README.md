@@ -13,7 +13,9 @@ ledger with QR verification, outbound webhooks and a public API.
 
 Production: https://global-pharmachain.vercel.app. The findings of a 2026-07
 principal architecture review and their remediation are traced in
-[`docs/architecture-review-remediation.md`](docs/architecture-review-remediation.md).
+[`docs/architecture-review-remediation.md`](docs/architecture-review-remediation.md);
+a 2026-08 performance/loading/robustness audit and its remediation are traced in
+[`docs/performance-loading-robustness-audit.md`](docs/performance-loading-robustness-audit.md).
 
 ## Stack
 
@@ -44,7 +46,7 @@ packages/
   ui/             shadcn/ui components, Tailwind 4 theme (dark mode)
   typescript-config/
 e2e/              Playwright suite (golden path, routes, endpoints, security)
-docs/             Implementation plan, US-xxx traceability, review remediation
+docs/             Implementation plan, US-xxx traceability, review remediations
 ```
 
 ## Quick start
