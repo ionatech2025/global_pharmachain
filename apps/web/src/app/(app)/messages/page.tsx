@@ -55,11 +55,16 @@ export default async function MessagesPage() {
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2">
-                    <Badge variant="outline" className="shrink-0">
+                    {/* entityRef is free text (an RFQ/order title, no length
+                        cap) — shrink-0 without truncation let a long one
+                        push the whole row past the viewport on a phone. */}
+                    <Badge variant="outline" className="w-auto min-w-0 shrink truncate">
                       {entityRef(thread)}
                     </Badge>
                     {last && (
-                      <span className="truncate text-sm text-muted-foreground">{last.body}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                        {last.body}
+                      </span>
                     )}
                   </div>
                 </Link>
