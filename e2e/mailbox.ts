@@ -12,26 +12,37 @@
 const API = "https://api.mail.tm";
 const TIMEOUT_MS = 20_000;
 
+/**
+ * Retried: one dropped connection is not evidence the service is down, and
+ * treating it as such is worse than a slow test — every case needing a
+ * mailbox then skips, and a green run means nothing was actually checked.
+ * Only the transport is retried; an HTTP error is an answer, not a blip.
+ */
 async function call<T>(
   path: string,
   init?: { method?: string; body?: unknown; token?: string },
 ): Promise<T | null> {
-  try {
-    const res = await fetch(`${API}${path}`, {
-      method: init?.method ?? "GET",
-      headers: {
-        accept: "application/json",
-        ...(init?.body ? { "content-type": "application/json" } : {}),
-        ...(init?.token ? { authorization: `Bearer ${init.token}` } : {}),
-      },
-      body: init?.body ? JSON.stringify(init.body) : undefined,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
+  const attempts = 4;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const res = await fetch(`${API}${path}`, {
+        method: init?.method ?? "GET",
+        headers: {
+          accept: "application/json",
+          ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...(init?.token ? { authorization: `Bearer ${init.token}` } : {}),
+        },
+        body: init?.body ? JSON.stringify(init.body) : undefined,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch {
+      if (attempt === attempts - 1) return null;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+    }
   }
+  return null;
 }
 
 export interface Mailbox {

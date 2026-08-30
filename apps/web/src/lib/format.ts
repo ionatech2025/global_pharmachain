@@ -22,8 +22,24 @@ interface ViewerFormat {
   locale: string;
   timeZone?: string;
 }
-const serverFormatStore = cache((): ViewerFormat => ({ locale: "en", timeZone: undefined }));
-const clientFormatStore: ViewerFormat = { locale: "en", timeZone: undefined };
+
+/**
+ * Where the platform operates. Leaving this undefined hands the decision to
+ * Intl, which falls back to the *runtime's* zone — UTC inside a Vercel
+ * function — so an unprimed store silently rendered every timestamp three
+ * hours early for the people actually using it. A concrete default is the
+ * floor: an account preference still wins, and the browser's own zone
+ * backfills for a viewer elsewhere.
+ */
+export const DEFAULT_TIME_ZONE = "Africa/Kampala";
+
+const serverFormatStore = cache(
+  (): ViewerFormat => ({
+    locale: "en",
+    timeZone: DEFAULT_TIME_ZONE,
+  }),
+);
+const clientFormatStore: ViewerFormat = { locale: "en", timeZone: DEFAULT_TIME_ZONE };
 const formatStore = (): ViewerFormat =>
   typeof window === "undefined" ? serverFormatStore() : clientFormatStore;
 
@@ -44,6 +60,24 @@ export function setViewerFormat(prefs: { locale?: string | null; timeZone?: stri
   const store = formatStore();
   if (prefs.locale) store.locale = prefs.locale;
   if (prefs.timeZone && isSupportedTimeZone(prefs.timeZone)) store.timeZone = prefs.timeZone;
+}
+
+/**
+ * A zone as it arrives from the cookie <TimeZoneSync/> writes.
+ *
+ * The value is percent-encoded going in (a zone always contains a "/"), and
+ * `cookies().get()` hands back exactly what was stored — so reading it
+ * without decoding yields "Africa%2FKampala", which is not a zone Intl knows.
+ * That failed the validation above and fell through to the default, which is
+ * precisely the UTC bug this whole path exists to fix, only quieter.
+ */
+export function decodeTimeZoneCookie(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The browser's IANA zone, or undefined where Intl cannot resolve one. */
