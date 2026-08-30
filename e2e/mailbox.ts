@@ -50,12 +50,25 @@ export interface Mailbox {
   token: string;
 }
 
+/**
+ * mail.tm answers collection endpoints in two shapes depending on the Accept
+ * header — a bare array for `application/json`, a Hydra envelope
+ * (`{"hydra:member": [...]}`) for `application/ld+json`. Reading only the
+ * envelope silently yielded undefined against the array form, which looked
+ * exactly like the service being down: every mailbox-dependent case skipped
+ * and the run still went green. Accept either.
+ */
+function collection<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  const member = (payload as Record<string, unknown> | null)?.["hydra:member"];
+  return Array.isArray(member) ? (member as T[]) : [];
+}
+
 /** A fresh disposable inbox, or null when the service is unreachable. */
 export async function createMailbox(label: string): Promise<Mailbox | null> {
-  const domains = await call<{ "hydra:member": { domain: string; isActive: boolean }[] }>(
-    "/domains",
-  );
-  const domain = domains?.["hydra:member"]?.find((d) => d.isActive)?.domain;
+  const domain = collection<{ domain: string; isActive: boolean }>(
+    await call<unknown>("/domains"),
+  ).find((d) => d.isActive)?.domain;
   if (!domain) return null;
 
   const address = `${label}-${Date.now().toString(36)}@${domain}`;
@@ -86,10 +99,10 @@ export async function waitForEmail(
 ): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const list = await call<{ "hydra:member": MessageSummary[] }>("/messages", {
-      token: mailbox.token,
-    });
-    const hit = list?.["hydra:member"]?.find((m) => subject.test(m.subject));
+    const list = collection<MessageSummary>(
+      await call<unknown>("/messages", { token: mailbox.token }),
+    );
+    const hit = list.find((m) => subject.test(m.subject));
     if (hit) {
       const full = await call<{ text?: string; html?: string[] }>(`/messages/${hit.id}`, {
         token: mailbox.token,
