@@ -71,6 +71,33 @@ function readCachedSession(email: string): StorageState | null {
   }
 }
 
+/**
+ * DNS and connect-stage failures against a deployed target: nothing reached
+ * the server, so re-navigating is safe and changes no state.
+ */
+const NEVER_REACHED =
+  /ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ENOTFOUND|getaddrinfo|ERR_CONNECTION|ETIMEDOUT/i;
+
+/**
+ * A sign-in that survives the link, not just the server. Runs against a
+ * deployed stack have died mid-suite on a single dropped name lookup, which
+ * reports as a product failure and skips every case downstream of it.
+ */
+export async function gotoResilient(page: Page, path: string, attempts = 4): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      await page.goto(path);
+      return;
+    } catch (err) {
+      if (!NEVER_REACHED.test(String((err as Error)?.message ?? err))) throw err;
+      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 async function captureSession(
   browser: Browser,
   email: string,
@@ -78,7 +105,7 @@ async function captureSession(
 ): Promise<StorageState> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto("/login");
+  await gotoResilient(page, "/login");
   await page.getByLabel("Work email").fill(email);
   // `exact` matters: the field carries a show/hide toggle labelled "Show
   // password", and Playwright matches accessible names by substring — a bare
@@ -104,7 +131,7 @@ export async function signIn(
   const cached = readCachedSession(email);
   if (cached) {
     const page = await openWith(cached);
-    await page.goto("/dashboard");
+    await gotoResilient(page, "/dashboard");
     // A cached session can still be revoked (deactivation, sessionVersion
     // bump). If it bounced to /login, fall through to a real sign-in.
     if (/\/dashboard/.test(page.url())) return page;
@@ -112,7 +139,7 @@ export async function signIn(
   }
 
   const page = await openWith(await captureSession(browser, email, password));
-  await page.goto("/dashboard");
+  await gotoResilient(page, "/dashboard");
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   return page;
 }
@@ -125,7 +152,7 @@ export async function signInFresh(
   password: string = DEMO_PASSWORD,
 ): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
-  await page.goto("/login");
+  await gotoResilient(page, "/login");
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();

@@ -1,5 +1,12 @@
-import { expect, test } from "@playwright/test";
-import { ADMIN_PASSWORD, API_PATH, DEMO_PASSWORD, signIn, signInFresh } from "./helpers";
+import { type APIResponse, expect, type Page, test } from "@playwright/test";
+import {
+  ADMIN_PASSWORD,
+  API_PATH,
+  DEMO_PASSWORD,
+  gotoResilient,
+  signIn,
+  signInFresh,
+} from "./helpers";
 import { createMailbox, linkIn, type Mailbox, waitForEmail } from "./mailbox";
 
 /**
@@ -32,18 +39,78 @@ const invited: {
   companyName?: string;
 } = { mailbox: null };
 
-test.describe.configure({ mode: "serial" });
+/**
+ * Ordered, not serial. The suite already runs single-worker in file order, so
+ * the chain still holds — but Playwright's "serial" mode aborts every
+ * remaining test the moment one fails, which turned a single slow mail poll
+ * into fifteen cases that never ran. The dependent cases guard themselves on
+ * the state they need instead, so an unrelated failure costs only itself.
+ */
+
+/** Waiting on a real relay and a real inbox is minutes, not seconds. */
+const MAIL_TIMEOUT_MS = 240_000;
+
+/**
+ * A GET that survives the link, not just the server.
+ *
+ * Runs against a deployed target have died on `getaddrinfo EAI_AGAIN` partway
+ * through an otherwise passing case — the invitation had been emailed, opened
+ * and accepted, and a dropped DNS lookup on the next call reported it as an
+ * Epic 2 failure. Retry the transport so a red result means the product.
+ */
+interface Me {
+  id: string;
+  email: string;
+  membership?: { role: string; companyName: string; companyType: string };
+}
+
+type Method = "get" | "post" | "patch";
+
+/** DNS and connect-stage failures: nothing reached the server, so a retry
+ *  cannot duplicate a write. Seen constantly against a deployed target from a
+ *  machine whose resolver is unreliable. */
+const NEVER_SENT = /EAI_AGAIN|ENOTFOUND|getaddrinfo|ECONNREFUSED|ConnectTimeout|ETIMEDOUT/i;
+
+async function req(
+  page: Page,
+  method: Method,
+  path: string,
+  options?: { data?: unknown; params?: Record<string, string> },
+  attempts = 4,
+): Promise<APIResponse> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await page.request[method](path, options);
+    } catch (err) {
+      // Only failures that prove the request never left this machine are
+      // retried. An HTTP status — 403 included — is an answer, not an error,
+      // and comes back as a resolved response. Retrying anything vaguer would
+      // risk replaying a POST the server had in fact received, and these
+      // cases raise RFQs and invitations that must not be created twice.
+      if (!NEVER_SENT.test(String((err as Error)?.message ?? err))) throw err;
+      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+async function getJson<T>(page: Page, path: string): Promise<T> {
+  return (await (await req(page, "get", path)).json()) as T;
+}
 
 test.describe("US-201 invitation and registration", () => {
   test("case 21: an invited colleague is emailed a link, and it activates a company-scoped account", async ({
     browser,
   }) => {
+    test.setTimeout(MAIL_TIMEOUT_MS);
     invited.mailbox = await createMailbox("qa-epic2");
     test.skip(!invited.mailbox, "disposable mail service unreachable");
     const mailbox = invited.mailbox as Mailbox;
 
     const admin = await signIn(browser, SUPPLIER_ADMIN, DEMO_PASSWORD);
-    const created = await admin.request.post(`${API_PATH}/companies/me/invites`, {
+    const created = await req(admin, "post", `${API_PATH}/companies/me/invites`, {
       data: { email: mailbox.address, role: "OPERATIONS" },
     });
     expect(created.status(), await created.text()).toBe(201);
@@ -61,7 +128,7 @@ test.describe("US-201 invitation and registration", () => {
 
     // Register through the link exactly as the invited user would.
     const page = await (await browser.newContext()).newPage();
-    await page.goto(url as string);
+    await gotoResilient(page, url as string);
     await page.getByLabel("Full name").fill("QA Epic2 Recruit");
     await page.getByLabel("Choose a password").fill(NEW_PASSWORD);
     await page.getByRole("button", { name: "Join company" }).click();
@@ -69,7 +136,7 @@ test.describe("US-201 invitation and registration", () => {
 
     // Company-scoped: they land inside the inviting company, as the role they
     // were invited with — not as an unattached user.
-    const me = await (await page.request.get(`${API_PATH}/auth/me`)).json();
+    const me = await getJson<Me>(page, `${API_PATH}/auth/me`);
     expect(me.membership?.role).toBe("OPERATIONS");
     expect(me.membership?.companyName).toBe("Kampala Fine Chemicals Ltd");
     expect(me.email).toBe(mailbox.address.toLowerCase());
@@ -87,7 +154,7 @@ test.describe("US-201 invitation and registration", () => {
     // page, instead of a toast that fades while the form sits there looking
     // usable. (The expiry branch itself is unit-covered in the API.)
     const page = await (await browser.newContext()).newPage();
-    await page.goto("/invite?token=expired-or-revoked-token");
+    await gotoResilient(page, "/invite?token=expired-or-revoked-token");
     await page.getByLabel("Full name").fill("QA Epic2 Late");
     await page.getByLabel("Choose a password").fill(NEW_PASSWORD);
     await page.getByRole("button", { name: "Join company" }).click();
@@ -104,7 +171,7 @@ test.describe("US-201 invitation and registration", () => {
     browser,
   }) => {
     const admin = await signIn(browser, SUPPLIER_ADMIN, DEMO_PASSWORD);
-    const res = await admin.request.post(`${API_PATH}/companies/me/invites`, {
+    const res = await req(admin, "post", `${API_PATH}/companies/me/invites`, {
       data: { email: BUYER_ADMIN, role: "OPERATIONS" },
     });
     expect(res.status()).toBe(409);
@@ -116,6 +183,9 @@ test.describe("US-202 deactivation", () => {
   /** Something worth preserving across the deactivation: a real quotation the
    *  invited member filed on somebody else's RFQ. */
   const QUOTE_NOTE = "QA Epic2 pre-deactivation quotation";
+  const QUOTE_UNIT_PRICE = "9.50";
+  /** How fmtMoney renders it: currency code, not a symbol. */
+  const QUOTE_UNIT_PRICE_DISPLAY = "USD 9.50";
   let rfqId: string | undefined;
 
   test("the invited member first files a quotation, so there is history to keep", async ({
@@ -127,8 +197,8 @@ test.describe("US-202 deactivation", () => {
 
     // An RFQ only accepts quotations from the company type it targets, so aim
     // it at whatever this company actually is rather than guessing.
-    const me = await (await recruit.request.get(`${API_PATH}/auth/me`)).json();
-    const raised = await buyer.request.post(`${API_PATH}/rfqs`, {
+    const me = await getJson<Me>(recruit, `${API_PATH}/auth/me`);
+    const raised = await req(buyer, "post", `${API_PATH}/rfqs`, {
       data: {
         title: `QA Epic2 history ${Date.now().toString(36).toUpperCase()}`,
         quantity: "5",
@@ -140,9 +210,9 @@ test.describe("US-202 deactivation", () => {
     expect(raised.ok(), `could not raise a fixture RFQ (HTTP ${raised.status()})`).toBe(true);
     rfqId = (await raised.json()).id;
 
-    const quoted = await recruit.request.post(`${API_PATH}/rfqs/${rfqId}/quotations`, {
+    const quoted = await req(recruit, "post", `${API_PATH}/rfqs/${rfqId}/quotations`, {
       data: {
-        unitPrice: "9.50",
+        unitPrice: QUOTE_UNIT_PRICE,
         currency: "USD",
         leadTimeDays: 14,
         validUntil: new Date(Date.now() + 30 * 864e5).toISOString(),
@@ -160,7 +230,9 @@ test.describe("US-202 deactivation", () => {
   }) => {
     test.skip(!invited.userId, "no invited account was created");
     const admin = await signIn(browser, SUPPLIER_ADMIN, DEMO_PASSWORD);
-    const off = await admin.request.post(
+    const off = await req(
+      admin,
+      "post",
       `${API_PATH}/companies/me/members/${invited.userId}/deactivate`,
     );
     expect(off.ok(), await off.text()).toBe(true);
@@ -174,7 +246,7 @@ test.describe("US-202 deactivation", () => {
 
     // And the block is real, not just a label.
     const page = await (await browser.newContext()).newPage();
-    await page.goto("/login");
+    await gotoResilient(page, "/login");
     await page.getByLabel("Work email").fill(invited.mailbox?.address as string);
     await page.getByLabel("Password", { exact: true }).fill(NEW_PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -188,16 +260,27 @@ test.describe("US-202 deactivation", () => {
   test("case 26: their past RFQ response is still there afterwards", async ({ browser }) => {
     test.skip(!rfqId, "no fixture quotation was filed");
     const buyer = await signIn(browser, BUYER_ADMIN, DEMO_PASSWORD);
-    const quotes = await (await buyer.request.get(`${API_PATH}/rfqs/${rfqId}/quotations`)).json();
+    const quotes = await getJson<{ items?: { notes?: string }[] }>(
+      buyer,
+      `${API_PATH}/rfqs/${rfqId}/quotations`,
+    );
     const items = quotes.items ?? quotes;
     expect(
       items.some((q: { notes?: string }) => q.notes === QUOTE_NOTE),
       "the deactivated member's quotation vanished from the RFQ",
     ).toBe(true);
 
-    // And it still reads on the RFQ page a buyer would actually look at.
-    await buyer.goto(`/rfqs/${rfqId}`);
-    await expect(buyer.getByText(QUOTE_NOTE)).toBeVisible();
+    // And the buyer still sees it on the RFQ page. The quotations table shows
+    // the supplier, the price and the status — not the private notes the
+    // supplier typed, which only ever appear in their own submit form — so
+    // assert on what a buyer actually reads. This RFQ was raised by this run
+    // and carries exactly one quotation, so the count is unambiguous.
+    await gotoResilient(buyer, `/rfqs/${rfqId}`);
+    await expect(buyer.getByText(/Quotations \(1\)/)).toBeVisible();
+    await expect(
+      buyer.getByRole("link", { name: "Kampala Fine Chemicals Ltd" }).first(),
+    ).toBeVisible();
+    await expect(buyer.getByText(QUOTE_UNIT_PRICE_DISPLAY)).toBeVisible();
   });
 
   test("case 25: the last active Company Admin is told why they cannot deactivate themselves", async ({
@@ -211,8 +294,8 @@ test.describe("US-202 deactivation", () => {
     await expect(ownRow).toContainText(/only active Company Admin|can't deactivate your own/i);
 
     // The server holds the same line, whatever the UI offers.
-    const me = await (await admin.request.get(`${API_PATH}/auth/me`)).json();
-    const res = await admin.request.post(`${API_PATH}/companies/me/members/${me.id}/deactivate`);
+    const me = await getJson<Me>(admin, `${API_PATH}/auth/me`);
+    const res = await req(admin, "post", `${API_PATH}/companies/me/members/${me.id}/deactivate`);
     expect(res.ok()).toBe(false);
     expect((await res.json()).error.message).toMatch(/admin|yourself|last/i);
   });
@@ -226,9 +309,13 @@ test.describe("US-203 platform-admin overrides", () => {
     const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
 
     for (const data of [{}, { reason: "" }, { reason: "no" }]) {
-      const res = await admin.request.post(
+      const res = await req(
+        admin,
+        "post",
         `${API_PATH}/admin/users/${invited.userId}/reset-password`,
-        { data },
+        {
+          data,
+        },
       );
       expect(res.status(), `reason ${JSON.stringify(data)} should be refused`).toBe(400);
     }
@@ -237,13 +324,18 @@ test.describe("US-203 platform-admin overrides", () => {
   test("case 27: a reset with a reason emails the user and lands in the audit log", async ({
     browser,
   }) => {
+    test.setTimeout(MAIL_TIMEOUT_MS);
     test.skip(!invited.mailbox, "no invited account was created");
     const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
 
     const reason = "QA Epic2: locked-out admin asked for a reset";
-    const res = await admin.request.post(
+    const res = await req(
+      admin,
+      "post",
       `${API_PATH}/admin/users/${invited.userId}/reset-password`,
-      { data: { reason } },
+      {
+        data: { reason },
+      },
     );
     expect(res.status(), await res.text()).toBe(200);
     expect((await res.json()).emailSent, "the reset email was reported undelivered").toBe(true);
@@ -254,7 +346,7 @@ test.describe("US-203 platform-admin overrides", () => {
 
     // Audit: the action, the target and the operator's stated reason.
     const audit = await (
-      await admin.request.get(`${API_PATH}/admin/audit-logs`, {
+      await req(admin, "get", `${API_PATH}/admin/audit-logs`, {
         params: { entityType: "User", actorEmail: SUPER_ADMIN },
       })
     ).json();
@@ -275,19 +367,19 @@ test.describe("US-203 platform-admin overrides", () => {
 
     // Reactivate first: the account was deactivated in case 24, and an admin
     // reassigning a role to a signed-out account is the scenario's premise.
-    const on = await admin.request.post(`${API_PATH}/admin/users/${invited.userId}/reactivate`, {
+    const on = await req(admin, "post", `${API_PATH}/admin/users/${invited.userId}/reactivate`, {
       data: { reason: "QA Epic2: restoring the account to reassign it" },
     });
     expect(on.status(), await on.text()).toBe(200);
 
-    const res = await admin.request.post(`${API_PATH}/admin/users/${invited.userId}/role`, {
+    const res = await req(admin, "post", `${API_PATH}/admin/users/${invited.userId}/role`, {
       data: { role: "COMPANY_ADMIN", reason: "QA Epic2: company left without an active admin" },
     });
     expect(res.status(), await res.text()).toBe(200);
 
     // The new admin can now do what only an admin can: manage members.
     const promoted = await signInFresh(browser, invited.mailbox?.address as string, NEW_PASSWORD);
-    const members = await promoted.request.get(`${API_PATH}/companies/me/members`);
+    const members = await req(promoted, "get", `${API_PATH}/companies/me/members`);
     expect(members.status(), "the promoted admin cannot read the member list").toBe(200);
     await promoted.goto("/company/members");
     await expect(promoted.getByText("Invite a colleague")).toBeVisible();
@@ -314,7 +406,7 @@ test.describe("US-204 role-based access control", () => {
     const ops = await signIn(browser, SUPPLIER_OPS, DEMO_PASSWORD);
 
     // Server-side: buying credits is a company:manage action.
-    const credits = await ops.request.post(`${API_PATH}/billing/credit-requests`, {
+    const credits = await req(ops, "post", `${API_PATH}/billing/credit-requests`, {
       data: { kind: "RFQ", count: 1 },
     });
     expect(credits.status()).toBe(403);
@@ -331,13 +423,13 @@ test.describe("US-204 role-based access control", () => {
   }) => {
     test.skip(!invited.userId, "no invited account was created");
     const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
-    const moved = await admin.request.post(`${API_PATH}/admin/users/${invited.userId}/role`, {
+    const moved = await req(admin, "post", `${API_PATH}/admin/users/${invited.userId}/role`, {
       data: { role: "FINANCE", reason: "QA Epic2: checking finance-role limits" },
     });
     expect(moved.status(), await moved.text()).toBe(200);
 
     const finance = await signInFresh(browser, invited.mailbox?.address as string, NEW_PASSWORD);
-    const listing = await finance.request.post(`${API_PATH}/catalogue`, {
+    const listing = await req(finance, "post", `${API_PATH}/catalogue`, {
       data: {
         name: "QA Epic2 listing that must never exist",
         kind: "RAW_MATERIAL",
@@ -354,12 +446,12 @@ test.describe("US-204 role-based access control", () => {
   }) => {
     const ops = await signIn(browser, SUPPLIER_OPS, DEMO_PASSWORD);
     // A live session — the same one that reads its own company perfectly well.
-    expect((await ops.request.get(`${API_PATH}/companies/me`)).status()).toBe(200);
+    expect((await req(ops, "get", `${API_PATH}/companies/me`)).status()).toBe(200);
 
     for (const call of [
-      ops.request.get(`${API_PATH}/companies/me/members`),
-      ops.request.get(`${API_PATH}/companies/me/invites`),
-      ops.request.post(`${API_PATH}/companies/me/invites`, {
+      req(ops, "get", `${API_PATH}/companies/me/members`),
+      req(ops, "get", `${API_PATH}/companies/me/invites`),
+      req(ops, "post", `${API_PATH}/companies/me/invites`, {
         data: { email: "nobody@example.com", role: "OPERATIONS" },
       }),
     ]) {
@@ -368,7 +460,7 @@ test.describe("US-204 role-based access control", () => {
     }
 
     // Platform-admin surfaces are closed to a company session too.
-    expect((await ops.request.get(`${API_PATH}/admin/login-activity`)).status()).toBe(403);
+    expect((await req(ops, "get", `${API_PATH}/admin/login-activity`)).status()).toBe(403);
   });
 });
 
@@ -416,7 +508,7 @@ test.describe("cleanup", () => {
   }) => {
     test.skip(!invited.userId, "no invited account was created");
     const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
-    const res = await admin.request.post(`${API_PATH}/admin/users/${invited.userId}/deactivate`, {
+    const res = await req(admin, "post", `${API_PATH}/admin/users/${invited.userId}/deactivate`, {
       data: { reason: "QA Epic2: end of verification run" },
     });
     expect(res.status(), await res.text()).toBe(200);
@@ -425,7 +517,10 @@ test.describe("cleanup", () => {
     // so repeated runs against a long-lived deployment do not silently pile
     // extra admins into the demo company and change what the next run sees.
     const supplier = await signIn(browser, SUPPLIER_ADMIN, DEMO_PASSWORD);
-    const members = await (await supplier.request.get(`${API_PATH}/companies/me/members`)).json();
+    const members = await getJson<{ user: { id: string; status: string } }[]>(
+      supplier,
+      `${API_PATH}/companies/me/members`,
+    );
     const left = members.find((m: { user: { id: string } }) => m.user.id === invited.userId);
     expect(left?.user.status).toBe("DEACTIVATED");
   });
