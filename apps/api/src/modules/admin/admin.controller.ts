@@ -182,14 +182,15 @@ export class AdminController {
     @Body(zodPipe(adminReasonSchema)) body: { reason: string },
     @Req() req: FastifyRequest,
   ) {
-    const user = await this.adminService.adminResetPassword(params.id);
+    const { user, emailSent } = await this.adminService.adminResetPassword(params.id);
     setAudit(req, {
       action: "admin.user-password-reset",
       entityType: "User",
       entityId: user.id,
+      newValues: { emailSent },
       reason: body.reason,
     });
-    return { ok: true };
+    return { ok: true, emailSent };
   }
 
   @HttpCode(200)

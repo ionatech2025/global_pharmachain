@@ -25,7 +25,9 @@ describe("emailConfigFromEnv", () => {
   });
 
   test("EMAIL_FROM falls back to the mailbox we authenticate as", () => {
-    expect(emailConfigFromEnv({ SMTP_USER: "relay@example.com" }).from).toBe("relay@example.com");
+    expect(emailConfigFromEnv({ SMTP_USER: "relay@example.com" }).from).toBe(
+      "PharmaChain <relay@example.com>",
+    );
     // A relay whose username is not an address leaves the placeholder…
     expect(emailConfigFromEnv({ SMTP_USER: "apikey" }).from).toBe(
       "PharmaChain <no-reply@pharmachain.local>",
@@ -35,6 +37,53 @@ describe("emailConfigFromEnv", () => {
       emailConfigFromEnv({ SMTP_USER: "relay@example.com", EMAIL_FROM: "PharmaChain <a@b.c>" })
         .from,
     ).toBe("PharmaChain <a@b.c>");
+  });
+
+  test("a bare address is given the product's name to send under", () => {
+    // Recipients see the display name, not the mailbox — an unnamed address
+    // reads as a stranger's personal account (QA 2026-08-30).
+    expect(emailConfigFromEnv({ EMAIL_FROM: "ops@pharmachain.io" }).from).toBe(
+      "PharmaChain <ops@pharmachain.io>",
+    );
+    // An operator who set their own name keeps it.
+    expect(emailConfigFromEnv({ EMAIL_FROM: "Acme Pharma <ops@acme.io>" }).from).toBe(
+      "Acme Pharma <ops@acme.io>",
+    );
+  });
+
+  test("a consumer relay sends as the mailbox it authenticates as, replies to EMAIL_FROM", () => {
+    // Gmail replaces a From naming any other mailbox, taking the display name
+    // with it, so send the aligned address and keep the configured one as the
+    // reply path.
+    const config = emailConfigFromEnv({
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_USER: "relay-account@gmail.com",
+      EMAIL_FROM: "globalpharmachain@gmail.com",
+    });
+    expect(config.from).toBe("PharmaChain <relay-account@gmail.com>");
+    expect(config.replyTo).toBe("globalpharmachain@gmail.com");
+  });
+
+  test("a relay that already owns the From is left alone", () => {
+    // Same mailbox on both sides: nothing to realign, nothing to reply-to.
+    const aligned = emailConfigFromEnv({
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_USER: "relay@gmail.com",
+      EMAIL_FROM: "PharmaChain <relay@gmail.com>",
+    });
+    expect(aligned.from).toBe("PharmaChain <relay@gmail.com>");
+    expect(aligned.replyTo).toBeUndefined();
+
+    // A transactional relay or company MTA is *expected* to send as any
+    // address on a verified domain — overriding EMAIL_FROM there would be the
+    // regression, so only the consumer hosts get realigned.
+    const domainRelay = emailConfigFromEnv({
+      SMTP_HOST: "smtp.sendgrid.net",
+      SMTP_USER: "postmaster@mg.pharmachain.io",
+      EMAIL_FROM: "PharmaChain <no-reply@pharmachain.io>",
+    });
+    expect(domainRelay.from).toBe("PharmaChain <no-reply@pharmachain.io>");
+    expect(domainRelay.replyTo).toBeUndefined();
   });
 
   test("SMTP_SECURE follows the port when it is not set", () => {
@@ -167,6 +216,26 @@ describe("SmtpEmailProvider", () => {
     // Both parts travel: the HTML for mail clients, the text for everything else.
     expect(message.data).toContain("Join Nile Pharma");
     expect(message.data).toContain("Nile Pharma</b>");
+  });
+
+  test("a configured Reply-To reaches the recipient's mail client", async () => {
+    const provider = createEmailProvider({
+      provider: "smtp",
+      from: "PharmaChain <relay-account@gmail.test>",
+      replyTo: "globalpharmachain@gmail.test",
+      smtp: { host: "127.0.0.1", port, secure: false, user: "relay-user", password: "relay-pass" },
+    });
+
+    await provider.send({
+      to: "invitee@example.com",
+      subject: "You're invited",
+      html: "<p>Join</p>",
+      text: "Join",
+    });
+
+    const message = received.at(-1);
+    if (!message) throw new Error("the sink recorded no message");
+    expect(message.data).toContain("Reply-To: globalpharmachain@gmail.test");
   });
 
   test("an unreachable relay fails without leaking what was sent", async () => {

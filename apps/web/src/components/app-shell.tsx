@@ -146,10 +146,15 @@ function CompanyCard({ me }: { me: AuthenticatedUser }) {
 export function AppShell({
   me,
   announcements,
+  fallbackTimeZone,
   children,
 }: {
   me: AuthenticatedUser;
   announcements: Announcement[];
+  /** The zone the server rendered with when the account has none saved —
+   *  passed through so client panels resolve to the same one and a date
+   *  does not change as you cross from a server page into a client one. */
+  fallbackTimeZone?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -157,8 +162,8 @@ export function AppShell({
   // Mirror the viewer's locale into the client-side formatter store so
   // client-rendered panels format dates/amounts the same way the server did.
   useEffect(() => {
-    setViewerFormat({ locale: me.locale, timeZone: me.timeZone });
-  }, [me.locale, me.timeZone]);
+    setViewerFormat({ locale: me.locale, timeZone: me.timeZone ?? fallbackTimeZone });
+  }, [me.locale, me.timeZone, fallbackTimeZone]);
   const sections = navFor(me);
   const membership = me.membership;
   const unverified = membership && membership.verificationStatus !== "VERIFIED";

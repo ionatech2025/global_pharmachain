@@ -11,6 +11,7 @@ import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/cryp
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "../../lib/totp";
 import { sendEmailTo } from "../shared/mailer";
+import { INVITE_REJECTION_MESSAGES, inviteRejection } from "./invite-tokens";
 import { issueOtp, verifyOtp } from "./otp";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 60 minutes (US-206)
@@ -275,11 +276,11 @@ export class AuthService {
       where: { tokenHash: hashToken(args.token) },
       include: { company: true },
     });
-    if (!invite || invite.revokedAt || invite.acceptedAt) {
-      throw forbidden("This invitation is no longer valid — request a new one");
-    }
-    if (invite.expiresAt < new Date()) {
-      throw forbidden("This invitation has expired — request a new one");
+    const rejection = inviteRejection(invite);
+    // The `!invite` half is redundant at runtime — inviteRejection already
+    // answers "unknown" for it — but it is what narrows the row below.
+    if (!invite || rejection) {
+      throw forbidden(INVITE_REJECTION_MESSAGES[rejection ?? "unknown"]);
     }
     const email = invite.email.toLowerCase();
     const existing = await prisma.user.findUnique({

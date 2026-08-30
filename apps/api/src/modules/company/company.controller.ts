@@ -148,7 +148,9 @@ export class CompanyController {
       action: "member.invite",
       entityType: "Invite",
       entityId: invite.id,
-      newValues: { email: invite.email, role: invite.role },
+      // Whether the relay took it belongs in the trail: an invitation nobody
+      // could have acted on reads identically to a delivered one otherwise.
+      newValues: { email: invite.email, role: invite.role, emailSent: invite.emailSent },
     });
     return invite;
   }

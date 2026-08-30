@@ -1,9 +1,10 @@
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
+import { TimeZoneSync, TZ_COOKIE } from "@/components/time-zone-sync";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer, getViewer } from "@/lib/api/server";
 import type { AnnouncementRow } from "@/lib/api/types";
@@ -23,11 +24,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       api.get<AnnouncementRow[]>("/announcements/active"),
     ]);
     // Prime the request-scoped formatter store so server-rendered dates and
-    // amounts honour the viewer's saved locale/time zone.
-    setViewerFormat({ locale: me.locale, timeZone: me.timeZone });
+    // amounts honour the viewer's saved locale/time zone. The cookie <TimeZoneSync/>
+    // writes only backfills a zone the account has not set — without it Intl
+    // falls back to the serverless function's own zone (UTC) and every
+    // timestamp is off by the viewer's offset (US-205 QA, 2026-08-30).
+    const browserTimeZone = (await cookies()).get(TZ_COOKIE)?.value;
+    setViewerFormat({ locale: me.locale, timeZone: me.timeZone ?? browserTimeZone });
     return (
       <Providers nonce={nonce}>
-        <AppShell me={me} announcements={announcements}>
+        <TimeZoneSync />
+        <AppShell me={me} announcements={announcements} fallbackTimeZone={browserTimeZone}>
           {children}
         </AppShell>
       </Providers>

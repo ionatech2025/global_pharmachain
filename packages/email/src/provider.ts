@@ -14,6 +14,21 @@ export interface EmailProvider {
   send(message: EmailMessage): Promise<void>;
 }
 
+/** Bare mailbox out of a From header, whether or not it carries a display
+ *  name — `PharmaChain <a@b.c>` and `a@b.c` both yield `a@b.c`. */
+export function addressOf(from: string): string {
+  return from.match(/<([^>]+)>/)?.[1]?.trim() ?? from.trim();
+}
+
+const DISPLAY_NAME = "PharmaChain";
+
+/** A bare address shows up in a mail client as just the mailbox, which for a
+ *  consumer relay means recipients see a personal-looking account rather than
+ *  the product. Give it the product's name unless one is already set. */
+function withDisplayName(from: string): string {
+  return from.includes("<") ? from : `${DISPLAY_NAME} <${from}>`;
+}
+
 /** Dev provider: prints the full email to stdout (this is how OTP codes and
  *  invite links are read during local development). */
 class ConsoleEmailProvider implements EmailProvider {
@@ -56,6 +71,13 @@ class SmtpEmailProvider implements EmailProvider {
   constructor(
     private from: string,
     config: SmtpConfig,
+    /** Where replies should land when the relay overrides our From. A
+     *  consumer relay (Gmail, and others that only accept their own
+     *  mailboxes) silently rewrites a From it does not own to the
+     *  authenticated account, so the address an operator configured in
+     *  EMAIL_FROM never reaches the recipient. Reply-To survives that
+     *  rewrite, so the brand mailbox still gets the replies. */
+    private replyTo?: string,
   ) {
     this.transport = createTransport({
       host: config.host,
@@ -74,6 +96,7 @@ class SmtpEmailProvider implements EmailProvider {
     try {
       await this.transport.sendMail({
         from: this.from,
+        replyTo: this.replyTo,
         to: message.to,
         subject: message.subject,
         html: message.html,
@@ -93,6 +116,9 @@ class SmtpEmailProvider implements EmailProvider {
 export interface EmailProviderConfig {
   provider: "console" | "smtp";
   from: string;
+  /** Set when EMAIL_FROM names a mailbox the relay does not authenticate as,
+   *  and the relay is therefore liable to rewrite the From. */
+  replyTo?: string;
   smtp?: Partial<SmtpConfig>;
 }
 
@@ -100,6 +126,36 @@ const DEFAULT_FROM = "PharmaChain <no-reply@pharmachain.local>";
 const DEFAULT_PORT = 587;
 /** The port that means implicit TLS, when SMTP_SECURE does not say. */
 const SMTPS_PORT = 465;
+
+/**
+ * Consumer mailbox providers send as the account you logged in as, full stop:
+ * a From naming any other mailbox is silently replaced on the way out, taking
+ * our display name with it.
+ *
+ * QA 2026-08-30 hit exactly that — production had EMAIL_FROM on one Gmail
+ * mailbox while authenticating as another, so invitations landed from an
+ * unfamiliar personal address with no product name on it. Unrecognisable to
+ * the recipient, and a strong spam signal.
+ *
+ * Sending the aligned address ourselves is the only way to keep a display
+ * name on it. Deliberately narrow: a transactional relay (SendGrid, SES,
+ * Postmark) or a company MTA is *expected* to send as any address on a
+ * verified domain, and overriding the operator's EMAIL_FROM there would be a
+ * regression — so the rule keys on the relays that actually enforce this, and
+ * every other host keeps EMAIL_FROM exactly as configured.
+ */
+const ALIGNED_FROM_HOSTS = [
+  "smtp.gmail.com",
+  "smtp.mail.yahoo.com",
+  "smtp-mail.outlook.com",
+  "smtp.office365.com",
+  "smtp.mail.me.com",
+];
+
+function rewritesUnownedFrom(host: string | undefined, user: string | undefined): user is string {
+  if (!host || !user?.includes("@")) return false;
+  return ALIGNED_FROM_HOSTS.includes(host.toLowerCase());
+}
 
 /**
  * The API and the notification fan-out both build a provider, and they must
@@ -122,11 +178,18 @@ export function emailConfigFromEnv(
   if (env.EMAIL_PROVIDER === "smtp") provider = "smtp";
   if (env.EMAIL_PROVIDER === "console") provider = "console";
 
+  // A relay almost always rejects a From it does not own, so the mailbox we
+  // authenticate as beats the dev placeholder when EMAIL_FROM is unset.
+  const configuredFrom = env.EMAIL_FROM || (user?.includes("@") ? user : DEFAULT_FROM);
+  const rewritten = rewritesUnownedFrom(host, user) && addressOf(configuredFrom) !== user;
+  const from = withDisplayName(rewritten ? (user as string) : configuredFrom);
+
   return {
     provider,
-    // A relay almost always rejects a From it does not own, so the mailbox we
-    // authenticate as beats the dev placeholder when EMAIL_FROM is unset.
-    from: env.EMAIL_FROM || (user?.includes("@") ? user : DEFAULT_FROM),
+    from,
+    // Keep the configured mailbox reachable even where the relay took the
+    // From away from us.
+    replyTo: rewritten ? configuredFrom : undefined,
     smtp: {
       host,
       port,
@@ -147,13 +210,17 @@ export function createEmailProvider(config: EmailProviderConfig): EmailProvider 
     if (!smtp?.host) {
       throw new Error("EMAIL_PROVIDER=smtp requires SMTP_HOST to be set");
     }
-    return new SmtpEmailProvider(config.from, {
-      host: smtp.host,
-      port: smtp.port ?? DEFAULT_PORT,
-      secure: smtp.secure ?? (smtp.port ?? DEFAULT_PORT) === SMTPS_PORT,
-      user: smtp.user,
-      password: smtp.password,
-    });
+    return new SmtpEmailProvider(
+      config.from,
+      {
+        host: smtp.host,
+        port: smtp.port ?? DEFAULT_PORT,
+        secure: smtp.secure ?? (smtp.port ?? DEFAULT_PORT) === SMTPS_PORT,
+        user: smtp.user,
+        password: smtp.password,
+      },
+      config.replyTo,
+    );
   }
   return new ConsoleEmailProvider(config.from);
 }

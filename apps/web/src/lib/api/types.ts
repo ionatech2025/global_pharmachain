@@ -40,6 +40,10 @@ export type AnnouncementRow = Pick<
 >;
 export type SystemParameterRow = Jsonify<SystemParameter>;
 export type InviteRow = Pick<Jsonify<Invite>, "id" | "email" | "role" | "expiresAt" | "createdAt">;
+
+/** POST /companies/me/invites also reports what happened to the email, and
+ *  hands back the link to pass on by hand when nothing was delivered. */
+export type CreatedInvite = InviteRow & { emailSent: boolean; inviteUrl?: string };
 export type CreditRequestRow = Jsonify<CreditRequest>;
 
 export interface CompanyRef {

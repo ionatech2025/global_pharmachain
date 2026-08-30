@@ -9,6 +9,14 @@ import { cache } from "react";
  * per-browser module store. Both are primed from the authenticated user:
  * the (app) layout calls setViewerFormat() on the server, AppShell mirrors
  * it on the client. Unauthenticated surfaces keep the "en" default.
+ *
+ * QA 2026-08-30: a viewer with no saved time zone had `timeZone: undefined`
+ * passed straight to Intl, which then falls back to the *runtime's* zone —
+ * UTC in a Vercel function. Every server-rendered timestamp was therefore
+ * shown in UTC (a login at 20:34 in Kampala read "5:34 PM"), which is what
+ * the login-activity report meant by "the login time is not accurate". The
+ * browser's own zone now backfills the preference; see setViewerFormat's
+ * caller in (app)/layout.tsx and <TimeZoneSync/> for how it gets there.
  */
 interface ViewerFormat {
   locale: string;
@@ -19,10 +27,32 @@ const clientFormatStore: ViewerFormat = { locale: "en", timeZone: undefined };
 const formatStore = (): ViewerFormat =>
   typeof window === "undefined" ? serverFormatStore() : clientFormatStore;
 
+/** A zone reaches us from a cookie the browser wrote, so it is untrusted
+ *  input on the server: an unknown identifier makes Intl throw a RangeError,
+ *  which would take down the whole RSC render rather than mis-format one
+ *  cell. Validate once here instead of guarding every call site. */
+function isSupportedTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function setViewerFormat(prefs: { locale?: string | null; timeZone?: string | null }): void {
   const store = formatStore();
   if (prefs.locale) store.locale = prefs.locale;
-  if (prefs.timeZone) store.timeZone = prefs.timeZone;
+  if (prefs.timeZone && isSupportedTimeZone(prefs.timeZone)) store.timeZone = prefs.timeZone;
+}
+
+/** The browser's IANA zone, or undefined where Intl cannot resolve one. */
+export function resolvedBrowserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function fmtMoney(amount: string | number, currency: string): string {

@@ -26,7 +26,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { UserStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
-import type { InviteRow, MemberRow } from "@/lib/api/types";
+import type { CreatedInvite, InviteRow, MemberRow } from "@/lib/api/types";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 
 /** Invite by email with a role; links are valid for 72 hours (US-201). */
@@ -35,13 +35,23 @@ export function InvitePanel({ invites }: { invites: InviteRow[] }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CompanyRole>("OPERATIONS");
   const [busy, setBusy] = useState(false);
+  // Set only when the relay refused the invitation, so the admin can still
+  // get their colleague in. Persistent on the page rather than a toast: the
+  // link is the whole point of the message and has to survive being read.
+  const [undelivered, setUndelivered] = useState<{ email: string; url: string } | null>(null);
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/companies/me/invites", { email, role });
-      toast.success(`Invitation sent to ${email} (valid 72 hours)`);
+      const created = await api.post<CreatedInvite>("/companies/me/invites", { email, role });
+      if (created.emailSent) {
+        setUndelivered(null);
+        toast.success(`Invitation sent to ${email} (valid 72 hours)`);
+      } else {
+        setUndelivered({ email, url: created.inviteUrl ?? "" });
+        toast.warning(`Couldn't email ${email} — send them the link below`);
+      }
       setEmail("");
       router.refresh();
     } catch (err) {
@@ -96,6 +106,32 @@ export function InvitePanel({ invites }: { invites: InviteRow[] }) {
             {busy ? "Sending…" : "Send invite"}
           </Button>
         </form>
+
+        {undelivered?.url && (
+          <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+            <p className="font-medium">Invitation created, but the email didn't go out</p>
+            <p className="mt-0.5 text-muted-foreground">
+              {undelivered.email} was invited and the link below works for 72 hours — send it to
+              them directly. Ask your platform admin to check the mail settings.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 font-mono text-xs">
+                {undelivered.url}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard.writeText(undelivered.url);
+                  toast.success("Invitation link copied");
+                }}
+              >
+                Copy link
+              </Button>
+            </div>
+          </div>
+        )}
 
         {invites.length > 0 && (
           <ul className="space-y-1 text-sm">

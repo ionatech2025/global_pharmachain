@@ -127,11 +127,20 @@ const USER_VARIANTS: Record<string, Variant> = {
   DEACTIVATED: "outline",
 };
 
+/** Titlecasing the enum gave "Deactivated", but US-202 asks the user list to
+ *  read "Inactive" — the word the acceptance criteria and the rest of the
+ *  product use for an account that can no longer sign in. */
+const USER_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  INVITED: "Invited",
+  DEACTIVATED: "Inactive",
+};
+
 export function UserStatusBadge({ status }: { status: string }) {
   return (
     <StatusBadge
       variant={USER_VARIANTS[status] ?? "secondary"}
-      label={status.charAt(0) + status.slice(1).toLowerCase()}
+      label={USER_STATUS_LABELS[status] ?? status.charAt(0) + status.slice(1).toLowerCase()}
     />
   );
 }

@@ -12,12 +12,35 @@ import {
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
 import { PasswordInput } from "@pharmachain/ui/components/password-input";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
-import { errorMessage } from "@/lib/api/http";
+import { ApiClientError, errorMessage } from "@/lib/api/http";
+
+/** Terminal state for a link that can never work: says why, and offers the
+ *  only route forward rather than a form that would fail again. */
+function RejectedCard({ reason }: { reason: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>This invitation can’t be used</CardTitle>
+        <CardDescription>{reason}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <p>
+          Invitation links expire 72 hours after they are sent. Ask your Company Admin to send a
+          fresh one — it will arrive at the same address.
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/login">Back to sign in</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 function InviteForm() {
   const router = useRouter();
@@ -25,6 +48,7 @@ function InviteForm() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rejection, setRejection] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +65,16 @@ function InviteForm() {
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      toast.error(errorMessage(err));
+      // US-201: an expired or revoked link is a dead end, not a retry. It used
+      // to be reported in a toast that faded while the form sat there looking
+      // usable, so the reason never reached the person holding the link —
+      // which is how "link rejected with an expiry message" went unconfirmed
+      // in QA. Keep the refusal on the page and take the form away.
+      if (err instanceof ApiClientError && (err.status === 403 || err.status === 409)) {
+        setRejection(err.message);
+      } else {
+        toast.error(errorMessage(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -49,17 +82,11 @@ function InviteForm() {
 
   if (!token) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Invitation link invalid</CardTitle>
-          <CardDescription>
-            The link is missing its token. Ask your Company Admin to send a new invitation (links
-            expire after 72 hours).
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <RejectedCard reason="The link is missing its token. Ask your Company Admin to send a new invitation (links expire after 72 hours)." />
     );
   }
+
+  if (rejection) return <RejectedCard reason={rejection} />;
 
   return (
     <Card>

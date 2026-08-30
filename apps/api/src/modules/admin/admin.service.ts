@@ -163,11 +163,16 @@ export class AdminService {
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
       },
     });
-    await sendEmailTo(
+    // US-203: the reset link only ever reaches the user, so an admin who is
+    // told "reset email sent" when the relay refused it has locked the user
+    // out for good rather than helped them. Report what actually happened —
+    // unlike an invitation there is no safe fallback to hand over, since the
+    // link is the account itself.
+    const emailSent = await sendEmailTo(
       user.email,
       passwordResetEmail({ url: `${env.APP_URL}/reset-password?token=${token}` }),
     );
-    return user;
+    return { user, emailSent };
   }
 
   async adminSetUserStatus(userId: string, active: boolean) {

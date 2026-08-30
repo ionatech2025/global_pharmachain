@@ -7,7 +7,7 @@ import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { conflict, forbidden, notFound } from "../../common/errors";
 import { getIntParam } from "../../lib/params";
-import { createInviteToken, inviteEmailContent } from "../auth/invite-tokens";
+import { createInviteToken, inviteEmailContent, inviteUrlFor } from "../auth/invite-tokens";
 import { sendEmailTo } from "../shared/mailer";
 import { buildVerificationChecklist } from "./verification-checklist";
 
@@ -255,12 +255,23 @@ export class CompanyService {
         invitedById: args.invitedById,
         expiresAt,
       },
+      select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
     });
-    await sendEmailTo(
+    const emailSent = await sendEmailTo(
       email,
       inviteEmailContent(args.companyName, COMPANY_ROLE_LABELS[args.role], token),
     );
-    return invite;
+    // US-201: an invitation the relay refused used to be indistinguishable
+    // from one it delivered, leaving the admin waiting on a colleague who was
+    // never written to. Hand back the link in that case only — the admin is
+    // the person authorised to grant this membership, so passing it on by
+    // hand is a legitimate way through, while a link echoed on every success
+    // would be a second copy of a joining credential for no reason.
+    return {
+      ...invite,
+      emailSent,
+      inviteUrl: emailSent ? undefined : inviteUrlFor(token),
+    };
   }
 
   async listInvites(companyId: string) {
