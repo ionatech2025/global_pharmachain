@@ -152,7 +152,16 @@ const ALIGNED_FROM_HOSTS = [
   "smtp.mail.me.com",
 ];
 
-function rewritesUnownedFrom(host: string | undefined, user: string | undefined): user is string {
+function rewritesUnownedFrom(
+  host: string | undefined,
+  user: string | undefined,
+  verified: boolean,
+): user is string {
+  // An operator who has actually authorised the address — Gmail's "Send mail
+  // as", a relay's verified sender — owns the From legitimately, and
+  // realigning it would then be us overriding correct configuration. Set
+  // EMAIL_FROM_VERIFIED=true to say so.
+  if (verified) return false;
   if (!host || !user?.includes("@")) return false;
   return ALIGNED_FROM_HOSTS.includes(host.toLowerCase());
 }
@@ -181,7 +190,9 @@ export function emailConfigFromEnv(
   // A relay almost always rejects a From it does not own, so the mailbox we
   // authenticate as beats the dev placeholder when EMAIL_FROM is unset.
   const configuredFrom = env.EMAIL_FROM || (user?.includes("@") ? user : DEFAULT_FROM);
-  const rewritten = rewritesUnownedFrom(host, user) && addressOf(configuredFrom) !== user;
+  const rewritten =
+    rewritesUnownedFrom(host, user, env.EMAIL_FROM_VERIFIED === "true") &&
+    addressOf(configuredFrom) !== user;
   const from = withDisplayName(rewritten ? (user as string) : configuredFrom);
 
   return {

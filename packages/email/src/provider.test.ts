@@ -86,6 +86,19 @@ describe("emailConfigFromEnv", () => {
     expect(domainRelay.replyTo).toBeUndefined();
   });
 
+  test("EMAIL_FROM_VERIFIED lets an authorised alias through untouched", () => {
+    // Once the mailbox is a verified "Send mail as" alias, Gmail no longer
+    // rewrites it — and realigning would be us overriding correct config.
+    const config = emailConfigFromEnv({
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_USER: "relay-account@gmail.com",
+      EMAIL_FROM: "PharmaChain <globalpharmachain@gmail.com>",
+      EMAIL_FROM_VERIFIED: "true",
+    });
+    expect(config.from).toBe("PharmaChain <globalpharmachain@gmail.com>");
+    expect(config.replyTo).toBeUndefined();
+  });
+
   test("SMTP_SECURE follows the port when it is not set", () => {
     expect(emailConfigFromEnv({ SMTP_PORT: "465" }).smtp?.secure).toBe(true);
     expect(emailConfigFromEnv({ SMTP_PORT: "587" }).smtp?.secure).toBe(false);
