@@ -269,41 +269,60 @@ export function MallDirectoryGrid() {
                   </p>
 
                   <div className="border-t border-border/60 pt-4 mb-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-3">
-                      Directory Portals & Storefronts
-                    </p>
-                    <div className="space-y-3">
-                      {lane.storefronts.map((store) => (
-                        <div
-                          key={store.name}
-                          className="rounded-xl border border-border/50 bg-background/60 p-3 hover:bg-background/90 transition-colors"
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
+                        Directory Portals & Storefronts
+                      </p>
+                      {selectedTag && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTag(null)}
+                          className="text-[10px] text-primary hover:underline font-medium"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-foreground">
-                              {store.name}
-                            </span>
+                          Clear filter
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {lane.storefronts.map((store) => {
+                        const matchesTag = !selectedTag || store.tags.includes(selectedTag);
+                        return (
+                          <div
+                            key={store.name}
+                            className={`rounded-xl border p-3 transition-all ${
+                              matchesTag
+                                ? "border-border/60 bg-background/80 hover:bg-background/95"
+                                : "border-border/30 bg-background/40 opacity-50 hover:opacity-80"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-foreground">
+                                {store.name}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 leading-normal">
+                              {store.desc}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {store.tags.map((tag) => (
+                                <button
+                                  type="button"
+                                  key={tag}
+                                  aria-pressed={selectedTag === tag}
+                                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${
+                                    selectedTag === tag
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted/50 text-muted-foreground border-border/40 hover:bg-muted"
+                                  }`}
+                                >
+                                  {tag}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1 leading-normal">
-                            {store.desc}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {store.tags.map((tag) => (
-                              <button
-                                type="button"
-                                key={tag}
-                                onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                                className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${
-                                  selectedTag === tag
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted/50 text-muted-foreground border-border/40 hover:bg-muted"
-                                }`}
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

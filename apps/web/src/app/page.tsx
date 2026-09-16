@@ -266,7 +266,10 @@ export default async function LandingPage() {
                       size="lg"
                       className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-sky-600 hover:bg-sky-700 text-white shadow-md transition-all hover:scale-[1.02]"
                     >
-                      <Link href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=source_raw">
+                      <Link
+                        href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=source_raw"
+                        aria-label="Source Raw Materials & Consumables - for manufacturers buying inputs"
+                      >
                         <span className="font-semibold text-sm">
                           Source Raw Materials & Consumables
                         </span>
@@ -281,7 +284,10 @@ export default async function LandingPage() {
                       size="lg"
                       className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all hover:scale-[1.02]"
                     >
-                      <Link href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=list_capacity">
+                      <Link
+                        href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=list_capacity"
+                        aria-label="List Formulations & Capacity - for manufacturers and CDMOs"
+                      >
                         <span className="font-semibold text-sm">List Formulations & Capacity</span>
                         <span className="text-[11px] opacity-90 font-normal mt-0.5">
                           For Manufacturers & CDMOs
@@ -294,7 +300,10 @@ export default async function LandingPage() {
                       size="lg"
                       className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-teal-600 hover:bg-teal-700 text-white shadow-md transition-all hover:scale-[1.02]"
                     >
-                      <Link href="/register?type=FINISHED_PRODUCT_DISTRIBUTOR&action=procure_bulk">
+                      <Link
+                        href="/register?type=FINISHED_PRODUCT_DISTRIBUTOR&action=procure_bulk"
+                        aria-label="Procure Bulk Medications - for wholesale traders, distributors, and institutions"
+                      >
                         <span className="font-semibold text-sm">Procure Bulk Medications</span>
                         <span className="text-[11px] opacity-90 font-normal mt-0.5">
                           For Wholesale & Institutions
