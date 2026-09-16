@@ -4,6 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   COMPANY_TYPE_LABELS,
   COMPANY_TYPES,
+  COUNTRIES,
+  type CompanyType,
+  detectUserCountry,
   type RegisterInput,
   registerSchema,
 } from "@pharmachain/core";
@@ -32,23 +35,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pharmachain/ui/components/select";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryType = searchParams.get("type") as CompanyType | null;
+  const initialType: CompanyType =
+    queryType && COMPANY_TYPES.includes(queryType) ? queryType : "RAW_MATERIAL_MANUFACTURER";
+
   const form = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
-    // Report a bad field as soon as it is left rather than only on submit, so a
-    // mistyped address is visible before the user reaches the button (US-101).
     mode: "onTouched",
     defaultValues: {
       company: {
         name: "",
-        type: "RAW_MATERIAL_MANUFACTURER",
+        type: initialType,
         country: "",
         registrationNumber: "",
         address: "",
@@ -58,10 +65,26 @@ export default function RegisterPage() {
     },
   });
 
+  // Auto-pick country based on applicant's location/timezone
+  useEffect(() => {
+    if (!form.getValues("company.country")) {
+      const detected = detectUserCountry();
+      const defaultCountry = detected || "Uganda";
+      form.setValue("company.country", defaultCountry, { shouldValidate: true });
+    }
+  }, [form]);
+
+  // If query param type changes, update form
+  useEffect(() => {
+    if (queryType && COMPANY_TYPES.includes(queryType)) {
+      form.setValue("company.type", queryType);
+    }
+  }, [queryType, form]);
+
   async function onSubmit(values: RegisterInput) {
     try {
       await api.post("/auth/register", values);
-      toast.success("Company registered — check your inbox, then sign in");
+      toast.success("Company registered successfully! Redirecting to sign in…");
       router.push(`/login?registered=1&email=${encodeURIComponent(values.admin.email)}`);
     } catch (err) {
       toast.error(errorMessage(err));
@@ -87,7 +110,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Company name</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input placeholder="e.g. Apex Pharma International" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -102,10 +125,10 @@ export default function RegisterPage() {
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select company type…" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="max-h-72">
                       {COMPANY_TYPES.map((t) => (
                         <SelectItem key={t} value={t}>
                           {COMPANY_TYPE_LABELS[t]}
@@ -124,9 +147,20 @@ export default function RegisterPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-72">
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -138,7 +172,7 @@ export default function RegisterPage() {
                   <FormItem>
                     <FormLabel>Registration number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="e.g. RC-9823412" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -152,7 +186,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Registered address</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input placeholder="Street, City, Postal Code" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -181,7 +215,7 @@ export default function RegisterPage() {
                     <FormItem>
                       <FormLabel>Full name</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input placeholder="e.g. Dr. Jane Doe" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -195,7 +229,12 @@ export default function RegisterPage() {
                       <FormItem>
                         <FormLabel>Work email</FormLabel>
                         <FormControl>
-                          <Input type="email" autoComplete="email" {...field} />
+                          <Input
+                            type="email"
+                            autoComplete="email"
+                            placeholder="jane@company.com"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -217,12 +256,22 @@ export default function RegisterPage() {
                 </div>
               </div>
             </div>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
               {form.formState.isSubmitting ? "Registering…" : "Register company"}
             </Button>
           </form>
         </Form>
       </CardContent>
     </Card>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={<div className="p-8 text-center text-muted-foreground">Loading registration…</div>}
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }

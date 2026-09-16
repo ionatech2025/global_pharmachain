@@ -200,7 +200,7 @@ export function RfqForm({
                   <FormControl>
                     <Textarea
                       rows={4}
-                      placeholder="Grade, pharmacopoeia (BP/USP/EP), purity, documentation required…"
+                      placeholder="Grade, pharmacopoeia (BP/USP/EP), purity, user requirement specifications (URS) or drawings, documentation required…"
                       {...field}
                     />
                   </FormControl>
@@ -243,7 +243,8 @@ export function RfqForm({
                     />
                   </FormControl>
                   <FormDescription>
-                    Spec sheets or drawings — eligible suppliers can download these.
+                    User requirement specifications (URS), spec sheets or drawings — eligible
+                    suppliers can download these.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -184,7 +184,11 @@ export function requiredVerificationKinds(type: CompanyType): readonly Verificat
     "TRADING_LICENCE",
     "TAX_ID",
   ];
-  if (type === "RAW_MATERIAL_MANUFACTURER" || type === "FINISHED_PRODUCT_MANUFACTURER") {
+  if (
+    type === "RAW_MATERIAL_MANUFACTURER" ||
+    type === "FINISHED_PRODUCT_MANUFACTURER" ||
+    type === "EQUIPMENT_MANUFACTURER"
+  ) {
     base.push("MANUFACTURING_LICENCE", "GMP_CERTIFICATE");
   }
   return base;

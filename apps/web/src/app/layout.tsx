@@ -16,13 +16,13 @@ export const metadata: Metadata = {
   // Absolute base so the file-convention opengraph-image / twitter-image and
   // any relative URLs resolve to fully-qualified links in share previews.
   metadataBase: new URL(SITE_URL),
-  title: { default: "PharmaChain", template: "%s · PharmaChain" },
+  title: { default: "Global PharmaChain", template: "%s · Global PharmaChain" },
   description: "B2B pharmaceutical sourcing and procurement platform",
-  applicationName: "PharmaChain",
+  applicationName: "Global PharmaChain",
   // manifest.ts is auto-linked; these add iOS standalone/PWA support.
   appleWebApp: {
     capable: true,
-    title: "PharmaChain",
+    title: "Global PharmaChain",
     statusBarStyle: "default",
   },
   // alternates/openGraph/twitter deliberately live on the landing page's own

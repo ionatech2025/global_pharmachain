@@ -58,15 +58,17 @@ export function Logo({
   className,
   markClassName,
   wordClassName,
+  showGlobal = true,
 }: {
   className?: string;
   markClassName?: string;
   wordClassName?: string;
+  showGlobal?: boolean;
 }) {
   return (
     <span
       className={cn(
-        "group/logo inline-flex items-center gap-2.5 transition-[filter] duration-300",
+        "group/logo inline-flex items-center gap-2 transition-[filter] duration-300",
         "group-hover/logo:drop-shadow-[0_2px_12px_rgb(47_150_224/0.45)]",
         className,
       )}
@@ -78,6 +80,7 @@ export function Logo({
           wordClassName,
         )}
       >
+        {showGlobal && <span className="font-normal text-muted-foreground mr-1">Global</span>}
         Pharma<span className="text-primary">Chain</span>
       </span>
     </span>

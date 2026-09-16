@@ -8,6 +8,7 @@ import { recordAudit } from "../../common/audit";
 import { ApiException, badRequest, conflict, forbidden, unauthorized } from "../../common/errors";
 import { env } from "../../env";
 import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
+import { defer } from "../../lib/defer";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "../../lib/totp";
 import { sendEmailTo } from "../shared/mailer";
@@ -107,7 +108,7 @@ export class AuthService {
         companyId: company.id,
       },
     );
-    await sendEmailTo(email, welcomeEmail({ companyName: company.name, appUrl: env.APP_URL }));
+    defer(sendEmailTo(email, welcomeEmail({ companyName: company.name, appUrl: env.APP_URL })));
     return { companyId: company.id };
   }
 
@@ -204,9 +205,14 @@ export class AuthService {
 
   // ─── Password reset (US-206) ───────────────────────────────────────────────
 
-  async forgotPassword(email: string): Promise<void> {
+  async forgotPassword(email: string): Promise<{ sent: boolean; message: string }> {
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (user?.status !== "ACTIVE" || !user.passwordHash) return;
+    if (user?.status !== "ACTIVE" || !user.passwordHash) {
+      return {
+        sent: false,
+        message: "No active account found for that email address.",
+      };
+    }
     const token = randomToken();
     await prisma.passwordResetToken.create({
       data: {
@@ -215,10 +221,16 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
       },
     });
-    await sendEmailTo(
-      user.email,
-      passwordResetEmail({ url: `${env.APP_URL}/reset-password?token=${token}` }),
+    defer(
+      sendEmailTo(
+        user.email,
+        passwordResetEmail({ url: `${env.APP_URL}/reset-password?token=${token}` }),
+      ),
     );
+    return {
+      sent: true,
+      message: "A password reset link (valid for 60 minutes) has been sent to your email address.",
+    };
   }
 
   async resetPassword(token: string, password: string): Promise<void> {

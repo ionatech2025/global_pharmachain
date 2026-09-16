@@ -25,8 +25,16 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/auth/password/forgot", { email });
-      setSent(true);
+      const res = await api.post<{ ok: boolean; sent: boolean; message: string }>(
+        "/auth/password/forgot",
+        { email },
+      );
+      if (res.sent) {
+        setSent(true);
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || "No account exists for that email address.");
+      }
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -40,7 +48,7 @@ export default function ForgotPasswordPage() {
         <CardTitle>Reset your password</CardTitle>
         <CardDescription>
           {sent
-            ? "If an account exists for that email, a reset link (valid for 60 minutes) is on its way."
+            ? "A password reset link (valid for 60 minutes) has been sent to your email."
             : "Enter your work email and we'll send a reset link."}
         </CardDescription>
       </CardHeader>

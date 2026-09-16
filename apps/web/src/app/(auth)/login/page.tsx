@@ -92,7 +92,7 @@ function LoginForm() {
         <CardDescription>
           {params.get("registered")
             ? "Registration received — sign in to upload your verification documents."
-            : "Access your PharmaChain workspace."}
+            : "Access your Global PharmaChain workspace."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -184,7 +184,7 @@ function LoginForm() {
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          New to PharmaChain?{" "}
+          New to Global PharmaChain?{" "}
           <Link href="/register" className="text-primary underline">
             Register your company
           </Link>

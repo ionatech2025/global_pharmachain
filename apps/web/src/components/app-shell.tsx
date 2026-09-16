@@ -21,13 +21,14 @@ import {
   SheetTrigger,
 } from "@pharmachain/ui/components/sheet";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { ChevronRight, Megaphone, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
+import { ChevronRight, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { setViewerFormat } from "@/lib/format";
+import { AnnouncementBanner } from "./announcement-banner";
 import { CommandMenu } from "./command-menu";
 import { IdleSession } from "./idle-session";
 import { Logo, LogoMark } from "./logo";
@@ -265,13 +266,7 @@ export function AppShell({
         </header>
 
         <main id="main" className="mx-auto w-full max-w-[110rem] flex-1 space-y-4 p-4 lg:p-6">
-          {announcements.map((a) => (
-            <Alert key={a.id} variant="info">
-              <Megaphone className="size-4" />
-              <AlertTitle>{a.title}</AlertTitle>
-              <AlertDescription>{a.body}</AlertDescription>
-            </Alert>
-          ))}
+          <AnnouncementBanner announcements={announcements} />
           {unverified && membership && (
             <Alert variant="warning">
               <ShieldCheck className="size-4" />

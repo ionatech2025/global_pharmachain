@@ -166,6 +166,11 @@ export function AnnouncementManager({
                     </option>
                   ))}
                 </select>
+                {audience === "ALL" && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Broadcast to all registered users across every workspace.
+                  </p>
+                )}
               </div>
               {audience === "ROLE" && (
                 <div className="grid gap-2">

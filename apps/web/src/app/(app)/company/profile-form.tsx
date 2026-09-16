@@ -125,21 +125,21 @@ export function ProfileForm({
               <Label htmlFor="countries">Countries of operation</Label>
               <Input
                 id="countries"
-                placeholder="Uganda, Kenya, Tanzania"
+                placeholder="e.g. Uganda, Kenya (optional)"
                 value={countries}
                 onChange={(e) => setCountries(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Comma-separated.</p>
+              <p className="text-xs text-muted-foreground">Comma-separated. Leave empty if none.</p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="certifications">Displayed certifications</Label>
               <Input
                 id="certifications"
-                placeholder="WHO-GMP, ISO 9001"
+                placeholder="e.g. WHO-GMP, ISO 9001 (optional)"
                 value={certifications}
                 onChange={(e) => setCertifications(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Comma-separated.</p>
+              <p className="text-xs text-muted-foreground">Comma-separated. Leave empty if none.</p>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
