@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@pharmachain/ui/components/table";
+import { cn } from "@pharmachain/ui/lib/utils";
 import Link from "next/link";
 import { DocumentChip } from "@/components/document-chip";
 import { EmptyState } from "@/components/empty-state";
@@ -81,34 +82,66 @@ export default async function DocumentsPage({
           hint="Upload verification documents from Company → Verification, SDS from a listing, and order documents from an order page."
         />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>File</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Version</TableHead>
-              <TableHead>Uploaded</TableHead>
-              <TableHead>Expiry</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Uploaded</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {documents.map((doc) => (
+                  <TableRow
+                    key={doc.id}
+                    className={doc.status === "SUPERSEDED" ? "opacity-60" : ""}
+                  >
+                    <TableCell>
+                      <DocumentChip id={doc.id} fileName={doc.fileName} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {DOCUMENT_KIND_LABELS[doc.kind]}
+                    </TableCell>
+                    <TableCell>v{doc.version}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {fmtDate(doc.createdAt)} · {doc.uploadedBy.name}
+                    </TableCell>
+                    <TableCell>
+                      <ExpiryBadge expiresAt={doc.expiresAt} />
+                    </TableCell>
+                    <TableCell>
+                      {doc.status === "SUPERSEDED" ? (
+                        <Badge variant="secondary">superseded</Badge>
+                      ) : doc.scanStatus === "PENDING" ? (
+                        <Badge variant="outline">scan pending</Badge>
+                      ) : (
+                        <Badge variant="success">active</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="grid gap-3 md:hidden">
             {documents.map((doc) => (
-              <TableRow key={doc.id} className={doc.status === "SUPERSEDED" ? "opacity-60" : ""}>
-                <TableCell>
-                  <DocumentChip id={doc.id} fileName={doc.fileName} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {DOCUMENT_KIND_LABELS[doc.kind]}
-                </TableCell>
-                <TableCell>v{doc.version}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {fmtDate(doc.createdAt)} · {doc.uploadedBy.name}
-                </TableCell>
-                <TableCell>
-                  <ExpiryBadge expiresAt={doc.expiresAt} />
-                </TableCell>
-                <TableCell>
+              <div
+                key={doc.id}
+                className={cn(
+                  "rounded-xl border bg-card p-4 space-y-2.5 shadow-sm",
+                  doc.status === "SUPERSEDED" && "opacity-60",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <DocumentChip id={doc.id} fileName={doc.fileName} />
+                  </div>
                   {doc.status === "SUPERSEDED" ? (
                     <Badge variant="secondary">superseded</Badge>
                   ) : doc.scanStatus === "PENDING" ? (
@@ -116,11 +149,26 @@ export default async function DocumentsPage({
                   ) : (
                     <Badge variant="success">active</Badge>
                   )}
-                </TableCell>
-              </TableRow>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {DOCUMENT_KIND_LABELS[doc.kind]}
+                  </span>
+                  <span>·</span>
+                  <span>v{doc.version}</span>
+                  <span>·</span>
+                  <span>{fmtDate(doc.createdAt)}</span>
+                </div>
+                {doc.expiresAt && (
+                  <div className="flex items-center gap-1.5 pt-1 text-xs">
+                    <span className="text-muted-foreground">Expiry:</span>
+                    <ExpiryBadge expiresAt={doc.expiresAt} />
+                  </div>
+                )}
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+        </>
       )}
     </div>
   );

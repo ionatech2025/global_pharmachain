@@ -564,6 +564,14 @@
     inset 0 1px 0 oklch(1 0 0 / 0.07);
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  .glass-nav {
+    backdrop-filter: none;
+    background: var(--background);
+    opacity: 1;
+  }
+}
+
 /*
  * Token re-pin for content sitting ON the daylight-sky panel: deep-ink text
  * (the Olympus treatment — near-black type over open sky), ink-tinted globe

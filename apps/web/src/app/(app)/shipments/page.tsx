@@ -53,52 +53,96 @@ export default async function ShipmentsPage({
       ) : (
         <Card>
           <CardContent className="px-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Lane</TableHead>
-                  <TableHead>Your role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>ETA</TableHead>
-                  <TableHead>Appointed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Lane</TableHead>
+                    <TableHead>Your role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>ETA</TableHead>
+                    <TableHead>Appointed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Link
+                          href={`/orders/${row.order.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {row.order.orderNo}
+                        </Link>
+                        <p className="max-w-52 truncate text-xs text-muted-foreground">
+                          {row.order.title}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {row.order.sellerCompany.name}
+                        <span className="text-muted-foreground"> → </span>
+                        {row.order.buyerCompany.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{LOGISTICS_ROLE_LABELS[row.role]}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <OrderStatusBadge status={row.order.status} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {row.order.eta ? fmtDate(row.order.eta) : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {fmtDate(row.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="grid gap-3 p-4 md:hidden">
+              {data.items.map((row) => (
+                <div
+                  key={row.id}
+                  className="rounded-xl border bg-muted/20 p-4 space-y-2.5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
                       <Link
                         href={`/orders/${row.order.id}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline text-sm"
                       >
                         {row.order.orderNo}
                       </Link>
-                      <p className="max-w-52 truncate text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                         {row.order.title}
                       </p>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {row.order.sellerCompany.name}
-                      <span className="text-muted-foreground"> → </span>
-                      {row.order.buyerCompany.name}
-                    </TableCell>
-                    <TableCell>
+                    </div>
+                    <OrderStatusBadge status={row.order.status} />
+                  </div>
+                  <div className="text-xs space-y-1 text-muted-foreground">
+                    <p>
+                      Route:{" "}
+                      <span className="font-medium text-foreground">
+                        {row.order.sellerCompany.name}
+                      </span>{" "}
+                      →{" "}
+                      <span className="font-medium text-foreground">
+                        {row.order.buyerCompany.name}
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <Badge variant="outline">{LOGISTICS_ROLE_LABELS[row.role]}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <OrderStatusBadge status={row.order.status} />
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {row.order.eta ? fmtDate(row.order.eta) : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {fmtDate(row.createdAt)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      {row.order.eta && (
+                        <span className="text-muted-foreground">ETA: {fmtDate(row.order.eta)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

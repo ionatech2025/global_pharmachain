@@ -128,7 +128,12 @@ export function ThreadView({
         )}
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto py-4">
+      <div
+        className="flex-1 space-y-3 overflow-y-auto py-4"
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation message history"
+      >
         {messages.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No messages yet — start the conversation below.

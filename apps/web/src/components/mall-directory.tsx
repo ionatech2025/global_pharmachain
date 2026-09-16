@@ -2,6 +2,7 @@
 
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
+import { Input } from "@pharmachain/ui/components/input";
 import {
   ArrowRight,
   Building2,
@@ -9,8 +10,10 @@ import {
   Factory,
   FileCheck2,
   FlaskConical,
+  Search,
   ShieldAlert,
   Warehouse,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -209,14 +212,18 @@ const TRADING_LANES: TradingLane[] = [
 
 export function MallDirectoryGrid() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const query = searchQuery.trim().toLowerCase();
 
   return (
     <section
       id="mall-directory"
+      aria-label="Interactive Trading Lanes Mall Directory"
       className="scroll-mt-20 py-16 sm:py-24 bg-muted/15 border-y border-border/60"
     >
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div className="text-center max-w-3xl mx-auto mb-12">
+        <div className="text-center max-w-3xl mx-auto mb-10">
           <Badge
             variant="outline"
             className="mb-3 px-3 py-1 font-medium bg-primary/5 text-primary border-primary/20"
@@ -230,6 +237,32 @@ export function MallDirectoryGrid() {
             A segregated, enterprise-grade directory mapping industrial inbound raw inputs,
             manufacturing capacity, and commercial outbound wholesale procurement.
           </p>
+
+          {/* Quick-Search / Live Filter Bar */}
+          <div className="mt-6 mx-auto max-w-md relative flex items-center">
+            <Search
+              className="size-4 absolute left-3.5 text-muted-foreground pointer-events-none"
+              aria-hidden="true"
+            />
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter storefronts (e.g. APIs, CDMO, sterile vials, WHO-GMP)…"
+              aria-label="Filter directory storefronts and trading lanes"
+              className="pl-9 pr-9 h-11 rounded-full border-border/80 bg-background/90 text-sm shadow-sm"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search input"
+                className="absolute right-3 text-muted-foreground hover:text-foreground p-1 rounded-full"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 3-Column Interactive Grid */}
@@ -273,26 +306,35 @@ export function MallDirectoryGrid() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
                         Directory Portals & Storefronts
                       </p>
-                      {selectedTag && (
+                      {(selectedTag || query) && (
                         <button
                           type="button"
-                          onClick={() => setSelectedTag(null)}
+                          onClick={() => {
+                            setSelectedTag(null);
+                            setSearchQuery("");
+                          }}
                           className="text-[10px] text-primary hover:underline font-medium"
                         >
-                          Clear filter
+                          Clear filters
                         </button>
                       )}
                     </div>
                     <div className="space-y-3">
                       {lane.storefronts.map((store) => {
                         const matchesTag = !selectedTag || store.tags.includes(selectedTag);
+                        const matchesQuery =
+                          !query ||
+                          store.name.toLowerCase().includes(query) ||
+                          store.desc.toLowerCase().includes(query) ||
+                          store.tags.some((t) => t.toLowerCase().includes(query));
+                        const isVisible = matchesTag && matchesQuery;
                         return (
                           <div
                             key={store.name}
                             className={`rounded-xl border p-3 transition-all ${
-                              matchesTag
+                              isVisible
                                 ? "border-border/60 bg-background/80 hover:bg-background/95"
-                                : "border-border/30 bg-background/40 opacity-50 hover:opacity-80"
+                                : "border-border/30 bg-background/40 opacity-40 hover:opacity-80"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">

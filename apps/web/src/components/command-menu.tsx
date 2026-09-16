@@ -49,8 +49,9 @@ export function CommandMenu({ sections, canTrade }: { sections: NavSection[]; ca
         aria-label="Open command palette"
         className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:w-64"
       >
-        <Search className="size-4 shrink-0" />
+        <Search className="size-4 shrink-0" aria-hidden="true" />
         <span className="hidden sm:inline">Search or jump to…</span>
+        <span className="sr-only">Press Command K or Control K to search pages and actions</span>
         <kbd className="ml-auto hidden rounded border bg-background px-1.5 font-mono text-[10px] font-medium sm:inline-block">
           ⌘K
         </kbd>
