@@ -15,8 +15,9 @@ import { UploadButton } from "@/components/upload-button";
 import { apiServer } from "@/lib/api/server";
 import type { VerificationChecklist } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
+import { ResubmitButton } from "./resubmit-button";
 
-export const metadata = { title: "Verification" };
+export const metadata = { title: "Company verification status" };
 
 function ItemStatusBadge({ status, awaitingReview }: { status: string; awaitingReview: boolean }) {
   switch (status) {
@@ -42,21 +43,45 @@ export default async function VerificationPage() {
   const checklist = await api.get<VerificationChecklist>("/companies/me/verification");
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4" data-testid="verification-status-page">
       <PageHeader
-        title="Verification"
+        title="Company verification status"
         description="Upload the required documents; the platform team reviews them. Re-uploads create a new version — prior versions are retained."
       >
         <VerificationStatusBadge status={checklist.verificationStatus} />
       </PageHeader>
 
-      {checklist.verificationStatus === "REJECTED" && checklist.rejectionReason && (
-        <Alert variant="destructive">
-          <AlertTitle>Verification rejected</AlertTitle>
+      {checklist.verificationStatus === "PENDING_VERIFICATION" && (
+        <Alert variant="info" data-testid="pending-review-banner">
+          <AlertTitle>Pending Review</AlertTitle>
           <AlertDescription>
-            {checklist.rejectionReason} — re-upload the corrected documents; your company returns to
-            the review queue automatically.
+            Your verification documents have been submitted and are in &ldquo;Pending Review&rdquo;
+            state. The platform team is reviewing your company checklist below.
           </AlertDescription>
+        </Alert>
+      )}
+
+      {checklist.verificationStatus === "REJECTED" && (
+        <Alert
+          variant="destructive"
+          className="space-y-3"
+          data-testid="rejected-verification-banner"
+        >
+          <div>
+            <AlertTitle>Verification rejected</AlertTitle>
+            <AlertDescription className="mt-1">
+              <strong>Rejection reason:</strong>{" "}
+              {checklist.rejectionReason || "Documents did not meet compliance requirements."}
+            </AlertDescription>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Please review the rejection reason above, replace any rejected or incomplete documents
+              in the checklist below, and click &ldquo;Resubmit Documents&rdquo; to return your
+              company to the review queue.
+            </p>
+          </div>
+          <div className="pt-1">
+            <ResubmitButton />
+          </div>
         </Alert>
       )}
       {checklist.verificationStatus === "VERIFIED" && (

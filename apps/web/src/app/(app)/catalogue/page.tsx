@@ -13,15 +13,18 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { ListingStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
-import type { ListingRow } from "@/lib/api/types";
-import { fmtMoney } from "@/lib/format";
+import type { ExchangeRateRow, ListingRow } from "@/lib/api/types";
+import { convertedPrices, fmtMoney } from "@/lib/format";
 import { ListingRowActions } from "./listing-actions";
 
 export const metadata = { title: "My catalogue" };
 
 export default async function CataloguePage() {
   const api = await apiServer();
-  const listings = await api.get<ListingRow[]>("/catalogue");
+  const [listings, rates] = await Promise.all([
+    api.get<ListingRow[]>("/catalogue"),
+    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates").catch(() => []),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -76,7 +79,17 @@ export default async function CataloguePage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{l.category.name}</TableCell>
                 <TableCell>
-                  {fmtMoney(l.price, l.currency)} / {l.unit}
+                  <div className="font-medium tabular-nums">
+                    {fmtMoney(l.price, l.currency)} / {l.unit}
+                  </div>
+                  {/* Equivalent alternate currencies including UGX (US-302) */}
+                  {rates.length > 0 && (
+                    <div className="text-xs text-muted-foreground tabular-nums space-y-0.5 mt-0.5">
+                      {convertedPrices(l.price, l.currency, rates).map((c) => (
+                        <div key={c}>≈ {c}</div>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
                 {/* Mirrors the marketplace so a supplier sees exactly what a
                     buyer sees on their own listing. */}

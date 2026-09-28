@@ -1,7 +1,9 @@
 import { createEmailProvider, type EmailContent, emailConfigFromEnv } from "@pharmachain/email";
 import { logger } from "../../lib/logger";
 
-const provider = createEmailProvider(emailConfigFromEnv());
+export function getEmailProvider() {
+  return createEmailProvider(emailConfigFromEnv());
+}
 
 /**
  * Best-effort transactional send — auth flows never fail on mail errors.
@@ -16,10 +18,12 @@ const provider = createEmailProvider(emailConfigFromEnv());
  */
 export async function sendEmailTo(to: string, content: EmailContent): Promise<boolean> {
   try {
+    const provider = getEmailProvider();
     await provider.send({ to, ...content });
+    logger.info("email dispatched", { to, subject: content.subject });
     return true;
   } catch (err) {
-    logger.error("email send failed", { error: String(err) });
+    logger.error("email send failed", { error: String(err), to, subject: content.subject });
     return false;
   }
 }

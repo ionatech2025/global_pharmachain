@@ -77,7 +77,10 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
       },
       {
         section: "Workspace",
-        items: [{ href: "/company", label: "Company", icon: Building2 }],
+        items: [
+          { href: "/company/verification", label: "Verification Status", icon: ShieldCheck },
+          { href: "/company", label: "Company", icon: Building2 },
+        ],
       },
     ];
   }
@@ -110,6 +113,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
       items: [
         { href: "/documents", label: "Documents", icon: FileText },
         { href: "/messages", label: "Messages", icon: MessageSquare },
+        { href: "/company/verification", label: "Verification Status", icon: ShieldCheck },
         { href: "/company", label: "Company", icon: Building2 },
         ...(isCompanyAdmin ? [{ href: "/developers", label: "Developers", icon: Code2 }] : []),
       ],

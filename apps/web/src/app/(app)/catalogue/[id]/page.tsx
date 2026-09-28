@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { UploadButton } from "@/components/upload-button";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
-import type { CategoryRow, ListingRow } from "@/lib/api/types";
+import type { CategoryRow, ExchangeRateRow, ListingRow } from "@/lib/api/types";
 import { ListingRowActions } from "../listing-actions";
 import { ListingForm } from "../listing-form";
 
@@ -19,9 +19,10 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   // Both reads are independent, so they go out together rather than one
   // round trip after the other — every API call here is a network hop.
-  const [listingResult, categories] = await Promise.all([
+  const [listingResult, categories, rates] = await Promise.all([
     api.get<ListingRow>(`/catalogue/${id}`).catch((err: unknown) => err),
     api.get<CategoryRow[]>("/catalogue/categories"),
+    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates").catch(() => []),
   ]);
   if (listingResult instanceof Error) {
     if (listingResult instanceof ApiClientError && listingResult.status === 404) notFound();
@@ -113,6 +114,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
       <ListingForm
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         existing={listing}
+        rates={rates}
       />
     </div>
   );

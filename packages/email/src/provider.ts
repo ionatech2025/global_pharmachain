@@ -20,6 +20,26 @@ export function addressOf(from: string): string {
   return from.match(/<([^>]+)>/)?.[1]?.trim() ?? from.trim();
 }
 
+export const DEFAULT_TEST_RECIPIENT = "mpairwelauben25@gmail.com";
+
+/** Checks if an address is a non-routable test/demo domain (e.g. .demo, .local, example.com) */
+export function isDemoEmailAddress(email: string): boolean {
+  const parts = email.split("@");
+  if (parts.length < 2 || !parts[1]) return true;
+  const domain = parts[1].toLowerCase().trim();
+  return (
+    domain.endsWith(".demo") ||
+    domain.endsWith(".local") ||
+    domain.endsWith(".test") ||
+    domain.endsWith(".example") ||
+    domain.endsWith(".invalid") ||
+    domain.endsWith(".localhost") ||
+    domain === "example.com" ||
+    domain === "example.org" ||
+    domain === "example.net"
+  );
+}
+
 const DISPLAY_NAME = "PharmaChain";
 
 /** A bare address shows up in a mail client as just the mailbox, which for a
@@ -32,14 +52,22 @@ function withDisplayName(from: string): string {
 /** Dev provider: prints the full email to stdout (this is how OTP codes and
  *  invite links are read during local development). */
 class ConsoleEmailProvider implements EmailProvider {
-  constructor(private from: string) {}
+  constructor(
+    private from: string,
+    private testRecipient?: string,
+  ) {}
 
   async send(message: EmailMessage): Promise<void> {
+    const isDemo = isDemoEmailAddress(message.to);
+    const destination =
+      isDemo && this.testRecipient
+        ? `${this.testRecipient} (routed from ${message.to})`
+        : message.to;
     console.log(
       [
         "────────────────────── email (console provider) ──────────────────────",
         `From:    ${this.from}`,
-        `To:      ${message.to}`,
+        `To:      ${destination}`,
         `Subject: ${message.subject}`,
         "",
         message.text,
@@ -78,6 +106,10 @@ class SmtpEmailProvider implements EmailProvider {
      *  EMAIL_FROM never reaches the recipient. Reply-To survives that
      *  rewrite, so the brand mailbox still gets the replies. */
     private replyTo?: string,
+    /** Test recipient (e.g. mpairwelauben25@gmail.com). Non-routable demo/test
+     *  domains are routed here so they are actually delivered, and live test
+     *  messages are BCC'd so test mail can be verified in a real inbox. */
+    private testRecipient?: string,
   ) {
     this.transport = createTransport({
       host: config.host,
@@ -93,14 +125,33 @@ class SmtpEmailProvider implements EmailProvider {
   }
 
   async send(message: EmailMessage): Promise<void> {
+    const isDemo = isDemoEmailAddress(message.to);
+    let targetTo = message.to;
+    let bcc: string | undefined;
+    let subject = message.subject;
+    let html = message.html;
+    let text = message.text;
+
+    if (this.testRecipient) {
+      if (isDemo) {
+        targetTo = this.testRecipient;
+        subject = `[PharmaChain Test: ${message.to}] ${message.subject}`;
+        html = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;margin-bottom:16px;font-family:sans-serif;font-size:13px;color:#0369a1;"><strong>Test Recipient Notice:</strong> Originally addressed to <code>${message.to}</code> and routed to test recipient <code>${this.testRecipient}</code>.</div>${html}`;
+        text = `[Test Recipient Notice: Originally addressed to ${message.to} and routed to ${this.testRecipient}]\n\n${text}`;
+      } else if (message.to.toLowerCase() !== this.testRecipient.toLowerCase()) {
+        bcc = this.testRecipient;
+      }
+    }
+
     try {
       await this.transport.sendMail({
         from: this.from,
         replyTo: this.replyTo,
-        to: message.to,
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
+        to: targetTo,
+        bcc,
+        subject,
+        html,
+        text,
       });
     } catch (err) {
       // Enough to tell a bad password (EAUTH) from an unreachable relay
@@ -119,6 +170,8 @@ export interface EmailProviderConfig {
   /** Set when EMAIL_FROM names a mailbox the relay does not authenticate as,
    *  and the relay is therefore liable to rewrite the From. */
   replyTo?: string;
+  /** Designated recipient for demo/test emails (defaults to mpairwelauben25@gmail.com). */
+  testRecipient?: string;
   smtp?: Partial<SmtpConfig>;
 }
 
@@ -195,12 +248,16 @@ export function emailConfigFromEnv(
     addressOf(configuredFrom) !== user;
   const from = withDisplayName(rewritten ? (user as string) : configuredFrom);
 
+  const testRecipient =
+    env.TEST_EMAIL_RECIPIENT || env.TEST_RECIPIENT_EMAIL || DEFAULT_TEST_RECIPIENT;
+
   return {
     provider,
     from,
     // Keep the configured mailbox reachable even where the relay took the
     // From away from us.
     replyTo: rewritten ? configuredFrom : undefined,
+    testRecipient,
     smtp: {
       host,
       port,
@@ -231,7 +288,8 @@ export function createEmailProvider(config: EmailProviderConfig): EmailProvider 
         password: smtp.password,
       },
       config.replyTo,
+      config.testRecipient,
     );
   }
-  return new ConsoleEmailProvider(config.from);
+  return new ConsoleEmailProvider(config.from, config.testRecipient);
 }

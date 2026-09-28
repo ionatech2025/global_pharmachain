@@ -5,6 +5,7 @@ import type { CompanyRole } from "@pharmachain/db";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
+import { recordAudit } from "../../common/audit";
 import { conflict, forbidden, notFound } from "../../common/errors";
 import { getIntParam } from "../../lib/params";
 import { createInviteToken, inviteEmailContent, inviteUrlFor } from "../auth/invite-tokens";
@@ -66,6 +67,44 @@ export class CompanyService {
       required,
       additional,
       complete,
+    };
+  }
+
+  async resubmitVerification(companyId: string, userId: string, userEmail: string) {
+    const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    if (company.verificationStatus === "VERIFIED") {
+      throw conflict("Company is already verified");
+    }
+
+    const checklist = await this.verificationChecklist(companyId);
+    const missing = checklist.required.filter((r) => r.status === "MISSING");
+    if (missing.length > 0) {
+      throw conflict(
+        `Please upload all required documents before resubmitting (${missing.map((m) => m.kind).join(", ")})`,
+      );
+    }
+
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        verificationStatus: "PENDING_VERIFICATION",
+        rejectionReason: null,
+      },
+    });
+
+    await recordAudit(
+      { id: userId, email: userEmail },
+      {
+        action: "company.verification-resubmit",
+        entityType: "Company",
+        entityId: companyId,
+        companyId,
+      },
+    );
+
+    return {
+      success: true,
+      verificationStatus: updated.verificationStatus,
     };
   }
 

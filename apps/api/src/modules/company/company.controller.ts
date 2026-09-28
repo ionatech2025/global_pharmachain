@@ -68,6 +68,12 @@ export class CompanyController {
     return this.companyService.verificationChecklist(membership.companyId);
   }
 
+  @RequireCompany()
+  @Post("me/verification/resubmit")
+  resubmitVerification(@CurrentMembership() membership: Membership, @CurrentUser() user: AuthUser) {
+    return this.companyService.resubmitVerification(membership.companyId, user.id, user.email);
+  }
+
   @RequirePermission("members:manage")
   @Get("me/members")
   members(@CurrentMembership() membership: Membership) {
