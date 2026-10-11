@@ -93,8 +93,11 @@ page static moved its canonical/OG URLs to build time, where a local
    company types could not work for ~25 days — and applied it with
    `…_lookup_indexes`; status after: "Database schema is up to date". The new
    host-masking step showed the datasource as `***`.
-3. Set `PAYMENT_WEBHOOK_SECRET` if sandbox card/mobile payments should confirm
-   by webhook in production.
+3. ~~Set `PAYMENT_WEBHOOK_SECRET`~~ — **done 2026-10-11** at the owner's request:
+   a random 256-bit value, stored as a Sensitive production variable and taken
+   up by a fresh deployment. Sandbox card/mobile-money webhooks verify again in
+   production, now only with that secret. Its value is not recoverable from
+   Vercel; the copy lives with the operator.
 4. Make the repository private, or move backups off public artifacts — encrypted
    dumps of production are downloadable by any GitHub user.
 5. Longer term: Neon in Europe + `fra1`, a transactional email provider on a
