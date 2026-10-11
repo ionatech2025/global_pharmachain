@@ -13,7 +13,12 @@ import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getParam } from "../../lib/params";
-import { enabledPaymentMethods, gatewayFor } from "../../lib/payment-gateways";
+import {
+  enabledPaymentMethods,
+  gatewayFor,
+  type WebhookVerdict,
+  webhookAmountMismatch,
+} from "../../lib/payment-gateways";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -93,12 +98,25 @@ export class BillingService {
    * pending. Only a confirmation, or an explicit admin rejection, is terminal.
    */
   async settleByReference(
-    providerRef: string,
-    outcome: "CONFIRMED" | "FAILED",
+    verdict: Pick<WebhookVerdict, "amount" | "currency"> & {
+      providerRef: string;
+      status: "CONFIRMED" | "FAILED";
+    },
+    providerId: string,
     webhookPayload?: Record<string, unknown>,
   ) {
-    const request = await prisma.creditRequest.findUnique({ where: { paymentRef: providerRef } });
+    const outcome = verdict.status;
+    const request = await prisma.creditRequest.findUnique({
+      where: { paymentRef: verdict.providerRef },
+    });
     if (!request) return null;
+    // Only the provider that started this checkout may settle it, and only
+    // for the fee it was started for.
+    if (request.paymentProvider !== providerId) {
+      throw badRequest("Webhook rejected: provider does not match this request");
+    }
+    const mismatch = webhookAmountMismatch(verdict, Number(request.fee), request.currency);
+    if (mismatch) throw badRequest(`Webhook rejected: ${mismatch}`);
     if (outcome === "CONFIRMED") {
       return this.settle(request.id, "CONFIRMED", { webhookPayload });
     }

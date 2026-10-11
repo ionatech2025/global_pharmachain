@@ -6,8 +6,30 @@ import { generateRefNo, PARAM_DEFINITIONS } from "@pharmachain/core";
 import { prisma } from "../src/index";
 
 const SUPER_ADMIN_EMAIL = process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@pharmachain.local";
-const SUPER_ADMIN_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "admin-ChangeMe-1";
-const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1";
+
+/** True only for a database on this machine. The fallback passwords below are
+ *  published in this public repository, so any shared database — production
+ *  above all — must be seeded with passwords supplied through the environment. */
+function isLocalDatabase(url: string | undefined): boolean {
+  try {
+    const host = new URL(url ?? "").hostname;
+    return ["localhost", "127.0.0.1", "::1", "[::1]", "host.docker.internal"].includes(host);
+  } catch {
+    return false;
+  }
+}
+
+function seedPassword(envName: string, localDefault: string): string {
+  const value = process.env[envName];
+  if (value) return value;
+  if (isLocalDatabase(process.env.DATABASE_URL)) return localDefault;
+  throw new Error(
+    `${envName} must be set to seed a non-local database — the built-in default is public.`,
+  );
+}
+
+const SUPER_ADMIN_PASSWORD = seedPassword("SEED_SUPER_ADMIN_PASSWORD", "admin-ChangeMe-1");
+const DEMO_PASSWORD = seedPassword("SEED_DEMO_PASSWORD", "demo-Pass-1");
 
 // Runtime-agnostic (Bun or Node): argon2id PHC output matches what the API
 // verifies via @node-rs/argon2.

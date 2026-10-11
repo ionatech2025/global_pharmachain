@@ -20,6 +20,9 @@ export function addressOf(from: string): string {
   return from.match(/<([^>]+)>/)?.[1]?.trim() ?? from.trim();
 }
 
+/** Where test-recipient routing sends mail outside production when no
+ *  TEST_EMAIL_RECIPIENT is configured. Never used in production — see
+ *  testRecipientFromEnv. */
 export const DEFAULT_TEST_RECIPIENT = "mpairwelauben25@gmail.com";
 
 /** Checks if an address is a non-routable test/demo domain (e.g. .demo, .local, example.com) */
@@ -106,9 +109,10 @@ class SmtpEmailProvider implements EmailProvider {
      *  EMAIL_FROM never reaches the recipient. Reply-To survives that
      *  rewrite, so the brand mailbox still gets the replies. */
     private replyTo?: string,
-    /** Test recipient (e.g. mpairwelauben25@gmail.com). Non-routable demo/test
-     *  domains are routed here so they are actually delivered, and live test
-     *  messages are BCC'd so test mail can be verified in a real inbox. */
+    /** Test recipient, only when test-recipient routing is on (see
+     *  testRecipientFromEnv). Non-routable demo/test domains are routed here
+     *  so they are actually delivered, and live messages are BCC'd so test
+     *  mail can be verified in a real inbox. */
     private testRecipient?: string,
   ) {
     this.transport = createTransport({
@@ -170,7 +174,8 @@ export interface EmailProviderConfig {
   /** Set when EMAIL_FROM names a mailbox the relay does not authenticate as,
    *  and the relay is therefore liable to rewrite the From. */
   replyTo?: string;
-  /** Designated recipient for demo/test emails (defaults to mpairwelauben25@gmail.com). */
+  /** Designated recipient for demo/test emails; undefined when test-recipient
+   *  routing is off (always, in production, unless explicitly enabled). */
   testRecipient?: string;
   smtp?: Partial<SmtpConfig>;
 }
@@ -220,6 +225,34 @@ function rewritesUnownedFrom(
 }
 
 /**
+ * Test-recipient routing is a QA aid: mail for non-routable demo addresses
+ * (`*.demo`, `*.test`, …) is redirected to one real inbox, and every other
+ * message is BCC'd there so a test run can be checked by eye.
+ *
+ * That copies invitations, password resets and sign-in codes to a single
+ * mailbox, so it must never be on by accident. Outside production it stays on
+ * (local QA reads demo mail in one place). In production it is off unless
+ * EMAIL_TEST_ROUTING=true AND an explicit TEST_EMAIL_RECIPIENT is set — the
+ * built-in default never receives production mail. EMAIL_TEST_ROUTING=false
+ * turns it off everywhere.
+ *
+ * NODE_ENV is read from the env object at runtime on purpose: the API bundle
+ * constant-folds the literal `process.env.NODE_ENV`, so a check written that
+ * way would not see production.
+ */
+export function testRecipientFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const flag = env.EMAIL_TEST_ROUTING?.trim().toLowerCase();
+  if (flag === "false" || flag === "0") return undefined;
+  const explicit = env.TEST_EMAIL_RECIPIENT || env.TEST_RECIPIENT_EMAIL || undefined;
+  if (env.NODE_ENV === "production") {
+    return flag === "true" || flag === "1" ? explicit : undefined;
+  }
+  return explicit ?? DEFAULT_TEST_RECIPIENT;
+}
+
+/**
  * The API and the notification fan-out both build a provider, and they must
  * never disagree about how mail leaves the system — so both read the
  * environment through here rather than each picking the variables apart.
@@ -248,8 +281,7 @@ export function emailConfigFromEnv(
     addressOf(configuredFrom) !== user;
   const from = withDisplayName(rewritten ? (user as string) : configuredFrom);
 
-  const testRecipient =
-    env.TEST_EMAIL_RECIPIENT || env.TEST_RECIPIENT_EMAIL || DEFAULT_TEST_RECIPIENT;
+  const testRecipient = testRecipientFromEnv(env);
 
   return {
     provider,

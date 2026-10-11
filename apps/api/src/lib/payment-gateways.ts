@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { PaymentMethod } from "@pharmachain/core";
 
 /**
@@ -29,6 +29,10 @@ export interface WebhookVerdict {
   providerRef?: string;
   status?: "CONFIRMED" | "FAILED";
   reason?: string;
+  /** What the provider says moved, when its payload carries it — checked
+   *  against the record before anything is settled. */
+  amount?: number;
+  currency?: string;
 }
 
 export interface PaymentGateway {
@@ -45,8 +49,57 @@ export interface PaymentGateway {
 
 const REPLAY_WINDOW_MS = 5 * 60 * 1000;
 
+/** Local-development stand-in for PAYMENT_WEBHOOK_SECRET. It is printed in
+ *  this public repository, so it is never accepted in production. */
+const DEV_WEBHOOK_SECRET = "dev-webhook-secret";
+
+/**
+ * The sandbox gateway's webhook secret, or null when none may be used. In
+ * production there is no fallback: with a secret anyone can read, anyone
+ * could sign a webhook that settles a payment. NODE_ENV is read from the env
+ * object at runtime because the API bundle constant-folds the literal
+ * `process.env.NODE_ENV`.
+ */
+export function mockWebhookSecret(
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  if (env.PAYMENT_WEBHOOK_SECRET) return env.PAYMENT_WEBHOOK_SECRET;
+  return env.NODE_ENV === "production" ? null : DEV_WEBHOOK_SECRET;
+}
+
 function hmacSignature(secret: string, timestamp: string, ref: string, status: string): string {
   return createHmac("sha256", secret).update(`${timestamp}.${ref}.${status}`).digest("hex");
+}
+
+/** Constant-time string comparison that does not leak the expected length. */
+function safeEqual(given: string, expected: string): boolean {
+  const a = createHash("sha256").update(given).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Why a confirmed webhook must not settle a record, or null when it may: the
+ * provider has to report the record's own currency and at least its amount.
+ * Fields the payload does not carry are not checked (the sandbox signs only
+ * reference and status).
+ */
+export function webhookAmountMismatch(
+  verdict: Pick<WebhookVerdict, "status" | "amount" | "currency">,
+  expectedAmount: number,
+  expectedCurrency: string,
+): string | null {
+  if (verdict.status !== "CONFIRMED") return null;
+  if (verdict.currency !== undefined && verdict.currency !== expectedCurrency) {
+    return `currency ${verdict.currency} does not match ${expectedCurrency}`;
+  }
+  if (verdict.amount !== undefined) {
+    if (!Number.isFinite(verdict.amount)) return "amount is not a number";
+    if (verdict.amount + 0.005 < expectedAmount) {
+      return `amount ${verdict.amount} is less than ${expectedAmount}`;
+    }
+  }
+  return null;
 }
 
 /** Escrow (Phase 5 §3): the platform never holds funds — instructions guide
@@ -91,7 +144,7 @@ class ManualBankGateway implements PaymentGateway {
 /** Sandbox gateway: signed webhooks with timestamp replay protection. */
 class MockGateway implements PaymentGateway {
   readonly id = "mock";
-  constructor(private readonly secret: string) {}
+  constructor(private readonly secret: string | null) {}
   async initiate(input: { reference: string; method: PaymentMethod }): Promise<InitiateResult> {
     return {
       provider: this.id,
@@ -103,6 +156,9 @@ class MockGateway implements PaymentGateway {
     };
   }
   verifyWebhook(body: Record<string, unknown>): WebhookVerdict {
+    if (!this.secret) {
+      return { valid: false, reason: "sandbox webhook secret not configured" };
+    }
     const { reference, status, timestamp, signature } = body as Record<string, string>;
     if (!reference || !status || !timestamp || !signature) {
       return { valid: false, reason: "missing fields" };
@@ -162,15 +218,22 @@ class FlutterwaveGateway implements PaymentGateway {
   verifyWebhook(body: Record<string, unknown>): WebhookVerdict {
     // Flutterwave sends the verif-hash back in the payload we mirror under
     // _verifHash (set by the controller from the header).
-    if ((body._verifHash as string) !== this.verifHash) {
+    const presented = typeof body._verifHash === "string" ? body._verifHash : "";
+    if (!safeEqual(presented, this.verifHash)) {
       return { valid: false, reason: "bad verif-hash" };
     }
-    const data = body.data as { tx_ref?: string; status?: string } | undefined;
+    const data = body.data as
+      | { tx_ref?: string; status?: string; amount?: number | string; currency?: string }
+      | undefined;
     if (!data?.tx_ref) return { valid: false, reason: "missing tx_ref" };
     return {
       valid: true,
       providerRef: data.tx_ref,
       status: data.status === "successful" ? "CONFIRMED" : "FAILED",
+      // Reported back so the caller can refuse a short or foreign-currency
+      // payment against the record it would otherwise settle in full.
+      amount: data.amount === undefined ? undefined : Number(data.amount),
+      currency: data.currency,
     };
   }
 }
@@ -205,7 +268,7 @@ export function gatewayFor(method: PaymentMethod): PaymentGateway {
   const flwKey = process.env.FLUTTERWAVE_SECRET_KEY;
   const flwHash = process.env.FLUTTERWAVE_VERIF_HASH;
   if (flwKey && flwHash) return new FlutterwaveGateway(flwKey, flwHash);
-  return new MockGateway(process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-webhook-secret");
+  return new MockGateway(mockWebhookSecret());
 }
 
 export function gatewayById(id: string): PaymentGateway | null {
@@ -215,7 +278,7 @@ export function gatewayById(id: string): PaymentGateway | null {
     case "escrow":
       return new ManualEscrowGateway();
     case "mock":
-      return new MockGateway(process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-webhook-secret");
+      return new MockGateway(mockWebhookSecret());
     case "flutterwave": {
       const key = process.env.FLUTTERWAVE_SECRET_KEY;
       const hash = process.env.FLUTTERWAVE_VERIF_HASH;
@@ -231,7 +294,7 @@ export function signMockWebhook(
   reference: string,
   status: "successful" | "failed",
   timestamp = new Date().toISOString(),
-  secret = process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-webhook-secret",
+  secret = mockWebhookSecret() ?? DEV_WEBHOOK_SECRET,
 ): Record<string, string> {
   return {
     reference,

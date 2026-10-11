@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import net from "node:net";
-import { createEmailProvider, emailConfigFromEnv } from "./provider";
+import {
+  createEmailProvider,
+  DEFAULT_TEST_RECIPIENT,
+  emailConfigFromEnv,
+  testRecipientFromEnv,
+} from "./provider";
 
 describe("emailConfigFromEnv", () => {
   test("with nothing configured, mail is printed rather than sent", () => {
@@ -130,6 +135,49 @@ describe("emailConfigFromEnv", () => {
   });
 });
 
+describe("testRecipientFromEnv", () => {
+  test("outside production, demo mail is routed to a QA inbox by default", () => {
+    expect(testRecipientFromEnv({})).toBe(DEFAULT_TEST_RECIPIENT);
+    expect(testRecipientFromEnv({ TEST_EMAIL_RECIPIENT: "qa@example.com" })).toBe("qa@example.com");
+    expect(testRecipientFromEnv({ TEST_RECIPIENT_EMAIL: "qa2@example.com" })).toBe(
+      "qa2@example.com",
+    );
+  });
+
+  test("production never copies mail anywhere unless routing is explicitly enabled", () => {
+    // A configured recipient alone is not consent to copy customers' mail.
+    expect(testRecipientFromEnv({ NODE_ENV: "production" })).toBeUndefined();
+    expect(
+      testRecipientFromEnv({ NODE_ENV: "production", TEST_EMAIL_RECIPIENT: "qa@example.com" }),
+    ).toBeUndefined();
+  });
+
+  test("production routing needs the flag AND an explicit recipient, never the default", () => {
+    expect(
+      testRecipientFromEnv({
+        NODE_ENV: "production",
+        EMAIL_TEST_ROUTING: "true",
+        TEST_EMAIL_RECIPIENT: "qa@example.com",
+      }),
+    ).toBe("qa@example.com");
+    expect(
+      testRecipientFromEnv({ NODE_ENV: "production", EMAIL_TEST_ROUTING: "1" }),
+    ).toBeUndefined();
+  });
+
+  test("EMAIL_TEST_ROUTING=false turns routing off everywhere", () => {
+    expect(testRecipientFromEnv({ EMAIL_TEST_ROUTING: "false" })).toBeUndefined();
+    expect(
+      testRecipientFromEnv({ EMAIL_TEST_ROUTING: "0", TEST_EMAIL_RECIPIENT: "qa@example.com" }),
+    ).toBeUndefined();
+  });
+
+  test("emailConfigFromEnv carries the same decision", () => {
+    expect(emailConfigFromEnv({ NODE_ENV: "production" }).testRecipient).toBeUndefined();
+    expect(emailConfigFromEnv({}).testRecipient).toBe(DEFAULT_TEST_RECIPIENT);
+  });
+});
+
 describe("createEmailProvider", () => {
   test("smtp without a host is a startup failure, not a silent console fallback", () => {
     // Falling back would print invite and password-reset links to the log while
@@ -142,9 +190,11 @@ describe("createEmailProvider", () => {
 
 /** Enough of RFC 5321 to accept one message and hand it back to the test. */
 function smtpSink() {
-  const received: { auth?: string; from?: string; to?: string; data: string }[] = [];
+  type Session = { auth?: string; from?: string; to?: string; rcpts: string[]; data: string };
+  const received: Session[] = [];
   const server = net.createServer((socket) => {
-    const session: { auth?: string; from?: string; to?: string; data: string } = { data: "" };
+    // Every envelope recipient, in order: a BCC appears here and nowhere else.
+    const session: Session = { rcpts: [], data: "" };
     let inData = false;
     let buffer = "";
 
@@ -175,6 +225,7 @@ function smtpSink() {
           socket.write("250 2.1.0 Ok\r\n");
         } else if (/^RCPT TO:/i.test(line)) {
           session.to = line.slice(8).trim();
+          session.rcpts.push(session.to);
           socket.write("250 2.1.5 Ok\r\n");
         } else if (/^DATA/i.test(line)) {
           inData = true;
@@ -249,6 +300,50 @@ describe("SmtpEmailProvider", () => {
     const message = received.at(-1);
     if (!message) throw new Error("the sink recorded no message");
     expect(message.data).toContain("Reply-To: globalpharmachain@gmail.test");
+  });
+
+  test("in production a message reaches its recipient and nobody else", async () => {
+    // The regression this guards: test-recipient routing used to default on,
+    // silently BCC'ing every customer's invitation and password reset to a
+    // personal QA inbox. A configured recipient is not enough to turn it on.
+    const config = emailConfigFromEnv({
+      NODE_ENV: "production",
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: String(port),
+      SMTP_USER: "relay-user",
+      SMTP_PASSWORD: "relay-pass",
+      TEST_EMAIL_RECIPIENT: "qa-inbox@example.com",
+    });
+    await createEmailProvider(config).send({
+      to: "customer@example.com",
+      subject: "Reset your password",
+      html: "<p>link</p>",
+      text: "link",
+    });
+
+    const message = received.at(-1);
+    if (!message) throw new Error("the sink recorded no message");
+    expect(message.rcpts).toEqual(["<customer@example.com>"]);
+  });
+
+  test("outside production a live message is also BCC'd to the QA inbox", async () => {
+    const config = emailConfigFromEnv({
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: String(port),
+      SMTP_USER: "relay-user",
+      SMTP_PASSWORD: "relay-pass",
+      TEST_EMAIL_RECIPIENT: "qa-inbox@example.com",
+    });
+    await createEmailProvider(config).send({
+      to: "buyer@nilepharma.co.ug",
+      subject: "Hello",
+      html: "<p>hi</p>",
+      text: "hi",
+    });
+
+    const message = received.at(-1);
+    if (!message) throw new Error("the sink recorded no message");
+    expect(message.rcpts).toEqual(["<buyer@nilepharma.co.ug>", "<qa-inbox@example.com>"]);
   });
 
   test("an unreachable relay fails without leaking what was sent", async () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API_PATH, signIn } from "./helpers";
+import { ADMIN_PASSWORD, API_PATH, signIn } from "./helpers";
 
 /**
  * Read-only audit of the target stack: reports which conditional guards in the
@@ -8,11 +8,7 @@ import { API_PATH, signIn } from "./helpers";
  */
 test("audit: skip conditions and data footprint", async ({ browser }) => {
   const buyer = await signIn(browser, "ops@nilepharma.demo");
-  const admin = await signIn(
-    browser,
-    "admin@pharmachain.local",
-    process.env.SEED_SUPER_ADMIN_PASSWORD ?? "admin-ChangeMe-1",
-  );
+  const admin = await signIn(browser, "admin@pharmachain.local", ADMIN_PASSWORD);
 
   const json = async (page: typeof buyer, path: string) => {
     const res = await page.request.get(`${API_PATH}${path}`);

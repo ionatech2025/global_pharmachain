@@ -179,8 +179,11 @@ Key properties:
   route with seeded data, endpoint/RBAC negatives, security regression
   checks). It honours `E2E_BASE_URL`; point it at production
   (`E2E_BASE_URL=https://global-pharmachain.vercel.app`) to verify a deploy —
-  without it the suite hits localhost. One throttle test self-skips unless
-  `E2E_PROXY_SECRET` carries the deployment's `AUTH_SECRET`.
+  without it the suite hits localhost. Against any deployed target it also
+  needs `SEED_DEMO_PASSWORD` and `SEED_SUPER_ADMIN_PASSWORD`: the seed's
+  fallback passwords are public in this repository, so they only stand in for
+  a local stack. One throttle test self-skips unless `E2E_PROXY_SECRET`
+  carries the deployment's `AUTH_SECRET`.
 
 ## Deployment guide
 
@@ -200,9 +203,17 @@ code calls it same-origin — no separate API host.
   local `:3001`). The API function and the web app **share `AUTH_SECRET`** so
   the API can verify the Auth.js session the web app issued.
 - Passwords use `@node-rs/argon2` and hashing uses `node:crypto` (not Bun
-  APIs), so the exact same code runs on Bun locally and on Vercel's Node
+  APIs), so the exact same code runs on Bun locally and on Vercel's Node 24
   runtime; the Prisma client is generated with a `rhel-openssl-3.0.x` engine
   for the Lambda environment.
+- **Region.** Every Node function — page rendering and the API — is pinned to
+  the database's region (`sin1`, beside Neon's `ap-southeast-1`). Server-side
+  rendering calls the API, which queries the database several times per
+  request, so a function in another region pays the distance on every hop
+  (~240ms per query measured while they were split). The deploy script stamps
+  the region onto every function and refuses to release if one is missing;
+  override with `VERCEL_FUNCTION_REGION`, and move it whenever the database
+  moves.
 
 Deploy from the repo root (`scripts/deploy-vercel.sh`): it builds the API
 bundle, runs `vercel build` for the web app, assembles the API function into
@@ -215,7 +226,10 @@ and non-default `R2_*` values (Cloudflare R2 — see `.env.example`). Feature en
 dispatcher), `PAYMENT_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY` +
 `VAPID_PRIVATE_KEY` (web push), `PAYMENT_SANDBOX=1` to expose card/mobile
 money without a live Flutterwave key, and optional `WHATSAPP_*` / `SMTP_*`
-provider settings.
+provider settings. In production the sandbox gateway accepts webhooks **only**
+when `PAYMENT_WEBHOOK_SECRET` is set (its development stand-in is public, so
+it is refused there), and any provider can settle only the payments it
+initiated, for the amount and currency on record.
 
 ### B. Split hosts (containerised API)
 
@@ -326,6 +340,9 @@ jobs` runs the same registry as a standalone worker.
 
 - `GET /health` — liveness (process up; touches nothing).
 - `GET /health/ready` — readiness (database answers; returns 503 otherwise).
+  Also reports, informationally, the mail provider in use and
+  `emailTestRouting` — whether outgoing mail is being copied to a QA inbox,
+  which must read `false` on production unless deliberately enabled.
 
 The API handles SIGTERM gracefully: in-flight requests drain, then Prisma
 disconnects — safe for rolling deploys.

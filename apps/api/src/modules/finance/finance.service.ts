@@ -21,7 +21,12 @@ import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { defer } from "../../lib/defer";
 import { getParam } from "../../lib/params";
-import { enabledPaymentMethods, gatewayById, gatewayFor } from "../../lib/payment-gateways";
+import {
+  enabledPaymentMethods,
+  gatewayById,
+  gatewayFor,
+  webhookAmountMismatch,
+} from "../../lib/payment-gateways";
 import { emitWebhookEvent } from "../../lib/webhooks";
 import { BillingService } from "../billing/billing.service";
 import { buildStorageKey, putObject } from "../document/storage";
@@ -306,6 +311,14 @@ export class FinanceService {
       where: { providerRef: verdict.providerRef },
     });
     if (payment) {
+      // A provider settles only what it initiated. Without this any gateway's
+      // signature — the sandbox's included — could confirm a bank transfer or
+      // escrow payment the payee never received.
+      if (payment.provider !== gateway.id) {
+        throw badRequest("Webhook rejected: provider does not match this payment");
+      }
+      const mismatch = webhookAmountMismatch(verdict, toNum(payment.amount), payment.currency);
+      if (mismatch) throw badRequest(`Webhook rejected: ${mismatch}`);
       return this.settlePayment(payment.id, verdict.status, {
         webhookPayload: body,
         failureReason: verdict.status === "FAILED" ? "Provider reported failure" : undefined,
@@ -315,8 +328,8 @@ export class FinanceService {
     // verification packages), which are CreditRequests rather than order
     // Payments. One webhook endpoint, two reference namespaces (PAY-/FEE-).
     const credit = await this.billingService.settleByReference(
-      verdict.providerRef,
-      verdict.status,
+      { ...verdict, providerRef: verdict.providerRef, status: verdict.status },
+      gateway.id,
       body,
     );
     if (!credit) throw notFound("No payment matches this reference");

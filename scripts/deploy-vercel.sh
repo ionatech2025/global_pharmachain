@@ -7,11 +7,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Every Node function — the web app's pages AND the API — runs in ONE region,
+# the database's. Neon lives in AWS ap-southeast-1 (Singapore) = Vercel sin1.
+# Left at the iad1 default, every query crossed the Pacific (~240ms measured,
+# 2026-10-11) and an authenticated page took seconds. Pinning only the API is
+# not enough: the page renderer calls the API, so it must sit there too. If
+# the database ever moves, move this with it.
+REGION="${VERCEL_FUNCTION_REGION:-sin1}"
+# Vercel stopped accepting Node 20 for new deployments on 2026-10-01.
+API_RUNTIME="nodejs24.x"
+
 echo "== 1. Build the API serverless bundle =="
 cd apps/api
 EXT="--external @prisma/client --external @node-rs/argon2 --external nodemailer --external @nestjs/microservices --external @nestjs/websockets --external @nestjs/platform-express --external class-validator --external class-transformer --external @fastify/view --external @fastify/static --external @apollo/server --external @as-integrations/fastify"
 rm -rf api && mkdir -p api
-bun build src/serverless.ts --outfile api/index.cjs --target node --format cjs $EXT >/dev/null 2>&1
+# bun build constant-folds process.env.NODE_ENV; without this define it bakes
+# in "development", so a production-only branch written that way never runs.
+bun build src/serverless.ts --outfile api/index.cjs --target node --format cjs \
+  --define 'process.env.NODE_ENV="production"' $EXT >/tmp/api-build.log 2>&1 \
+  || { echo "   API BUILD FAILED:"; tail -30 /tmp/api-build.log | sed 's/^/     /'; exit 1; }
 echo "   bundle: $(du -h api/index.cjs | cut -f1)"
 cd "$ROOT"
 
@@ -46,16 +60,52 @@ cp -r node_modules/@node-rs/argon2-linux-x64-gnu "$FUNC/node_modules/@node-rs/ar
 # SMTP transport: left unbundled (it resolves its own internals at runtime) and
 # shipped whole — it has no dependencies of its own.
 cp -r node_modules/nodemailer "$FUNC/node_modules/nodemailer"
-cat > "$FUNC/.vc-config.json" <<'JSON'
-{
-  "runtime": "nodejs20.x",
-  "handler": "index.cjs",
-  "launcherType": "Nodejs",
-  "shouldAddHelpers": false,
-  "maxDuration": 60
+# supportsResponseStreaming: without it the platform buffers the whole
+# response, so the messaging SSE stream delivered nothing until it closed.
+API_RUNTIME="$API_RUNTIME" REGION="$REGION" FUNC="$FUNC" python3 - <<'PY'
+import json, os
+config = {
+    "runtime": os.environ["API_RUNTIME"],
+    "handler": "index.cjs",
+    "launcherType": "Nodejs",
+    "shouldAddHelpers": False,
+    "supportsResponseStreaming": True,
+    "maxDuration": 60,
+    "regions": [os.environ["REGION"]],
 }
-JSON
+json.dump(config, open(os.path.join(os.environ["FUNC"], ".vc-config.json"), "w"), indent=2)
+PY
 echo "   func: $(du -sh "$FUNC" | cut -f1)"
+
+echo "== 4b. Pin every Node function to $REGION =="
+REGION="$REGION" API_RUNTIME="$API_RUNTIME" python3 - <<'PY'
+import glob, json, os, sys
+region = os.environ["REGION"]
+pinned = skipped = 0
+for path in glob.glob(".vercel/output/functions/**/.vc-config.json", recursive=True):
+    cfg = json.load(open(path))
+    if not str(cfg.get("runtime", "")).startswith("nodejs"):
+        skipped += 1  # the edge middleware runs everywhere by design
+        continue
+    if cfg.get("regions") != [region]:
+        cfg["regions"] = [region]
+        json.dump(cfg, open(path, "w"), indent=2)
+    pinned += 1
+# Fail closed: a release with any Node function outside the region, or the
+# API on a runtime Vercel no longer deploys, must not go out.
+bad = []
+for path in glob.glob(".vercel/output/functions/**/.vc-config.json", recursive=True):
+    cfg = json.load(open(path))
+    if str(cfg.get("runtime", "")).startswith("nodejs") and cfg.get("regions") != [region]:
+        bad.append(path)
+api = json.load(open(".vercel/output/functions/api/backend.func/.vc-config.json"))
+if api.get("runtime") != os.environ["API_RUNTIME"] or not api.get("supportsResponseStreaming"):
+    bad.append("api/backend.func (runtime/streaming)")
+if bad:
+    print("   REGION/RUNTIME CHECK FAILED:", *bad[:10], sep="\n     ")
+    sys.exit(1)
+print(f"   pinned {pinned} Node function(s) to {region}; {skipped} edge function(s) left global")
+PY
 
 echo "== 5. Route /api/backend/* to the function =="
 python3 - <<'PY'

@@ -72,7 +72,11 @@ expects production and otherwise fails prerendering with
 
 The API and web app must share `AUTH_SECRET`; the suites sign in with the
 seeded demo users (`ops@nilepharma.demo` / `ops@kampalafinechem.demo`,
-password from `SEED_DEMO_PASSWORD`, default per `.env.example`).
+password from `SEED_DEMO_PASSWORD`, default per `.env.example`). Against a
+deployed target `SEED_DEMO_PASSWORD` and `SEED_SUPER_ADMIN_PASSWORD` are
+**required** — the suite refuses to start without them, because the fallback
+passwords are published in this repository and must never be what a live
+deployment uses.
 
 Two suites need extra environment against a deployed stack:
 

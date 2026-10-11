@@ -1,7 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { prisma } from "@pharmachain/db";
-import { emailConfigFromEnv } from "@pharmachain/email";
+import { emailConfigFromEnv, testRecipientFromEnv } from "@pharmachain/email";
 import { Public } from "./common/decorators";
 import { ApiException } from "./common/errors";
 
@@ -29,8 +29,16 @@ export class AppController {
     // dev-default config (env.ts) — SMTP has no such guard and silently
     // falls back to logging instead of sending (mailer.ts), so it's worth
     // surfacing here rather than adding a live network call to a probe
-    // that's meant to stay cheap and stable.
-    return { ok: true, checks: { email: emailConfigFromEnv().provider } };
+    // that's meant to stay cheap and stable. emailTestRouting says whether
+    // outgoing mail is being copied to a QA inbox — it must read false on
+    // production unless someone deliberately turned it on.
+    return {
+      ok: true,
+      checks: {
+        email: emailConfigFromEnv().provider,
+        emailTestRouting: testRecipientFromEnv() !== undefined,
+      },
+    };
   }
 
   /** Live public counters for the marketing site (review brand-integrity

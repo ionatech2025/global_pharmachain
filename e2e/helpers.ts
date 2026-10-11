@@ -29,8 +29,25 @@ export function apiOrigin(baseURL: string | undefined): string {
   return process.env.E2E_API_ORIGIN ?? `${baseURL ?? ""}${API_PATH}`;
 }
 
-export const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "demo-Pass-1";
-export const ADMIN_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "admin-ChangeMe-1";
+const TARGET = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
+const LOCAL_TARGET = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(TARGET);
+
+/**
+ * The seed's fallback passwords are published in this public repository, so
+ * they only stand in for a local stack. Against any deployed target the real
+ * passwords must come from the environment — a run that silently fell back to
+ * the public defaults is exactly how a live deployment ends up depending on
+ * them.
+ */
+function seedPassword(envName: string, localDefault: string): string {
+  const value = process.env[envName];
+  if (value) return value;
+  if (LOCAL_TARGET) return localDefault;
+  throw new Error(`${envName} must be set to run the e2e suite against ${TARGET}`);
+}
+
+export const DEMO_PASSWORD = seedPassword("SEED_DEMO_PASSWORD", "demo-Pass-1");
+export const ADMIN_PASSWORD = seedPassword("SEED_SUPER_ADMIN_PASSWORD", "admin-ChangeMe-1");
 
 export const ERROR_BOUNDARY = /Something went wrong loading this page/i;
 
