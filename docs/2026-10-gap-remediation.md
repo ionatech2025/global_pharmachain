@@ -87,9 +87,12 @@ page static moved its canonical/OG URLs to build time, where a local
 
 1. Rotate the production super-admin and demo passwords — the defaults are in
    this public repository and the accounts were found using them.
-2. Run `db-migrate` — `…_expanded_company_types` (2026-09-16) predates the only
-   recorded run and blocks registration for nine company types; `…_lookup_indexes`
-   rides along.
+2. ~~Run `db-migrate`~~ — **done 2026-10-11** (Actions run `38115731801`, approved
+   by the owner). The log confirmed `…_expanded_company_types` (2026-09-16) had
+   never reached production — registration and RFQ targeting for the nine new
+   company types could not work for ~25 days — and applied it with
+   `…_lookup_indexes`; status after: "Database schema is up to date". The new
+   host-masking step showed the datasource as `***`.
 3. Set `PAYMENT_WEBHOOK_SECRET` if sandbox card/mobile payments should confirm
    by webhook in production.
 4. Make the repository private, or move backups off public artifacts — encrypted
