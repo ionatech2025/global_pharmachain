@@ -1,22 +1,14 @@
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
-import {
-  ArrowRight,
-  Download,
-  PackageX,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  Truck,
-  Users,
-} from "lucide-react";
+import { Download, PackageX, Sparkles, TrendingUp, Truck, Users } from "lucide-react";
 import Link from "next/link";
 import { ForecastChart } from "@/components/dashboard/charts";
 import { Panel, PanelBody, PanelHeader, Provenance } from "@/components/dashboard/panel";
 import { StatGrid, StatTile } from "@/components/dashboard/stat-tile";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
-import { fmtMoney, fmtNumber } from "@/lib/format";
+import { fmtNumber } from "@/lib/format";
+import { CategoryPrices, type PriceTrends } from "./category-prices";
 
 export const metadata = { title: "Intelligence" };
 
@@ -26,16 +18,6 @@ interface Forecast {
   forecast: number[];
   accuracyMapePct: number | null;
   sampleSize: number;
-}
-interface PriceTrend {
-  months: string[];
-  /** null where no quotation in `currency` was made that month. */
-  series: (number | null)[];
-  direction: "rising" | "falling" | "stable" | "insufficient data";
-  /** The one currency the series is in; other currencies are left out. */
-  currency: string | null;
-  sampleSize: number;
-  otherCurrencyQuotes: number;
 }
 interface DelayRisk {
   orderId: string;
@@ -90,7 +72,7 @@ export default async function IntelligencePage() {
   const api = await apiServer();
   const [demand, prices, delayRisk, stockouts, recommendations, insights] = await Promise.all([
     api.get<Forecast>("/intelligence/demand"),
-    api.get<PriceTrend>("/intelligence/prices"),
+    api.get<PriceTrends>("/intelligence/prices"),
     api.get<DelayRisk[]>("/intelligence/delay-risk"),
     api.get<Stockout[]>("/intelligence/stockout-risk"),
     api.get<Recommendation[]>("/intelligence/supplier-recommendations"),
@@ -100,17 +82,6 @@ export default async function IntelligencePage() {
   const nextQuarter = demand.forecast.reduce((sum, v) => sum + v, 0);
   const lastQuarter = demand.series.slice(-3).reduce((sum, v) => sum + v, 0);
   const atRisk = delayRisk.filter((r) => r.risk === "HIGH" || r.risk === "MEDIUM").length;
-  // Rising prices are the warning for a buyer; "stable" and "insufficient
-  // data" are not news, so they stay neutral instead of borrowing green.
-  const priceBadge =
-    prices.direction === "rising"
-      ? { variant: "warning" as const, Icon: TrendingUp }
-      : prices.direction === "falling"
-        ? { variant: "success" as const, Icon: TrendingDown }
-        : prices.direction === "stable"
-          ? { variant: "secondary" as const, Icon: ArrowRight }
-          : { variant: "secondary" as const, Icon: null };
-  const priceCurrency = prices.currency;
   const topScore = recommendations.find((r) => r.score !== null)?.score ?? null;
 
   return (
@@ -189,35 +160,11 @@ export default async function IntelligencePage() {
 
         <Panel>
           <PanelHeader
-            title="Price trend"
-            description={
-              priceCurrency
-                ? `Average quoted unit price by month, in ${priceCurrency}.`
-                : "Average quoted unit price by month."
-            }
-            action={
-              <Badge variant={priceBadge.variant}>
-                {priceBadge.Icon && <priceBadge.Icon className="size-3" />}
-                {prices.direction}
-              </Badge>
-            }
+            title="Prices by category"
+            description="Average quoted unit price by month, one category at a time — never averaged across categories, units or currencies."
           />
           <PanelBody>
-            <ForecastChart
-              labels={prices.months.map(monthLabel)}
-              history={prices.series}
-              baseline="fit"
-              format={priceCurrency ? (v) => fmtMoney(v, priceCurrency) : fmtNumber}
-              gapNote="no quotations"
-              caption="Average quoted unit price by month"
-              emptyNote="No quotations priced yet."
-            />
-            <Provenance>
-              Across {fmtNumber(prices.sampleSize)} {priceCurrency ?? ""} quotation(s); a gap is a
-              month without one.
-              {prices.otherCurrencyQuotes > 0 &&
-                ` ${fmtNumber(prices.otherCurrencyQuotes)} in other currencies are left out — prices are never converted or averaged across currencies.`}
-            </Provenance>
+            <CategoryPrices data={prices} labels={prices.months.map(monthLabel)} />
           </PanelBody>
         </Panel>
       </div>

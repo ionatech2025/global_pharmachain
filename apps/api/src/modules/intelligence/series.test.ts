@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { lastMonths, monthlyCounts, monthlyPriceSeries } from "./series";
+import { categoryPriceTrends, lastMonths, monthlyCounts, monthlyPriceSeries } from "./series";
 
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
-const quote = (day: string, unitPrice: number, currency = "USD") => ({
+const quote = (day: string, unitPrice: number, currency = "USD", unit = "kg") => ({
   createdAt: at(day),
   unitPrice,
   currency,
+  unit,
 });
 
 describe("lastMonths", () => {
@@ -48,7 +49,7 @@ describe("monthlyPriceSeries", () => {
     // The UGX quotation would have dragged August's mean past 15,000.
     expect(result.series).toEqual([null, 13, 13, null]);
     expect(result.sampleSize).toBe(3);
-    expect(result.otherCurrencyQuotes).toBe(1);
+    expect(result.otherQuotes).toBe(1);
   });
 
   test("breaks a currency tie alphabetically, so the choice is stable", () => {
@@ -57,7 +58,7 @@ describe("monthlyPriceSeries", () => {
       months,
     );
     expect(result.currency).toBe("UGX");
-    expect(result.otherCurrencyQuotes).toBe(1);
+    expect(result.otherQuotes).toBe(1);
   });
 
   test("direction compares the first and last priced months, skipping gaps", () => {
@@ -77,7 +78,24 @@ describe("monthlyPriceSeries", () => {
     expect(result.currency).toBeNull();
     expect(result.series).toEqual([null, null, null, null]);
     expect(result.sampleSize).toBe(0);
-    expect(result.otherCurrencyQuotes).toBe(0);
+    expect(result.otherQuotes).toBe(0);
+  });
+
+  test("follows the most-quoted unit too: a price per kg is not a price per tablet", () => {
+    const result = monthlyPriceSeries(
+      [
+        quote("2026-07-01", 12, "USD", "kg"),
+        quote("2026-08-01", 11, "USD", " KG "),
+        quote("2026-08-02", 0.04, "USD", "tablets"),
+      ],
+      months,
+    );
+    // "KG" with stray spaces is the same unit; the tablet price stays out.
+    expect(result.unit).toBe("kg");
+    expect(result.series).toEqual([12, 11, null, null]);
+    expect(result.otherQuotes).toBe(1);
+    expect(result.first).toBe(12);
+    expect(result.latest).toBe(11);
   });
 
   test("accepts Prisma decimals", () => {
@@ -86,5 +104,73 @@ describe("monthlyPriceSeries", () => {
       months,
     );
     expect(result.series[0]).toBe(9.5);
+  });
+});
+
+describe("categoryPriceTrends", () => {
+  const months = ["2026-07", "2026-08", "2026-09", "2026-10"];
+  const apis = { id: "c1", name: "APIs", slug: "apis" };
+  const excipients = { id: "c2", name: "Excipients", slug: "excipients" };
+  const inCategory = (category: typeof apis | null, day: string, price: number) => ({
+    ...quote(day, price),
+    category,
+  });
+
+  test("prices each category on its own and never across them", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(apis, "2026-07-01", 12),
+        inCategory(apis, "2026-09-01", 13),
+        inCategory(apis, "2026-09-02", 15),
+        inCategory(excipients, "2026-08-01", 2),
+        inCategory(excipients, "2026-10-01", 3),
+      ],
+      months,
+    );
+    expect(result.categories.map((c) => c.category.slug)).toEqual(["apis", "excipients"]);
+    expect(result.categories[0]?.series).toEqual([12, null, 14, null]);
+    expect(result.categories[1]?.series).toEqual([null, 2, null, 3]);
+  });
+
+  test("a category priced in one month only has no trend, but still counts in coverage", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(apis, "2026-08-01", 12),
+        inCategory(apis, "2026-08-20", 12.5),
+        inCategory(null, "2026-08-02", 11),
+        inCategory(null, "2026-09-02", 11),
+      ],
+      months,
+    );
+    expect(result.categories).toEqual([]);
+    expect(result.coverage.quotations).toBe(4);
+    expect(result.coverage.categorised).toBe(2);
+    expect(result.coverage.byCategory).toEqual([{ category: apis, quotations: 2 }]);
+  });
+
+  test("RFQs raised for any category are priced nowhere", () => {
+    const result = categoryPriceTrends(
+      [inCategory(null, "2026-07-01", 12), inCategory(null, "2026-10-01", 13)],
+      months,
+    );
+    expect(result.categories).toEqual([]);
+    expect(result.coverage).toEqual({ quotations: 2, categorised: 0, byCategory: [] });
+  });
+
+  test("most-quoted category first", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(excipients, "2026-07-01", 2),
+        inCategory(excipients, "2026-08-01", 2),
+        inCategory(excipients, "2026-09-01", 2),
+        inCategory(apis, "2026-07-01", 12),
+        inCategory(apis, "2026-10-01", 12),
+      ],
+      months,
+    );
+    expect(result.categories.map((c) => [c.category.slug, c.sampleSize])).toEqual([
+      ["excipients", 3],
+      ["apis", 2],
+    ]);
   });
 });

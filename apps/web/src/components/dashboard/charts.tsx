@@ -169,7 +169,7 @@ function PinnedAxis({
  * without client JavaScript and announces itself as a disclosure; the caption
  * names the chart, since one page can carry several of these.
  */
-function ChartTable({ caption, children }: { caption: string; children: ReactNode }) {
+export function ChartTable({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <details className="chart-table group mt-2">
       <summary className="touch-target min-h-8 w-fit cursor-pointer select-none gap-1 rounded-md text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
@@ -944,20 +944,45 @@ export function Sparkline({
   points,
   className,
   accent = "var(--chart-1)",
+  fit = false,
+  width = 72,
+  height = 26,
 }: {
-  points: number[];
+  /** Nulls are gaps (no measurement), drawn as breaks — never as zero. */
+  points: (number | null)[];
   className?: string;
   accent?: string;
+  width?: number;
+  height?: number;
+  /**
+   * Scale between the series' own min and max instead of from zero — for a
+   * price, where the movement is the story and zero is not a floor. No wash
+   * then: a filled area over a non-zero floor would overstate the level.
+   */
+  fit?: boolean;
 }) {
-  if (points.length < 2) return null;
-  const W = 72;
-  const H = 26;
-  const max = Math.max(...points, 1);
+  const values = points.filter((v): v is number => v !== null);
+  if (points.length < 2 || values.length === 0) return null;
+  const W = width;
+  const H = height;
+  const lo = fit ? Math.min(...values) : 0;
+  const hi = Math.max(...values, fit ? lo : 1);
+  const span = hi - lo || 1;
   const x = (i: number) => (i / (points.length - 1)) * W;
-  const y = (v: number) => H - 2 - (v / max) * (H - 6);
-  const d = points
-    .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-    .join(" ");
+  // A flat fitted series sits mid-height rather than on the floor.
+  const y = (v: number) => (hi === lo && fit ? H / 2 : H - 2 - ((v - lo) / span) * (H - 6));
+
+  const runs: Array<Array<{ i: number; v: number }>> = [];
+  points.forEach((v, i) => {
+    if (v === null) return;
+    const run = runs.at(-1);
+    if (run && run.at(-1)?.i === i - 1) run.push({ i, v });
+    else runs.push([{ i, v }]);
+  });
+  const path = (run: Array<{ i: number; v: number }>) =>
+    run.map((p, k) => `${k === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const lastIndex = points.findLastIndex((v) => v !== null);
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -967,16 +992,36 @@ export function Sparkline({
       aria-hidden="true"
       focusable="false"
     >
-      <path d={`${d} L${W},${H} L0,${H} Z`} fill="var(--muted-foreground)" opacity="0.08" />
-      <path
-        d={d}
-        fill="none"
-        stroke="var(--muted-foreground)"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      <circle cx={x(points.length - 1)} cy={y(points.at(-1) ?? 0)} r="3" fill={accent} />
+      {runs.map((run) =>
+        run.length > 1 ? (
+          <g key={run[0]?.i}>
+            {!fit && (
+              <path
+                d={`${path(run)} L${x(run.at(-1)?.i ?? 0).toFixed(1)},${H} L${x(run[0]?.i ?? 0).toFixed(1)},${H} Z`}
+                fill="var(--muted-foreground)"
+                opacity="0.08"
+              />
+            )}
+            <path
+              d={path(run)}
+              fill="none"
+              stroke="var(--muted-foreground)"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </g>
+        ) : run[0] && run[0].i !== lastIndex ? (
+          <circle
+            key={run[0].i}
+            cx={x(run[0].i)}
+            cy={y(run[0].v)}
+            r="1.75"
+            fill="var(--muted-foreground)"
+          />
+        ) : null,
+      )}
+      <circle cx={x(lastIndex)} cy={y(points[lastIndex] ?? 0)} r="3" fill={accent} />
     </svg>
   );
 }

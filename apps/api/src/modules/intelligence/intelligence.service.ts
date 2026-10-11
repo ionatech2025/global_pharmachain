@@ -4,7 +4,7 @@ import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
-import { lastMonths, monthlyCounts, monthlyPriceSeries } from "./series";
+import { categoryPriceTrends, lastMonths, monthlyCounts } from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -44,7 +44,10 @@ export class IntelligenceService {
     };
   }
 
-  /** Monthly average quoted unit price in one currency — see monthlyPriceSeries. */
+  /**
+   * Quoted-price trends per category, each in its most-quoted unit and
+   * currency — see categoryPriceTrends. One query for the whole window.
+   */
   async priceTrends(categoryId?: string) {
     const months = lastMonths(12);
     const quotes = await prisma.quotation.findMany({
@@ -53,9 +56,26 @@ export class IntelligenceService {
         status: { not: "SUPERSEDED" },
         ...(categoryId ? { rfq: { categoryId } } : {}),
       },
-      select: { createdAt: true, unitPrice: true, currency: true },
+      select: {
+        createdAt: true,
+        unitPrice: true,
+        currency: true,
+        rfq: { select: { unit: true, category: { select: { id: true, name: true, slug: true } } } },
+      },
     });
-    return { months, ...monthlyPriceSeries(quotes, months) };
+    return {
+      months,
+      ...categoryPriceTrends(
+        quotes.map((q) => ({
+          createdAt: q.createdAt,
+          unitPrice: q.unitPrice,
+          currency: q.currency,
+          unit: q.rfq.unit,
+          category: q.rfq.category,
+        })),
+        months,
+      ),
+    };
   }
 
   /** Delay risk on active shipments from historical stage timing. */
