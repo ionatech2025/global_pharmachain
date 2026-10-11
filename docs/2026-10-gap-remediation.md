@@ -73,6 +73,25 @@ page static moved its canonical/OG URLs to build time, where a local
 (the static 404 had done so all along). The release script now sets
 `NEXT_PUBLIC_SITE_URL` and refuses output that still names localhost.
 
+## End-to-end verification
+
+The full suite against production on 2026-10-11 (one retry per test, for this
+machine's lossy link): **58 passed, 1 flaky (passed on retry), 7 skipped,
+0 failed**. The skips: the throttle test, which needs the deployment's
+`AUTH_SECRET` (as always), and six Epic 2 cases whose shared mailbox state did
+not carry over a slow first attempt. Run on its own straight after, the Epic 2
+spec passed **16/16 with no skips and no retries** — including real invitation
+and password-reset mail read from a live inbox, which proves delivery after the
+mail-routing and outbox changes. Every test in the suite therefore passed
+against production in this round, apart from the secret-gated throttle test.
+
+Four specs were out of date or racy and were fixed ([`fbed418`]): the landing
+headline and the registration country select changed on 2026-09-16 and had
+failed on every run since; case 108's fixture collided with an earlier run's
+quotation (now it raises its own RFQ); and the idle-session post-check raced
+the sign-out response (it now waits for it). Each passed against production
+after the fix.
+
 ## Examined, not changed
 
 - **Forgot-password says when no account exists** — a deliberate product change
@@ -109,3 +128,4 @@ page static moved its canonical/OG URLs to build time, where a local
 [`af285cc`]: https://github.com/ionatech2025/global_pharmachain/commit/af285cc
 [`3741457`]: https://github.com/ionatech2025/global_pharmachain/commit/3741457
 [`ec2ba52`]: https://github.com/ionatech2025/global_pharmachain/commit/ec2ba52
+[`fbed418`]: https://github.com/ionatech2025/global_pharmachain/commit/fbed418
