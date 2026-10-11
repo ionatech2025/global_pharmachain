@@ -103,6 +103,16 @@ test.describe("Company user (buyer) routes render seeded data", () => {
   test("RFQs list, detail and new form", async () => {
     await visit(page, "/rfqs", /RFQ|Microcrystalline|Paracetamol/i);
     await visit(page, "/rfqs/new", /Raise an RFQ|product|material/i);
+    // A material category narrows who sees an RFQ (only suppliers listing it),
+    // so the form states the reach of the current choice before publishing.
+    await expect(page.getByText(/Any category: all \d+ verified compan/i)).toBeVisible();
+    const reach = await page.request.get(
+      `${API_PATH}/rfqs/reach?targetCompanyType=RAW_MATERIAL_MANUFACTURER`,
+    );
+    expect(reach.status()).toBe(200);
+    const { ofType, inCategory } = await reach.json();
+    expect(inCategory).toBeNull();
+    expect(ofType).toBeGreaterThan(0);
     const rfqId = await firstId(page, "/rfqs?page=1");
     if (rfqId) await visit(page, `/rfqs/${rfqId}`, /RFQ-|quantity|quotation/i);
     await visit(page, "/quotes", /inbox|open RFQ|Not quoted|quotation/i);

@@ -1,7 +1,10 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
+  COMPANY_TYPES,
+  type CompanyType,
   idParamSchema,
+  optionalFilter,
   type PaginationQuery,
   paginationQuerySchema,
   type QuotationSubmit,
@@ -29,6 +32,11 @@ const quotationSortSchema = z.object({
 });
 type QuotationSort = z.infer<typeof quotationSortSchema>;
 
+const reachQuerySchema = z.object({
+  targetCompanyType: z.enum(COMPANY_TYPES),
+  categoryId: optionalFilter(z.uuid()),
+});
+
 @Controller("rfqs")
 export class RfqController {
   constructor(private readonly rfqService: RfqService) {}
@@ -40,6 +48,18 @@ export class RfqController {
     @Query(zodPipe(paginationQuerySchema)) query: PaginationQuery,
   ) {
     return this.rfqService.listMine(membership, query);
+  }
+
+  /** Who would see an RFQ with these choices — asked by the form as the buyer picks. */
+  @RequirePermission("rfq:write")
+  @RequireVerified()
+  @Get("reach")
+  reach(
+    @CurrentMembership() membership: Membership,
+    @Query(zodPipe(reachQuerySchema))
+    query: { targetCompanyType: CompanyType; categoryId?: string },
+  ) {
+    return this.rfqService.reach(membership, query.targetCompanyType, query.categoryId);
   }
 
   @RequirePermission("rfq:write")

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PaginationQuery, QuotationSubmit, RfqCreate } from "@pharmachain/core";
+import type { CompanyType, PaginationQuery, QuotationSubmit, RfqCreate } from "@pharmachain/core";
 import { canTransitionRfq, generateRefNo, paginate, skipTake } from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
@@ -13,6 +13,35 @@ import { emitWebhookEvent } from "../../lib/webhooks";
 import { evaluateCompanyUsage } from "../billing/usage";
 
 const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
+
+/**
+ * Who would actually see an RFQ — the supplier inbox's rule exactly: verified,
+ * of the target type, not the buyer itself, and, when the RFQ names a
+ * category, with a published listing in it. A category narrows reach; with
+ * few suppliers listing most categories it can narrow it to nobody, so the
+ * buyer is shown both numbers before publishing.
+ */
+export async function rfqReach(
+  db: Prisma.TransactionClient,
+  buyerCompanyId: string,
+  targetCompanyType: CompanyType,
+  categoryId?: string,
+): Promise<{ ofType: number; inCategory: number | null }> {
+  const base = {
+    type: targetCompanyType,
+    verificationStatus: "VERIFIED",
+    id: { not: buyerCompanyId },
+  } satisfies Prisma.CompanyWhereInput;
+  const [ofType, inCategory] = await Promise.all([
+    db.company.count({ where: base }),
+    categoryId
+      ? db.company.count({
+          where: { ...base, listings: { some: { status: "PUBLISHED", categoryId } } },
+        })
+      : Promise.resolve(null),
+  ]);
+  return { ofType, inCategory };
+}
 
 @Injectable()
 export class RfqService {
@@ -59,9 +88,15 @@ export class RfqService {
             upgradePath: "/company/usage",
           });
         }
-        const visibleSupplierCount = await tx.company.count({
-          where: { type: input.targetCompanyType, verificationStatus: "VERIFIED" },
-        });
+        // The count the buyer is told ("visible to N suppliers") follows the
+        // inbox rule, category included — it used to count the whole type.
+        const reach = await rfqReach(
+          tx,
+          membership.companyId,
+          input.targetCompanyType,
+          input.categoryId,
+        );
+        const visibleSupplierCount = reach.inCategory ?? reach.ofType;
         const rfq = await tx.rfq.create({
           data: {
             refNo: generateRefNo("RFQ"),
@@ -98,6 +133,11 @@ export class RfqService {
 
     if (usage.crossesWarnThreshold) await this.usageWarning(membership.companyId, "RFQ");
     return rfq;
+  }
+
+  /** Reach of an RFQ before it is published — see rfqReach. */
+  reach(membership: Membership, targetCompanyType: CompanyType, categoryId?: string) {
+    return rfqReach(prisma, membership.companyId, targetCompanyType, categoryId);
   }
 
   async listMine(membership: Membership, query: PaginationQuery) {

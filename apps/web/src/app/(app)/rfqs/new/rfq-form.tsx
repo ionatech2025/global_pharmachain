@@ -5,7 +5,9 @@ import {
   COMPANY_TYPE_LABELS,
   COMPANY_TYPES,
   type RfqCreate,
+  type RfqReach,
   rfqCreateSchema,
+  rfqReachNotice,
 } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent } from "@pharmachain/ui/components/card";
@@ -27,6 +29,9 @@ import {
   SelectValue,
 } from "@pharmachain/ui/components/select";
 import { Textarea } from "@pharmachain/ui/components/textarea";
+import { cn } from "@pharmachain/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -36,6 +41,8 @@ import { api } from "@/lib/api/browser";
 import { ApiClientError, errorMessage } from "@/lib/api/http";
 
 const DEFAULT_DEADLINE_DAYS = 14;
+/** Radix Select cannot hold an empty value, so "any category" needs a token. */
+const ANY_CATEGORY = "any";
 
 function defaultDeadline(): string {
   const d = new Date(Date.now() + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60 * 1000);
@@ -66,6 +73,25 @@ export function RfqForm({
       bomItemId: prefill.bomItemId,
     },
   });
+
+  // A category is a targeting choice: only suppliers listing it see the RFQ.
+  // The buyer sees what each choice reaches before publishing, not after.
+  const targetCompanyType = form.watch("targetCompanyType");
+  const categoryId = form.watch("categoryId");
+  const { data: reach } = useQuery({
+    queryKey: ["rfq-reach", targetCompanyType, categoryId ?? null],
+    queryFn: () =>
+      api.get<RfqReach>(
+        `/rfqs/reach?${new URLSearchParams({
+          targetCompanyType,
+          ...(categoryId ? { categoryId } : {}),
+        })}`,
+      ),
+    staleTime: 60_000,
+  });
+  const notice = reach
+    ? rfqReachNotice(reach, categories.find((c) => c.id === categoryId)?.name)
+    : null;
 
   async function onSubmit(values: RfqCreate) {
     try {
@@ -173,13 +199,18 @@ export function RfqForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Material category (optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <Select
+                    onValueChange={(v) => field.onChange(v === ANY_CATEGORY ? undefined : v)}
+                    value={field.value ?? ANY_CATEGORY}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Any category" />
+                        <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {/* Explicit, so a category picked by mistake can be undone. */}
+                      <SelectItem value={ANY_CATEGORY}>Any category</SelectItem>
                       {categories.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
@@ -187,6 +218,21 @@ export function RfqForm({
                       ))}
                     </SelectContent>
                   </Select>
+                  {notice && (
+                    <FormDescription
+                      aria-live="polite"
+                      className={cn(
+                        "flex items-start gap-1.5",
+                        notice.tone === "warning" && "font-medium text-warning",
+                        notice.tone === "narrowed" && "text-foreground",
+                      )}
+                    >
+                      {notice.tone === "warning" && (
+                        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                      )}
+                      <span>{notice.text}</span>
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
