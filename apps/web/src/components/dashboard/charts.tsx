@@ -126,32 +126,40 @@ function PinnedAxis({
   /** The container query that hides the copy once the plot fits. */
   hideClass: string;
 }) {
+  // The scroll box bleeds 0.25rem past the plot on each side (-mx-1 px-1),
+  // so the copy starts 0.25rem further left on a card-coloured strip;
+  // otherwise line ends and gridline stubs peek out beside the labels.
   return (
-    <svg
+    <div
       aria-hidden="true"
-      focusable="false"
-      viewBox={`0 0 ${left} ${height}`}
-      className={cn("pointer-events-none absolute top-0 left-0", hideClass)}
-      style={{
-        width: `calc(${floorRem}rem * ${left / width})`,
-        height: `calc(${floorRem}rem * ${height / width})`,
-      }}
+      className={cn("pointer-events-none absolute top-0 -left-1 bg-card pl-1", hideClass)}
     >
-      <rect width={left} height={height} fill="var(--card)" />
-      {ticks.map((t) => (
-        <text
-          key={t}
-          x={left - 8}
-          y={y(t) + 3.5}
-          textAnchor="end"
-          fontSize="12"
-          letterSpacing={TICK_TRACKING}
-          className="num-col fill-muted-foreground"
-        >
-          {compact(t)}
-        </text>
-      ))}
-    </svg>
+      <svg
+        aria-hidden="true"
+        focusable="false"
+        viewBox={`0 0 ${left} ${height}`}
+        className="block"
+        style={{
+          width: `calc(${floorRem}rem * ${left / width})`,
+          height: `calc(${floorRem}rem * ${height / width})`,
+        }}
+      >
+        <rect width={left} height={height} fill="var(--card)" />
+        {ticks.map((t) => (
+          <text
+            key={t}
+            x={left - 8}
+            y={y(t) + 3.5}
+            textAnchor="end"
+            fontSize="12"
+            letterSpacing={TICK_TRACKING}
+            className="num-col fill-muted-foreground"
+          >
+            {compact(t)}
+          </text>
+        ))}
+      </svg>
+    </div>
   );
 }
 
