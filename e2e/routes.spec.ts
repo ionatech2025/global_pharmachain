@@ -132,6 +132,22 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     const threadId = await firstId(page, "/threads");
     if (threadId) await visit(page, `/messages/${threadId}`, /Malaba|CoA|message|reply|order/i);
   });
+
+  test("intelligence + finance analytics", async () => {
+    // Prices are per category, never blended: the API returns per-category
+    // series plus how many quotations could be priced at all.
+    const res = await page.request.get(`${API_PATH}/intelligence/prices`);
+    expect(res.status()).toBe(200);
+    const prices = await res.json();
+    expect(Array.isArray(prices.categories)).toBe(true);
+    expect(prices.coverage.categorised).toBeLessThanOrEqual(prices.coverage.quotations);
+
+    await visit(page, "/intelligence", /Market & supply intelligence/i);
+    await expect(page.getByRole("heading", { name: "Prices by category" })).toBeVisible();
+    // Every chart offers its values as a table — the path for touch and keyboard.
+    await expect(page.getByText("View as table").first()).toBeVisible();
+    await visit(page, "/finance", /Cash movement|payments|invoices/i);
+  });
 });
 
 test.describe("Company admin routes", () => {

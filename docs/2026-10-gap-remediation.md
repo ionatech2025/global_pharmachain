@@ -130,6 +130,33 @@ The full e2e suite against production after the release: **65 passed,
 1 skipped (the secret-gated throttle test), 0 failed, 0 flaky** — every test
 that can run from here, including the Epic 2 mailbox chain.
 
+## Follow-ups — prices by category, CI on Node 24 and Ubuntu 26.04 ([`a45e60c`], [`712ae00`], [`407f7c9`])
+
+**Which categories the price trend shows** (decided 2026-10-11, owner's
+delegation). Rule, not a list: a category is charted once it has quotations in
+**at least two months in one unit and currency** — its most-quoted pair; other
+units and currencies are counted and left out, never converted — most-quoted
+categories first. An average across categories is never drawn: the RFQ unit is
+free text, so a platform-wide mean puts a price per kg beside a price per
+tablet. A fixed list would have been wrong on the data: **only 2 of 50**
+quotations in the last 12 months are on RFQs that name a category (APIs 1,
+Excipients 1) — the rest were raised for "any category", which also widens
+which suppliers see them, so requiring a category is a marketplace decision
+left open. The panel says exactly that until categorised quotes accrue.
+Choosing a category when raising an RFQ is what fills it.
+
+**CI.** Every action GitHub was forcing from Node 20 onto Node 24 now runs a
+Node 24 release, pinned by SHA (checkout v7.0.1, cache v6.1.0,
+upload-artifact v7.0.2, download-artifact v8.0.2, github-script v9.0.0;
+setup-bun v2.2.0 already was). `ubuntu-latest` moves to Ubuntu 26.04 between
+2026-10-19 and 2026-11-19: CI can now be dispatched on `ubuntu-26.04` (or back
+on `ubuntu-24.04`), and did pass there natively — after the turbo cache was
+keyed by runner image, since a shared key let the first trial replay the 24.04
+results instead of running anything. The backup → restore-drill pair ran end
+to end on the new artifact actions (digest checked; 68 companies, 66 RFQs, 30
+orders restored). A route test now covers `/intelligence` and `/finance`,
+which no e2e spec visited.
+
 ## Examined, not changed
 
 - **Forgot-password says when no account exists** — a deliberate product change
@@ -144,9 +171,6 @@ that can run from here, including the Epic 2 mailbox chain.
   each series' latest value instead, the method's sanctioned fallback.
 - **Donut → stacked bar** for the pipeline — five segments with every count and
   share listed beside it stay inside the method's "≤ 6 segments, at a glance".
-- **Average unit price across products** — now currency-consistent, but still a
-  mean over unlike products and units. A per-category view would be the honest
-  next step; it needs a product decision on which categories to chart.
 - **Tinted destructive badges outside the analytical surfaces** (light mode)
   may sit under 4.5:1 like the delta pill did; `text-destructive-accent` is the
   fix wherever one turns up.
@@ -182,3 +206,6 @@ that can run from here, including the Epic 2 mailbox chain.
 [`28d254e`]: https://github.com/ionatech2025/global_pharmachain/commit/28d254e
 [`485ae5a`]: https://github.com/ionatech2025/global_pharmachain/commit/485ae5a
 [`911bdf6`]: https://github.com/ionatech2025/global_pharmachain/commit/911bdf6
+[`a45e60c`]: https://github.com/ionatech2025/global_pharmachain/commit/a45e60c
+[`712ae00`]: https://github.com/ionatech2025/global_pharmachain/commit/712ae00
+[`407f7c9`]: https://github.com/ionatech2025/global_pharmachain/commit/407f7c9
