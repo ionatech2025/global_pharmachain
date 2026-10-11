@@ -8,7 +8,12 @@ import {
 import type { ListingKind, Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
-import { notificationProviders, notify, runOutboxRetryJob } from "@pharmachain/notifications";
+import {
+  notificationProviders,
+  notify,
+  pruneSentOutbox,
+  runOutboxRetryJob,
+} from "@pharmachain/notifications";
 import { env } from "../env";
 import { logger } from "../lib/logger";
 import { shipmentPartyUserIds } from "../lib/shipment-access";
@@ -135,10 +140,12 @@ export async function runDsrSlaJob(now = new Date()): Promise<void> {
   logger.info("dsr sla job done", { pending: pending.length, overdue: overdue.length });
 }
 
-/** Retries failed email/WhatsApp deliveries captured in the outbox. */
+/** Delivers outbox messages whose immediate attempt failed or never finished,
+ *  and prunes long-sent rows (every message now passes through the outbox). */
 export async function runOutboxJob(now = new Date()): Promise<void> {
   const result = await runOutboxRetryJob(notificationProviders(), now);
-  if (result.retried > 0) logger.info("outbox retry job done", result);
+  const pruned = await pruneSentOutbox(now);
+  if (result.retried > 0 || pruned > 0) logger.info("outbox retry job done", { ...result, pruned });
 }
 
 /**

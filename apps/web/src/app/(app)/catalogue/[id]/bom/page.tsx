@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { ApiClientError } from "@/lib/api/http";
+import { getCategories } from "@/lib/api/reference";
 import { apiServer } from "@/lib/api/server";
-import type { BomRow, CategoryRow, ListingRow } from "@/lib/api/types";
+import type { BomRow, ListingRow } from "@/lib/api/types";
 import { BomManager } from "./bom-manager";
 
 export const metadata = { title: "Bill of Materials" };
@@ -20,7 +21,7 @@ export default async function BomPage({ params }: { params: Promise<{ id: string
   }
   const [boms, categories] = await Promise.all([
     api.get<BomRow[]>("/boms", { query: { productListingId: id } }),
-    api.get<CategoryRow[]>("/catalogue/categories"),
+    getCategories(),
   ]);
 
   return (

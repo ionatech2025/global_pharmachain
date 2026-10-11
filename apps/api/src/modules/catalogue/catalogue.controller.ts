@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   type CatalogueSearch,
   catalogueSearchSchema,
@@ -15,6 +26,7 @@ import {
   CurrentMembership,
   CurrentUser,
   OptionalMembership,
+  Public,
   RequirePermission,
   setAudit,
 } from "../../common/decorators";
@@ -28,6 +40,10 @@ const myListingsQuerySchema = z.object({
 });
 type MyListingsQuery = z.infer<typeof myListingsQuerySchema>;
 
+/** Five minutes shared, an hour of serve-stale while refreshing. FX rates
+ *  refresh daily, so five minutes of staleness is invisible. */
+const REFERENCE_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=3600";
+
 @Controller("catalogue")
 export class CatalogueController {
   constructor(private readonly catalogueService: CatalogueService) {}
@@ -37,11 +53,19 @@ export class CatalogueController {
     return this.catalogueService.search(query);
   }
 
+  // Reference data — the same for every viewer, changes rarely, and reveals
+  // nothing about any company. Public and cacheable, so the web tier can hold
+  // one shared copy instead of spending two authenticated round trips on it
+  // in every marketplace and catalogue render.
+  @Public()
+  @Header("Cache-Control", REFERENCE_CACHE_CONTROL)
   @Get("categories")
   categories() {
     return this.catalogueService.listCategories();
   }
 
+  @Public()
+  @Header("Cache-Control", REFERENCE_CACHE_CONTROL)
   @Get("exchange-rates")
   exchangeRates() {
     return this.catalogueService.listExchangeRates();

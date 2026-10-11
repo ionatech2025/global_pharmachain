@@ -1,6 +1,7 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { API_URL } from "@/env";
 import { type ApiClient, ApiClientError, createApiClient } from "./http";
 
@@ -33,27 +34,47 @@ function withAuthRedirects(client: ApiClient): ApiClient {
   };
 }
 
+/** One id per page render, shared by every API call it makes, so the API's
+ *  request logs for a slow or failing page can be found together. */
+const renderRequestId = cache(() => crypto.randomUUID());
+
 /**
  * Server-side API client (RSC + server actions). Forwards the raw Auth.js
  * session JWE as a Bearer token — the API decodes and revalidates it.
+ *
+ * Also forwards who is actually asking, the same way the browser proxy does.
+ * Without it every server-rendered call reached the API from this function's
+ * own egress address, so per-client rate limits pooled every visitor into one
+ * bucket and nothing downstream could tell users apart. x-proxy-secret proves
+ * the identity headers come from the web tier; the API ignores them otherwise.
  */
 export async function apiServer(): Promise<ApiClient> {
-  const store = await cookies();
+  const [store, incoming] = await Promise.all([cookies(), headers()]);
   let token: string | undefined;
   for (const name of SESSION_COOKIES) {
     token = store.get(name)?.value;
     if (token) break;
   }
+  const forwardedFor = incoming.get("x-forwarded-for") ?? "";
+  const identity: Record<string, string> = {
+    "x-forwarded-for": forwardedFor,
+    "x-client-ip": forwardedFor.split(",")[0]?.trim() ?? "",
+    "x-client-user-agent": incoming.get("user-agent") ?? "",
+    "x-proxy-secret": process.env.AUTH_SECRET ?? "",
+    "x-request-id": renderRequestId(),
+  };
   return withAuthRedirects(
     createApiClient(
       API_URL,
-      (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}),
+      (): Record<string, string> => ({
+        ...identity,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }),
     ),
   );
 }
 
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import { cache } from "react";
 
 /**
  * Request-deduplicated viewer identity (review finding: /auth/me was fetched

@@ -16,8 +16,6 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import { ChromeCube, ChromeSphere } from "@/components/chrome-motif";
 import { HeroMarketCards, HeroTickerRow } from "@/components/glass-panels";
 import { HeroGlobe } from "@/components/hero-globe";
@@ -168,9 +166,13 @@ async function publicStats(): Promise<{ verifiedCompanies: number } | null> {
   }
 }
 
+// Static, regenerated every five minutes with the live stats: no per-visitor
+// work happens here, so the page is served from the edge cache. The redirect
+// for signed-in visitors lives in middleware.ts — reading the session here
+// would make every visit a server render.
+export const revalidate = 300;
+
 export default async function LandingPage() {
-  const session = await auth();
-  if (session) redirect("/dashboard");
   const stats = await publicStats();
 
   return (

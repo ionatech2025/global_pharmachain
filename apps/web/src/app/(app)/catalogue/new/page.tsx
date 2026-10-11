@@ -1,15 +1,13 @@
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
-import type { CategoryRow, ExchangeRateRow } from "@/lib/api/types";
+import { getCategories, getExchangeRates } from "@/lib/api/reference";
 import { ListingForm } from "../listing-form";
 
 export const metadata = { title: "Add listing" };
 
 export default async function NewListingPage() {
-  const api = await apiServer();
   const [categories, rates] = await Promise.all([
-    api.get<CategoryRow[]>("/catalogue/categories"),
-    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates").catch(() => []),
+    getCategories(),
+    getExchangeRates().catch(() => []),
   ]);
 
   return (

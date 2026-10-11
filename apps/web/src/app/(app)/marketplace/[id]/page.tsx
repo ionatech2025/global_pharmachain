@@ -14,8 +14,9 @@ import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
 import { PageHeader } from "@/components/page-header";
 import { ApiClientError } from "@/lib/api/http";
+import { getExchangeRates } from "@/lib/api/reference";
 import { apiServer, getViewer } from "@/lib/api/server";
-import type { ExchangeRateRow, ListingRow } from "@/lib/api/types";
+import type { ListingRow } from "@/lib/api/types";
 import { approxInPreferred, convertedPrices, fmtMoney } from "@/lib/format";
 
 export const metadata = { title: "Product" };
@@ -38,7 +39,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     throw err;
   }
   const [rates, me] = await Promise.all([
-    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates").catch(() => []),
+    getExchangeRates().catch(() => []),
     getViewer().catch(() => null),
   ]);
   const preferred = approxInPreferred(

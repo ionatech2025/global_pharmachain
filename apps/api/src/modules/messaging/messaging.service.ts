@@ -118,6 +118,11 @@ export class MessagingService {
     return thread;
   }
 
+  /** Throws exactly as reading the thread would; loads nothing else. */
+  async assertThreadAccess(membership: Membership, threadId: string): Promise<void> {
+    await this.loadThreadForMember(membership, threadId);
+  }
+
   async listThreads(membership: Membership) {
     return prisma.messageThread.findMany({
       where: {

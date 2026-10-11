@@ -40,22 +40,52 @@ export function ThreadView({
   meUserId: string;
 }) {
   const queryClient = useQueryClient();
+  // True while the change feed is connected: the poll is the safety net for
+  // when it is not, so the two never run together.
+  const [streaming, setStreaming] = useState(false);
   const { data } = useQuery({
     queryKey: ["thread", threadId],
     queryFn: () => api.get<ThreadMessages>(`/threads/${threadId}/messages`),
     initialData: initial,
-    refetchInterval: FALLBACK_POLL_INTERVAL_MS,
+    refetchInterval: streaming ? false : FALLBACK_POLL_INTERVAL_MS,
   });
   const { thread, messages, systemEvents = [] } = data;
 
   // Deferred item: SSE change feed — on ping, refetch through the one query
-  // path (no second payload shape, trivial dedupe).
+  // path (no second payload shape, trivial dedupe). Held open only while the
+  // tab is visible: every open stream keeps a function instance and a
+  // database poll alive server-side, which a background tab has no use for.
+  // Returning to the tab reconnects and catches up at once.
   useEffect(() => {
-    const source = new EventSource(`/api/proxy/threads/${threadId}/stream`);
-    source.onmessage = () => {
-      void queryClient.invalidateQueries({ queryKey: ["thread", threadId] });
+    let source: EventSource | null = null;
+    const refetch = () => void queryClient.invalidateQueries({ queryKey: ["thread", threadId] });
+    const open = () => {
+      if (source) return;
+      source = new EventSource(`/api/proxy/threads/${threadId}/stream`);
+      source.onopen = () => setStreaming(true);
+      // The browser reconnects on its own; the poll covers the gap meanwhile.
+      source.onerror = () => setStreaming(false);
+      source.onmessage = refetch;
     };
-    return () => source.close();
+    const close = () => {
+      source?.close();
+      source = null;
+      setStreaming(false);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        open();
+        refetch();
+      } else {
+        close();
+      }
+    };
+    if (document.visibilityState === "visible") open();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      close();
+    };
   }, [threadId, queryClient]);
 
   const [body, setBody] = useState("");

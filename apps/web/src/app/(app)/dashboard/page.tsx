@@ -210,7 +210,26 @@ function RecentShipments({ rows }: { rows: AppointedShipmentRow[] }) {
 
 export default async function DashboardPage() {
   const api = await apiServer();
-  const [summary, me, kpis, dashboardPrefs, activity] = await Promise.all([
+  // The page's second request — appointed shipments for a logistics company,
+  // recent orders for a trading one — depends only on who the viewer is, not
+  // on the summary. Chained off the (per-render memoised) viewer lookup, it
+  // runs alongside the others instead of after the slowest of them.
+  const secondWave = getViewer().then(async (viewer) => {
+    if (!viewer.membership) return { kind: "none" as const };
+    if (isLogisticsCompanyType(viewer.membership.companyType)) {
+      const shipments = await api.get<Paginated<AppointedShipmentRow>>(
+        "/shipments?page=1&pageSize=6",
+      );
+      return { kind: "shipments" as const, shipments };
+    }
+    // A member without the orders permission still gets a dashboard — the
+    // panel simply falls back to its empty state rather than failing the page.
+    const orders = await api
+      .get<Paginated<OrderRow>>("/orders", { query: { page: 1 } })
+      .catch(() => null);
+    return { kind: "orders" as const, orders };
+  });
+  const [summary, me, kpis, dashboardPrefs, activity, extra] = await Promise.all([
     api.get<DashboardSummary>("/dashboard/summary"),
     getViewer(),
     api.get<Kpi[]>("/analytics/kpis").catch(() => [] as Kpi[]),
@@ -218,15 +237,14 @@ export default async function DashboardPage() {
       .get<{ widgets: string[]; available: Array<{ key: string; label: string }> }>("/me/dashboard")
       .catch(() => ({ widgets: [], available: [] })),
     api.get<DashboardActivity>("/dashboard/activity"),
+    secondWave,
   ]);
   const window = activity.windowDays;
 
   // ── Logistics companies (Phase 2): they work appointed shipments, not the
   //    market, so their dashboard leads with the shipments they are on.
-  if (me.membership && isLogisticsCompanyType(me.membership.companyType)) {
-    const shipments = await api.get<Paginated<AppointedShipmentRow>>(
-      "/shipments?page=1&pageSize=6",
-    );
+  if (extra.kind === "shipments" && me.membership) {
+    const shipments = extra.shipments;
     const c = summary.company;
     const attention: AttentionItem[] = [];
     if ((c?.expiringDocuments ?? 0) > 0)
@@ -554,11 +572,7 @@ export default async function DashboardPage() {
   // ── Trading company: buying, selling, or both.
   const c = summary.company;
   if (!c) return null;
-  // A member without the orders permission still gets a dashboard — the panel
-  // simply falls back to its empty state rather than failing the whole page.
-  const orders = await api
-    .get<Paginated<OrderRow>>("/orders", { query: { page: 1 } })
-    .catch(() => null);
+  const orders = extra.kind === "orders" ? extra.orders : null;
   const recentOrders = (orders?.items ?? []).slice(0, 6);
 
   // Role-aware home: a pure buyer never sees "Orders as supplier: 0", and a

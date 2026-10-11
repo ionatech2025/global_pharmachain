@@ -79,10 +79,15 @@ export class CatalogueService {
           }
         : {}),
     };
+    // Premium/Featured placement (US-905) is ranked by the database, across
+    // the whole result set. It used to re-sort only the current page, so a
+    // Featured listing whose name sorted late never reached page one — the
+    // placement a company paid for did nothing. The enum's declared order is
+    // FREEMIUM < PREMIUM < FEATURED, so descending puts Featured first.
     const orderBy: Prisma.ListingOrderByWithRelationInput[] =
       query.sort === "company"
         ? [{ company: { name: "asc" } }, { name: "asc" }]
-        : [{ name: "asc" }];
+        : [{ company: { subscriptionTier: "desc" } }, { name: "asc" }, { id: "asc" }];
 
     const [rows, total] = await prisma.$transaction([
       prisma.listing.findMany({
@@ -99,15 +104,7 @@ export class CatalogueService {
       prisma.listing.count({ where }),
     ]);
 
-    // Premium/Featured placement (US-905) within the page for relevance sort.
-    const tierRank = { FEATURED: 0, PREMIUM: 1, FREEMIUM: 2 } as const;
-    const items = rows.map(withDocumentFlags);
-    if (query.sort === "relevance") {
-      items.sort(
-        (a, b) => tierRank[a.company.subscriptionTier] - tierRank[b.company.subscriptionTier],
-      );
-    }
-    return paginate(items, total, query);
+    return paginate(rows.map(withDocumentFlags), total, query);
   }
 
   listCategories() {

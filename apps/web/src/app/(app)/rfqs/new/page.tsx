@@ -1,6 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { apiServer } from "@/lib/api/server";
-import type { CategoryRow } from "@/lib/api/types";
+import { getCategories } from "@/lib/api/reference";
 import { RfqForm } from "./rfq-form";
 
 export const metadata = { title: "Raise RFQ" };
@@ -19,8 +18,7 @@ export default async function NewRfqPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const api = await apiServer();
-  const categories = await api.get<CategoryRow[]>("/catalogue/categories");
+  const categories = await getCategories();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">

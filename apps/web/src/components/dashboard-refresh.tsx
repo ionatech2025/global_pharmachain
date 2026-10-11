@@ -14,6 +14,10 @@ export function DashboardRefresh() {
   useEffect(() => {
     const interval = setInterval(
       () => {
+        // A tab nobody is looking at doesn't re-render the whole dashboard
+        // (seven API calls) every five minutes; it refreshes on the next tick
+        // after it is visible again.
+        if (document.visibilityState !== "visible") return;
         router.refresh();
         setRefreshedAt(new Date());
       },

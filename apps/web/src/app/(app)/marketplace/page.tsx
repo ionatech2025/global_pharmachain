@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
 import { SavedSearches } from "@/components/saved-searches";
 import type { ApiClient } from "@/lib/api/http";
+import { getCategories, getExchangeRates } from "@/lib/api/reference";
 import { apiServer, getViewer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
 import { approxInPreferred, convertedPrices, fmtMoney } from "@/lib/format";
@@ -49,8 +50,8 @@ export default async function MarketplacePage({
   // one route-level fallback — the filter form and header vanished along
   // with the results grid on every search, not just the part that changed).
   const [categories, rates, me] = await Promise.all([
-    api.get<CategoryRow[]>("/catalogue/categories"),
-    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates"),
+    getCategories(),
+    getExchangeRates(),
     getViewer(),
   ]);
   const preferredCurrency = me.preferredCurrency ?? null;

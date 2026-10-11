@@ -9,7 +9,7 @@ import {
   emailConfigFromEnv,
 } from "@pharmachain/email";
 import { defer } from "./defer";
-import { enqueueOutbox } from "./outbox";
+import { deliverOutbox, type OutboxMessage, recordOutbox } from "./outbox";
 import { sendWebPush, vapidPublicKey } from "./webpush";
 import { createWhatsAppProvider, type WhatsAppProvider } from "./whatsapp";
 
@@ -115,33 +115,33 @@ async function fanout(input: NotifyInput): Promise<void> {
     : [];
   const prefByUser = new Map(prefs.map((p) => [p.userId, p]));
 
-  // allSettled: one recipient's provider failure never blocks the others.
-  await Promise.allSettled(
-    users.map(async (user) => {
-      const pref = prefByUser.get(user.id);
-      const emailEnabled = pref?.email ?? true; // default all-on (opt-out model)
-      const whatsappEnabled = pref?.whatsapp ?? true;
+  const messages: OutboxMessage[] = [];
+  for (const user of users) {
+    const pref = prefByUser.get(user.id);
+    const emailEnabled = pref?.email ?? true; // default all-on (opt-out model)
+    const whatsappEnabled = pref?.whatsapp ?? true;
+    if (input.emailContent && emailEnabled) {
+      messages.push({ channel: "EMAIL", recipient: user.email, payload: input.emailContent });
+    }
+    // US-604: silent fallback — WhatsApp only for verified numbers, and a
+    // provider failure never surfaces to the user (email/in-app already sent).
+    if (input.whatsappText && whatsappEnabled && user.whatsappNumber && user.whatsappVerifiedAt) {
+      messages.push({
+        channel: "WHATSAPP",
+        recipient: user.whatsappNumber,
+        payload: { text: input.whatsappText },
+      });
+    }
+  }
 
-      if (input.emailContent && emailEnabled) {
-        try {
-          await email().send({ to: user.email, ...input.emailContent });
-        } catch (err) {
-          console.error(`[notify] email delivery failed for user ${user.id}:`, err);
-          await enqueueOutbox("EMAIL", user.email, input.emailContent, err);
-        }
-      }
-      // US-604: silent fallback — WhatsApp only for verified numbers, and a
-      // provider failure never surfaces to the user (email/in-app already sent).
-      if (input.whatsappText && whatsappEnabled && user.whatsappNumber && user.whatsappVerifiedAt) {
-        try {
-          await whatsapp().send(user.whatsappNumber, input.whatsappText);
-        } catch (err) {
-          console.error(`[notify] whatsapp delivery failed for user ${user.id}:`, err);
-          await enqueueOutbox("WHATSAPP", user.whatsappNumber, { text: input.whatsappText }, err);
-        }
-      }
-    }),
-  );
+  // Off-platform delivery never runs in the request path any more. Each
+  // message is recorded first (one insert for the batch), then delivered
+  // after the response — previously the caller waited on an SMTP handshake
+  // per recipient (accepting a quotation mailed every losing supplier inline).
+  // A message the deferred attempt cannot finish is picked up by the outbox
+  // retry job.
+  const rows = await recordOutbox(messages);
+  if (rows.length > 0) defer(deliverOutbox(rows, notificationProviders()));
 }
 
 /** Push delivery to every registered device; dead endpoints are pruned. */

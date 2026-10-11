@@ -12,8 +12,9 @@ import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { ListingStatusBadge } from "@/components/status-badge";
+import { getExchangeRates } from "@/lib/api/reference";
 import { apiServer } from "@/lib/api/server";
-import type { ExchangeRateRow, ListingRow } from "@/lib/api/types";
+import type { ListingRow } from "@/lib/api/types";
 import { convertedPrices, fmtMoney } from "@/lib/format";
 import { ListingRowActions } from "./listing-actions";
 
@@ -23,7 +24,7 @@ export default async function CataloguePage() {
   const api = await apiServer();
   const [listings, rates] = await Promise.all([
     api.get<ListingRow[]>("/catalogue"),
-    api.get<ExchangeRateRow[]>("/catalogue/exchange-rates").catch(() => []),
+    getExchangeRates().catch(() => []),
   ]);
 
   return (

@@ -60,8 +60,10 @@ export class MessagingController {
     @Req() req: FastifyRequest,
   ) {
     // Access is asserted before the stream opens; afterwards the observable
-    // only ever reveals "something changed".
-    await this.messagingService.listMessages(membership, params.id, new Date().toISOString());
+    // only ever reveals "something changed". (This used to load the latest
+    // messages and every shipment event just to throw them away — on every
+    // reconnect, roughly once a minute per open thread.)
+    await this.messagingService.assertThreadAccess(membership, params.id);
     const lastEventId = req.headers["last-event-id"];
     const since = typeof lastEventId === "string" ? new Date(lastEventId) : new Date();
     return this.messagingService.streamChanges(
