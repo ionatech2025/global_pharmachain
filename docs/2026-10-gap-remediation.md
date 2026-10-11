@@ -145,6 +145,20 @@ which suppliers see them, so requiring a category is a marketplace decision
 left open. The panel says exactly that until categorised quotes accrue.
 Choosing a category when raising an RFQ is what fills it.
 
+**Requiring a category on new RFQs — not done** (decided 2026-10-11, owner's
+delegation; [`a99d014`]). A supplier's inbox shows a categorised RFQ only if
+the supplier lists that category, and in production **7 of 12 categories have
+no verified supplier listing them**; the best covered (APIs, Excipients) reach
+1 of 3 raw-material manufacturers. Requiring a category would route most RFQs
+to nobody to fill a reporting chart. The data exposed a live trap instead,
+now fixed: picking a category silently narrowed reach (to zero for most), the
+publish toast still said "visible to 3 supplier(s)" because the stored count
+ignored the category, and a picked category could not be undone. The form now
+states each choice's real reach before publishing (warning when nobody would
+see it), the stored count follows the inbox rule, and "Any category" is an
+explicit option. Revisit once most categories have several verified listers —
+or decouple routing from classification, if the marketplace wants both.
+
 **CI.** Every action GitHub was forcing from Node 20 onto Node 24 now runs a
 Node 24 release, pinned by SHA (checkout v7.0.1, cache v6.1.0,
 upload-artifact v7.0.2, download-artifact v8.0.2, github-script v9.0.0;
@@ -209,3 +223,4 @@ which no e2e spec visited.
 [`a45e60c`]: https://github.com/ionatech2025/global_pharmachain/commit/a45e60c
 [`712ae00`]: https://github.com/ionatech2025/global_pharmachain/commit/712ae00
 [`407f7c9`]: https://github.com/ionatech2025/global_pharmachain/commit/407f7c9
+[`a99d014`]: https://github.com/ionatech2025/global_pharmachain/commit/a99d014
