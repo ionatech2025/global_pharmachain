@@ -47,6 +47,9 @@
   --accent: oklch(0.95 0.01 240);
   --accent-foreground: oklch(0.25 0.02 250);
   --destructive: oklch(0.58 0.23 27);
+  /* Destructive TEXT on a tint of itself (delta pills, meter states): the
+     solid sits at 3.95:1 on its own 12% wash, this step clears 5:1. */
+  --destructive-accent: oklch(0.52 0.2 27);
   --border: oklch(0.925 0.003 240);
   --input: oklch(0.925 0.003 240);
   --ring: oklch(0.55 0.13 250);
@@ -107,6 +110,9 @@
   --accent: oklch(0.22 0.01 250);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.6 0.2 25);
+  /* The solid gives white button labels their contrast but is 4.39:1 as
+     text on the card; this lighter step reads at 6.2:1 (5.7:1 on its tint). */
+  --destructive-accent: oklch(0.68 0.17 25);
   --border: oklch(0.24 0.008 250);
   --input: oklch(0.26 0.008 250);
   --ring: oklch(0.58 0.16 250);
@@ -155,6 +161,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-accent: var(--destructive-accent);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -283,12 +290,39 @@
     pointer-events: none;
     transition: opacity 0.12s ease;
   }
-  .chart-slot:hover .chart-hover,
-  .chart-slot:focus-visible .chart-hover {
+  .chart-slot:hover .chart-hover {
     opacity: 1;
   }
-  .chart-slot:focus-visible {
-    outline: none;
+  /* Keyboard, touch and screen readers reach the same values through each
+     chart's table view (a <details> under the plot), so the hover layer is
+     an enhancement and the slots are deliberately not tab stops. */
+
+  /* Donut: hovering a slice swaps the total in the hole for that slice's
+     count and stage, and dims the others. */
+  .donut-detail {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+  .donut-total,
+  .donut-arc {
+    transition: opacity 0.12s ease;
+  }
+  .donut-slice:hover .donut-detail {
+    opacity: 1;
+  }
+  .donut:has(.donut-slice:hover) .donut-total {
+    opacity: 0;
+  }
+  .donut:has(.donut-slice:hover) .donut-slice:not(:hover) .donut-arc {
+    opacity: 0.35;
+  }
+  /* The table view's own chevron replaces the disclosure triangle. */
+  .chart-table > summary {
+    list-style: none;
+  }
+  .chart-table > summary::-webkit-details-marker {
+    display: none;
   }
 
   /* Opt-in touch sizing: any control that is not naturally tall enough can
@@ -620,6 +654,13 @@
  */
 .dark .text-primary {
   color: var(--primary-accent);
+}
+
+/* Same split for destructive: the solid stays dark enough for white labels on
+   `bg-destructive`, while `text-destructive` (field errors, a failed state)
+   would sit at 4.39:1 on the dark card — just under AA. */
+.dark .text-destructive {
+  color: var(--destructive-accent);
 }
 
 /*

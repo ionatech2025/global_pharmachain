@@ -342,6 +342,7 @@ export default async function DashboardPage() {
               <TrendChart
                 points={activity.trend}
                 series={activity.series}
+                caption="Appointment activity by week"
                 emptyNote="No appointments in the last 12 weeks."
               />
             </PanelBody>
@@ -506,7 +507,11 @@ export default async function DashboardPage() {
               description={`Companies joined, RFQs raised and orders placed, by week — the last ${activity.trend.length} weeks.`}
             />
             <PanelBody>
-              <TrendChart points={activity.trend} series={activity.series} />
+              <TrendChart
+                points={activity.trend}
+                series={activity.series}
+                caption="Network growth by week"
+              />
             </PanelBody>
           </Panel>
 
@@ -740,6 +745,7 @@ export default async function DashboardPage() {
             <TrendChart
               points={activity.trend}
               series={activity.series}
+              caption="Trading activity by week"
               emptyNote="No trading activity in the last 12 weeks."
             />
           </PanelBody>

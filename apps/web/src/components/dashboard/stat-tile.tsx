@@ -49,7 +49,7 @@ export function TrendPill({
       ? "bg-muted text-muted-foreground"
       : good
         ? "bg-success/12 text-success"
-        : "bg-destructive/12 text-destructive";
+        : "bg-destructive/12 text-destructive-accent";
 
   return (
     <span className={cn(base, tone, className)}>
@@ -102,7 +102,7 @@ export function StatTile({
 }: StatTileProps) {
   const chipTone =
     tone === "danger"
-      ? "bg-destructive/12 text-destructive"
+      ? "bg-destructive/12 text-destructive-accent"
       : tone === "warning"
         ? "bg-warning/15 text-warning"
         : "";

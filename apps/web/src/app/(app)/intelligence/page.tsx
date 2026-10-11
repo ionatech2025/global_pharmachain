@@ -176,6 +176,7 @@ export default async function IntelligencePage() {
               labels={projectedLabels(demand.months, demand.forecast.length)}
               history={demand.series}
               forecast={demand.forecast}
+              caption="RFQs raised per month, measured and projected"
               emptyNote="No RFQ history to forecast from yet."
             />
             <Provenance>
@@ -208,6 +209,7 @@ export default async function IntelligencePage() {
               baseline="fit"
               format={priceCurrency ? (v) => fmtMoney(v, priceCurrency) : fmtNumber}
               gapNote="no quotations"
+              caption="Average quoted unit price by month"
               emptyNote="No quotations priced yet."
             />
             <Provenance>
