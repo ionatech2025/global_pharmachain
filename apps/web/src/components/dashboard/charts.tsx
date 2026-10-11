@@ -66,6 +66,13 @@ export function compact(value: number): string {
 const showAxisLabel = (i: number, count: number) => count <= 6 || (count - 1 - i) % 2 === 0;
 
 /**
+ * Geist sets the decimal point tight against the flat foot of a 2, and at
+ * axis size the two merge: "12.5" reads as "125". A hair of tracking on the
+ * tick labels keeps every point visible.
+ */
+const TICK_TRACKING = "0.06em";
+
+/**
  * The plot keeps a legible floor width and scrolls inside its own box on a
  * narrow screen: squeezing a 12-week axis into 350px would render the tick
  * labels at ~5px, and WCAG 1.4.10 exempts data visualisations from reflow
@@ -138,6 +145,7 @@ function PinnedAxis({
           y={y(t) + 3.5}
           textAnchor="end"
           fontSize="12"
+          letterSpacing={TICK_TRACKING}
           className="num-col fill-muted-foreground"
         >
           {compact(t)}
@@ -326,6 +334,7 @@ export function TrendChart({
                 y={y(t) + 3.5}
                 textAnchor="end"
                 fontSize="12"
+                letterSpacing={TICK_TRACKING}
                 className="num-col fill-muted-foreground"
               >
                 {compact(t)}
@@ -685,6 +694,7 @@ export function ForecastChart({
                 y={y(t) + 3.5}
                 textAnchor="end"
                 fontSize="12"
+                letterSpacing={TICK_TRACKING}
                 className="num-col fill-muted-foreground"
               >
                 {compact(t)}
