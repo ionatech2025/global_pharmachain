@@ -15,7 +15,9 @@ Production: https://global-pharmachain.vercel.app. The findings of a 2026-07
 principal architecture review and their remediation are traced in
 [`docs/architecture-review-remediation.md`](docs/architecture-review-remediation.md);
 a 2026-08 performance/loading/robustness audit and its remediation are traced in
-[`docs/performance-loading-robustness-audit.md`](docs/performance-loading-robustness-audit.md).
+[`docs/performance-loading-robustness-audit.md`](docs/performance-loading-robustness-audit.md);
+the 2026-10 gap analysis — measured against production, including the
+compute/database region split — in [`docs/2026-10-gap-remediation.md`](docs/2026-10-gap-remediation.md).
 
 ## Stack
 
