@@ -19,7 +19,8 @@ import {
 test.describe("Public + auth routes", () => {
   test("landing, auth pages and 404 render", async ({ browser }) => {
     const page = await (await browser.newContext()).newPage();
-    await visit(page, "/", /from RFQ to delivered/i);
+    // Hero copy as rewritten on 2026-09-16 (4ed108c).
+    await visit(page, "/", /end-to-end b2b pharma ecosystem/i);
     await visit(page, "/login", /Sign in/i);
     await visit(page, "/register", /Register your company/i);
     await visit(page, "/forgot-password", /reset|password/i);
@@ -37,7 +38,10 @@ test.describe("Register flow (creates real data)", () => {
     const tag = Date.now().toString(36).toUpperCase();
     await page.goto("/register");
     await page.getByLabel("Company name").fill(`Route Test Pharma ${tag}`);
-    await page.getByLabel("Country").fill("Uganda");
+    // Country became a select on 2026-09-16 (pre-filled from the browser's
+    // zone), so it is chosen, not typed.
+    await page.getByLabel("Country").click();
+    await page.getByRole("option", { name: "Uganda", exact: true }).click();
     await page.getByLabel("Registration number").fill(`RT-${tag}`);
     await page.getByLabel("Registered address").fill("1 Verification Way, Kampala");
     await page.getByLabel("Contact phone").fill("+256700000001");

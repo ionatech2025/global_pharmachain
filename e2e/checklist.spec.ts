@@ -380,10 +380,27 @@ test.describe
       // quoting on the buyer's open RFQ raises NEW_QUOTATION for the buyer.
       if ((await unread()) === 0) {
         const supplier = await signIn(browser, SUPPLIER_ADMIN);
-        const rfqs = await (await page.request.get(`${API_PATH}/rfqs`)).json();
-        const open = (rfqs.items ?? rfqs).find((r: { status: string }) => r.status === "OPEN");
-        if (open) {
-          await supplier.request.post(`${API_PATH}/rfqs/${open.id}/quotations`, {
+        // A fresh RFQ every time. Quoting on the buyer's newest open RFQ fails
+        // with a 409 once the supplier has quoted on it in an earlier run —
+        // the production data only grows — and then no notification is raised
+        // (seen 2026-10-11). Aimed at the supplier's own company type: an RFQ
+        // only takes quotations from the type it targets.
+        const me = await (await supplier.request.get(`${API_PATH}/auth/me`)).json();
+        const supplierType = me?.membership?.companyType;
+        expect(supplierType, "supplier persona has no company membership").toBeTruthy();
+        const raised = await page.request.post(`${API_PATH}/rfqs`, {
+          data: {
+            title: `E2E notification fixture ${Date.now().toString(36).toUpperCase()}`,
+            quantity: "5",
+            unit: "kg",
+            targetCompanyType: supplierType,
+            deadline: new Date(Date.now() + 10 * 864e5).toISOString(),
+          },
+        });
+        expect(raised.ok(), `could not raise a fixture RFQ (HTTP ${raised.status()})`).toBeTruthy();
+        const quoted = await supplier.request.post(
+          `${API_PATH}/rfqs/${(await raised.json()).id}/quotations`,
+          {
             data: {
               unitPrice: "10.50",
               currency: "USD",
@@ -391,9 +408,13 @@ test.describe
               validUntil: new Date(Date.now() + 30 * 864e5).toISOString(),
               notes: "e2e notification fixture",
             },
-          });
-        }
+          },
+        );
         await supplier.context().close();
+        expect(
+          quoted.ok(),
+          `could not quote on the fixture RFQ (HTTP ${quoted.status()})`,
+        ).toBeTruthy();
         await expect.poll(unread, { timeout: 20_000 }).toBeGreaterThan(0);
       }
 
@@ -555,11 +576,19 @@ test.describe("US-205 idle session", () => {
     // the faked clock is ~55 minutes ahead, so the browser also treats the
     // session cookie as expired and Auth.js's own redirect can fail the
     // navigation. The request is the behaviour under test.
-    const signOutRequest = page
-      .waitForRequest((r) => /\/api\/auth\/signout/.test(r.url()), { timeout: 40_000 })
+    //
+    // Waits for the sign-out RESPONSE, not the request: the response is what
+    // clears the session cookie. Checking the protected route the moment the
+    // request left raced it — on a slow link /orders started 16ms after the
+    // sign-out POST and rendered with the cookie its response was about to
+    // clear (traced 2026-10-11; the POST itself returned 200).
+    const signOutResponse = page
+      .waitForResponse((r) => /\/api\/auth\/signout/.test(r.url()), { timeout: 40_000 })
       .catch(() => null);
     await page.clock.fastForward("30:10");
-    expect(await signOutRequest, "the idle timeout did not sign the user out").not.toBeNull();
+    const signedOut = await signOutResponse;
+    expect(signedOut, "the idle timeout did not sign the user out").not.toBeNull();
+    expect(signedOut?.ok(), "the sign-out request was refused").toBe(true);
 
     // And the session really is gone: a protected route no longer renders.
     await page.clock.uninstall?.();
