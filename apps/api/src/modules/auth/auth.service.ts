@@ -10,7 +10,8 @@ import { env } from "../../env";
 import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
 import { defer } from "../../lib/defer";
 import { hashPassword, verifyPassword } from "../../lib/password";
-import { generateTotpSecret, otpauthUri, verifyTotp } from "../../lib/totp";
+import { isSealed, openSecret, sealSecret } from "../../lib/secret-box";
+import { generateTotpSecret, matchTotp, otpauthUri, verifyTotp } from "../../lib/totp";
 import { sendEmailTo } from "../shared/mailer";
 import { INVITE_REJECTION_MESSAGES, inviteRejection } from "./invite-tokens";
 import { issueOtp, verifyOtp } from "./otp";
@@ -114,19 +115,56 @@ export class AuthService {
 
   // ─── Login (US-205/206 + OTP) ──────────────────────────────────────────────
 
-  /** Consecutive failures since the last success, within the lockout window. */
+  /** Consecutive failures since the last success or password reset, within
+   *  the lockout window. */
   private async recentFailureCount(email: string): Promise<number> {
     const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MS);
-    const lastSuccess = await prisma.loginActivity.findFirst({
-      where: { email, success: true },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
-    const since =
-      lastSuccess && lastSuccess.createdAt > windowStart ? lastSuccess.createdAt : windowStart;
+    const [lastSuccess, lastReset] = await Promise.all([
+      prisma.loginActivity.findFirst({
+        where: { email, success: true },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      // A completed password reset proves control of the mailbox, and the
+      // lockout message tells a locked-out user to reset — so a reset must
+      // actually lift the lock. It used to leave it in place for the rest of
+      // the window, which also let anyone keep a known account locked out.
+      prisma.passwordResetToken.findFirst({
+        where: { user: { email }, consumedAt: { gt: windowStart } },
+        orderBy: { consumedAt: "desc" },
+        select: { consumedAt: true },
+      }),
+    ]);
+    let since = windowStart;
+    for (const at of [lastSuccess?.createdAt, lastReset?.consumedAt]) {
+      if (at && at > since) since = at;
+    }
     return prisma.loginActivity.count({
       where: { email, success: false, createdAt: { gt: since } },
     });
+  }
+
+  /**
+   * Records that a TOTP time step has been used by this user; false when it
+   * already was, so a code read over a shoulder or replayed from a phished
+   * form cannot be used again within its validity window. The durable
+   * throttle table doubles as the used-step store — one key per (user, step),
+   * outliving the ±1-step window.
+   */
+  private async claimTotpStep(userId: string, step: number): Promise<boolean> {
+    const rows = await prisma.$queryRaw<Array<{ key: string }>>`
+      INSERT INTO "ThrottleBucket" ("key", "count", "expiresAt")
+      VALUES (${`totp-used:${userId}:${step}`}, 1, now() + interval '5 minutes')
+      ON CONFLICT ("key") DO NOTHING
+      RETURNING "key"
+    `;
+    return rows.length > 0;
+  }
+
+  /** Verifies a code once: right code, unused step. */
+  private async acceptTotp(userId: string, storedSecret: string, code: string): Promise<boolean> {
+    const step = matchTotp(openSecret(storedSecret), code);
+    return step !== null && (await this.claimTotpStep(userId, step));
   }
 
   async login(input: LoginInput): Promise<AuthenticatedUser> {
@@ -166,9 +204,15 @@ export class AuthService {
           "Enter the 6-digit code from your authenticator app",
         );
       }
-      if (!verifyTotp(user.totpSecret, input.totpCode)) {
+      if (!(await this.acceptTotp(user.id, user.totpSecret, input.totpCode))) {
         success = false;
         totpFailed = true;
+      } else if (!isSealed(user.totpSecret)) {
+        // Seeds stored before encryption at rest are sealed on first use.
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { totpSecret: sealSecret(user.totpSecret) },
+        });
       }
     }
 
@@ -422,7 +466,8 @@ export class AuthService {
     if (user.totpEnabledAt) throw conflict("Two-factor authentication is already enabled");
     const secret = generateTotpSecret();
     // Pending until enableTotp proves the authenticator produces valid codes.
-    await prisma.user.update({ where: { id: userId }, data: { totpSecret: secret } });
+    // Sealed at rest; the plaintext goes only to the user, once, for the QR.
+    await prisma.user.update({ where: { id: userId }, data: { totpSecret: sealSecret(secret) } });
     return { secret, otpauth: otpauthUri(secret, user.email) };
   }
 
@@ -430,7 +475,9 @@ export class AuthService {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (user.totpEnabledAt) throw conflict("Two-factor authentication is already enabled");
     if (!user.totpSecret) throw badRequest("Start setup first");
-    if (!verifyTotp(user.totpSecret, code)) throw badRequest("That code doesn't match — try again");
+    if (!verifyTotp(openSecret(user.totpSecret), code)) {
+      throw badRequest("That code doesn't match — try again");
+    }
     await prisma.user.update({ where: { id: userId }, data: { totpEnabledAt: new Date() } });
   }
 
@@ -443,7 +490,9 @@ export class AuthService {
     if (!user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
       throw unauthorized("Invalid password");
     }
-    if (!verifyTotp(user.totpSecret, code)) throw unauthorized("Invalid verification code");
+    if (!(await this.acceptTotp(user.id, user.totpSecret, code))) {
+      throw unauthorized("Invalid verification code");
+    }
     await prisma.user.update({
       where: { id: userId },
       data: { totpSecret: null, totpEnabledAt: null },

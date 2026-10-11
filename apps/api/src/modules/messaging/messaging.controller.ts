@@ -20,7 +20,10 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
 import { MessagingService } from "./messaging.service";
 
-const afterQuerySchema = z.object({ after: optionalFilter(z.iso.datetime()) });
+const afterQuerySchema = z.object({
+  after: optionalFilter(z.iso.datetime()),
+  before: optionalFilter(z.iso.datetime()),
+});
 type AfterQuery = z.infer<typeof afterQuerySchema>;
 
 @Controller("threads")
@@ -49,7 +52,7 @@ export class MessagingController {
     @Param(zodPipe(idParamSchema)) params: { id: string },
     @Query(zodPipe(afterQuerySchema)) query: AfterQuery,
   ) {
-    return this.messagingService.listMessages(membership, params.id, query.after);
+    return this.messagingService.listMessages(membership, params.id, query.after, query.before);
   }
 
   @RequirePermission("message:read")

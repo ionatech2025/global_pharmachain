@@ -142,7 +142,11 @@ Key properties:
   invalidates every outstanding token immediately. Sign-in is protected two
   ways: per-client-IP throttling (the web tier forwards the caller's IP) and
   a DB-backed per-account lockout (5 consecutive failures in 15 minutes →
-  429), which rotating IPs cannot bypass.
+  429), which rotating IPs cannot bypass and a completed password reset
+  lifts. TOTP codes are accepted once (a replayed code is refused), and TOTP
+  seeds and webhook signing secrets are encrypted at rest (AES-256-GCM, key
+  derived from `AUTH_SECRET` — rotating it means re-enrolling TOTP and
+  re-creating webhooks). Idleness is judged across all of a browser's tabs.
 - **Multi-instance safe** — every job runs under a Postgres advisory lock
   (`pg_try_advisory_xact_lock`), so overlapping dispatcher calls, replicas and
   the standalone worker never double-run a sweep or double-send its
@@ -166,7 +170,11 @@ Key properties:
   them to a random UUID key, so a bucket needs no CORS rule and no public write
   path. Size and type are enforced by one shared gate
   (`validateUpload` in `@pharmachain/core`) in the picker, again on the upload
-  route, and again against what actually landed in the bucket. Downloads are
+  route — where the bytes must also carry their type's file signature, so a
+  renamed script is refused — and again against what actually landed in the
+  bucket. The cap is 4MB: upload bytes pass through serverless functions,
+  whose request bodies Vercel limits to 4.5MB (larger files need direct
+  uploads to storage). Downloads are
   short-lived presigned GETs. Uploads pass a virus-scan stub before the document
   becomes downloadable; re-uploads create new versions and retain the old ones.
 
@@ -282,7 +290,8 @@ salts, so no extra configuration is needed.
 
 The API keys rate limits and the login audit on the end-client IP forwarded
 by the web tier. That header is only honoured when the caller proves it is
-the web tier via `x-proxy-secret` (the shared `AUTH_SECRET`); anyone else
+the web tier via `x-proxy-secret` (an HMAC of the shared `AUTH_SECRET`, never
+the secret itself); anyone else
 falls back to the platform-derived address, so spoofing `x-client-ip` cannot
 rotate rate-limit buckets even when the API is reachable directly. The
 security-sensitive throttles (login, OTP, register, password reset) persist

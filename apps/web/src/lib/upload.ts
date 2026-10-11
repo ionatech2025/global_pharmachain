@@ -82,5 +82,9 @@ export async function uploadDocument(args: {
 
 export async function downloadDocument(documentId: string): Promise<void> {
   const { url } = await api.get<{ url: string }>(`/documents/${documentId}/download-url`);
-  window.open(url, "_blank", "noopener");
+  // Navigate rather than window.open: after the await above the click no
+  // longer counts as a user gesture, and Safari (iOS above all) silently
+  // blocks the popup. The signed URL answers with Content-Disposition:
+  // attachment, so the browser downloads and the page stays where it is.
+  window.location.assign(url);
 }

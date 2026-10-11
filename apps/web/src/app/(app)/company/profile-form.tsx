@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_FILE_SIZE_LABEL } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
@@ -97,7 +98,7 @@ export function ProfileForm({
             <p className="text-xs text-muted-foreground">
               {company.logoFileName
                 ? `${company.logoFileName} — live on your public profile.`
-                : "PNG or JPG, up to 10 MB — shown on your public profile."}
+                : `PNG or JPG, up to ${MAX_FILE_SIZE_LABEL} — shown on your public profile.`}
             </p>
           </div>
           <div className="ml-auto">

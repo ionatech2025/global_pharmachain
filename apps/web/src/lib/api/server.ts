@@ -1,8 +1,10 @@
 import "server-only";
+import { proxyIdentitySecret } from "@pharmachain/auth/proxy-secret";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { API_URL } from "@/env";
+import { loginUrlFor } from "@/lib/callback-url";
 import { type ApiClient, ApiClientError, createApiClient } from "./http";
 
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
@@ -20,7 +22,7 @@ function withAuthRedirects(client: ApiClient): ApiClient {
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.status === 403) redirect("/forbidden");
-        if (err.status === 401) redirect("/login");
+        if (err.status === 401) redirect(await loginRedirectPath());
       }
       throw err;
     }
@@ -32,6 +34,13 @@ function withAuthRedirects(client: ApiClient): ApiClient {
     patch: (path, body, opts) => guard(() => client.patch(path, body, opts)),
     delete: (path, opts) => guard(() => client.delete(path, opts)),
   };
+}
+
+/** /login for a visitor whose session is missing or dead, carrying the page
+ *  they asked for — notification emails deep-link to orders, RFQs and
+ *  threads, and a lapsed session used to land them on the dashboard instead. */
+export async function loginRedirectPath(): Promise<string> {
+  return loginUrlFor((await headers()).get("x-pathname"));
 }
 
 /** One id per page render, shared by every API call it makes, so the API's
@@ -60,7 +69,7 @@ export async function apiServer(): Promise<ApiClient> {
     "x-forwarded-for": forwardedFor,
     "x-client-ip": forwardedFor.split(",")[0]?.trim() ?? "",
     "x-client-user-agent": incoming.get("user-agent") ?? "",
-    "x-proxy-secret": process.env.AUTH_SECRET ?? "",
+    "x-proxy-secret": proxyIdentitySecret(process.env.AUTH_SECRET ?? ""),
     "x-request-id": renderRequestId(),
   };
   return withAuthRedirects(

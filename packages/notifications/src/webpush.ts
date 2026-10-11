@@ -6,6 +6,7 @@ import {
   randomBytes,
   sign as signEcdsa,
 } from "node:crypto";
+import { isKnownPushEndpoint } from "@pharmachain/core";
 
 /**
  * Web Push (Phase 4 §1) implemented directly on node:crypto: VAPID (RFC
@@ -116,6 +117,9 @@ export async function sendWebPush(
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) return { ok: false, status: 0, gone: false };
+  // Defence in depth for rows stored before subscriptions were validated:
+  // never POST anywhere but a push service — and prune the row.
+  if (!isKnownPushEndpoint(subscription.endpoint)) return { ok: false, status: 0, gone: true };
 
   const audience = new URL(subscription.endpoint).origin;
   const jwt = vapidJwt(audience, publicKey, privateKey);

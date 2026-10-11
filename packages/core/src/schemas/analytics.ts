@@ -22,8 +22,34 @@ export const ratingModerateSchema = z.object({
 
 // ─── Push subscriptions (Phase 4 §1) ─────────────────────────────────────────
 
+/**
+ * Hosts of the browser push services. A subscription endpoint is a URL the
+ * browser hands us and the server then POSTs to, so without this check any
+ * signed-in user could point the platform's outbound requests at an address
+ * of their choosing (internal services, cloud metadata, a third party).
+ * Chrome/Opera/Samsung → FCM, Firefox → Mozilla autopush, Edge → WNS,
+ * Safari → Apple.
+ */
+const PUSH_SERVICE_HOSTS = [
+  "fcm.googleapis.com",
+  ".push.services.mozilla.com",
+  ".notify.windows.com",
+  ".push.apple.com",
+];
+
+export function isKnownPushEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
+    const host = url.hostname.toLowerCase();
+    return PUSH_SERVICE_HOSTS.some((h) => (h.startsWith(".") ? host.endsWith(h) : host === h));
+  } catch {
+    return false;
+  }
+}
+
 export const pushSubscribeSchema = z.object({
-  endpoint: z.url().max(1000),
+  endpoint: z.url().max(1000).refine(isKnownPushEndpoint, "Not a browser push service endpoint"),
   keys: z.object({
     p256dh: z.string().min(16).max(256),
     auth: z.string().min(8).max(64),

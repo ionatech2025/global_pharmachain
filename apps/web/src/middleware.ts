@@ -52,6 +52,9 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set("x-nonce", nonce);
+  // The page being asked for, so a server-side redirect to /login can bring
+  // the visitor back to it (layouts cannot see the URL otherwise).
+  requestHeaders.set("x-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);

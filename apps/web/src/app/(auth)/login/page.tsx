@@ -18,6 +18,7 @@ import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
+import { safeCallbackUrl } from "@/lib/callback-url";
 
 function LoginForm() {
   const router = useRouter();
@@ -75,10 +76,18 @@ function LoginForm() {
           );
           return;
         }
+        if (result.code === "unavailable") {
+          // Not the user's fault, and not their password: saying "invalid
+          // password" here sent people to reset passwords that were fine.
+          toast.error("We couldn't reach PharmaChain to check your sign-in — try again shortly.");
+          return;
+        }
         toast.error(totpNeeded ? "Invalid verification code" : "Invalid email or password");
         return;
       }
-      router.push("/dashboard");
+      // Back to the page that sent them here (an email's deep link, a lapsed
+      // session mid-task) — validated as a same-site path — or the dashboard.
+      router.push(safeCallbackUrl(params.get("callbackUrl")) ?? "/dashboard");
       router.refresh();
     } finally {
       setBusy(false);

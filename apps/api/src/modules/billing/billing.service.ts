@@ -9,7 +9,7 @@ import {
 import { type Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
-import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
+import { ApiException, badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getParam } from "../../lib/params";
@@ -67,23 +67,39 @@ export class BillingService {
 
     const gateway = gatewayFor(method);
     const bankDetails = await getParam(PARAM_KEYS.PLATFORM_BANK_DETAILS);
-    const initiated = await gateway.initiate({
-      reference: refCode("FEE"),
-      amount: Number(request.fee),
-      currency: request.currency,
-      method,
-      bankDetails,
-    });
-
-    const updated = await prisma.creditRequest.update({
+    // The reference is on record before the checkout starts, so whatever the
+    // provider reports back can always be matched to this request.
+    const reference = refCode("FEE");
+    await prisma.creditRequest.update({
       where: { id: request.id },
       data: {
         paymentMethod: method,
-        paymentProvider: initiated.provider,
-        paymentRef: initiated.providerRef,
-        paymentInstructions: initiated.instructions,
+        paymentProvider: gateway.id,
+        paymentRef: reference,
         paymentInitiatedAt: new Date(),
       },
+    });
+    let initiated: Awaited<ReturnType<typeof gateway.initiate>>;
+    try {
+      initiated = await gateway.initiate({
+        reference,
+        amount: Number(request.fee),
+        currency: request.currency,
+        method,
+        bankDetails,
+      });
+    } catch (err) {
+      // The request stays pending; starting checkout again mints a new reference.
+      throw new ApiException(
+        502,
+        "GATEWAY_UNAVAILABLE",
+        `The payment provider is unavailable — try again shortly (${String(err).slice(0, 80)})`,
+      );
+    }
+
+    const updated = await prisma.creditRequest.update({
+      where: { id: request.id },
+      data: { paymentInstructions: initiated.instructions },
     });
     return { request: updated, instructions: initiated.instructions };
   }
@@ -156,28 +172,33 @@ export class BillingService {
     } = {},
   ) {
     const confirm = outcome === "CONFIRMED";
-    const flipped = await prisma.creditRequest.updateMany({
-      where: { id: creditRequestId, status: "PENDING_PAYMENT" },
-      data: {
-        status: outcome,
-        confirmedById: extra.confirmedById,
-        decidedAt: new Date(),
-        note: extra.note,
-        ...(extra.webhookPayload
-          ? { webhookPayload: extra.webhookPayload as Prisma.InputJsonValue }
-          : {}),
-      },
-    });
-    if (flipped.count === 0) throw conflict("This credit request was already decided");
+    // The decision and what it unlocks commit together. They used to be
+    // separate writes, so a crash between them left a paid, confirmed request
+    // whose Featured/Premium tier was never granted.
+    const request = await prisma.$transaction(async (tx) => {
+      const flipped = await tx.creditRequest.updateMany({
+        where: { id: creditRequestId, status: "PENDING_PAYMENT" },
+        data: {
+          status: outcome,
+          confirmedById: extra.confirmedById,
+          decidedAt: new Date(),
+          note: extra.note,
+          ...(extra.webhookPayload
+            ? { webhookPayload: extra.webhookPayload as Prisma.InputJsonValue }
+            : {}),
+        },
+      });
+      if (flipped.count === 0) throw conflict("This credit request was already decided");
 
-    const request = await prisma.creditRequest.findUniqueOrThrow({
-      where: { id: creditRequestId },
-      include: { company: { select: { name: true } } },
+      const request = await tx.creditRequest.findUniqueOrThrow({
+        where: { id: creditRequestId },
+        include: { company: { select: { name: true } } },
+      });
+      // Phase 4 §3: confirmed purchases take effect immediately — featured
+      // placement runs 30 days; premium verification upgrades the tier.
+      if (confirm) await this.applyPurchase(tx, request.companyId, request.kind);
+      return request;
     });
-
-    // Phase 4 §3: confirmed purchases take effect immediately — featured
-    // placement runs 30 days; premium verification upgrades the tier.
-    if (confirm) await this.applyPurchase(request.companyId, request.kind);
 
     await notify({
       companyId: request.companyId,
@@ -200,17 +221,17 @@ export class BillingService {
   }
 
   /** What a confirmed purchase actually unlocks, by kind. */
-  private async applyPurchase(companyId: string, kind: CreditKind) {
+  private async applyPurchase(tx: Prisma.TransactionClient, companyId: string, kind: CreditKind) {
     const until = new Date(Date.now() + THIRTY_DAYS_MS);
     if (kind === "FEATURED") {
-      await prisma.company.update({
+      await tx.company.update({
         where: { id: companyId },
         data: { subscriptionTier: "FEATURED", featuredUntil: until },
       });
     } else if (kind === "DATA_INSIGHTS") {
-      await prisma.company.update({ where: { id: companyId }, data: { insightsUntil: until } });
+      await tx.company.update({ where: { id: companyId }, data: { insightsUntil: until } });
     } else if (kind === "VERIFICATION_PREMIUM") {
-      await prisma.company.update({
+      await tx.company.update({
         where: { id: companyId },
         data: { subscriptionTier: "PREMIUM" },
       });

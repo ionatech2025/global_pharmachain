@@ -1,3 +1,4 @@
+import { MAX_FILE_SIZE_LABEL } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
@@ -93,7 +94,9 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
               versions are retained.
             </p>
           ) : (
-            <p className="text-muted-foreground">No SDS uploaded (PDF only, max 10MB).</p>
+            <p className="text-muted-foreground">
+              No SDS uploaded (PDF only, max {MAX_FILE_SIZE_LABEL}).
+            </p>
           )}
         </CardContent>
       </Card>

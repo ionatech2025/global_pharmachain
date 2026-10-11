@@ -5,6 +5,7 @@ import {
   ALLOWED_MIMES,
   describeAllowedTypes,
   expiryRequired,
+  MAX_FILE_SIZE_LABEL,
   validateUpload,
 } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
@@ -94,7 +95,7 @@ export function UploadButton({
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>
-            {describeAllowedTypes(kind)}, max 10MB.{" "}
+            {describeAllowedTypes(kind)}, max {MAX_FILE_SIZE_LABEL}.{" "}
             {needsExpiry ? "Licence documents require an expiry date." : ""}
           </DialogDescription>
         </DialogHeader>

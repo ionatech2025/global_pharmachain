@@ -127,7 +127,7 @@ test.describe
         buffer: pdf(15 * 1024 * 1024),
       });
 
-      await expect(page.getByRole("alert")).toContainText(/15MB.*limit is 10MB/i);
+      await expect(page.getByRole("alert")).toContainText(/15MB.*limit is \d+MB/i);
       await expect(submitButton()).toBeDisabled();
       expect(calls, "a partial record may have been created").toHaveLength(0);
       await page.keyboard.press("Escape");

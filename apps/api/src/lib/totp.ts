@@ -65,15 +65,25 @@ export function totpCode(secret: string, timeMs: number, stepSeconds = TOTP_STEP
   return hotp(base32Decode(secret), counter);
 }
 
+/**
+ * The time step a valid code belongs to, or null. Accepts the current step
+ * ±1 to absorb clock drift; constant-time compare. The step is what a replay
+ * check records — RFC 6238 §5.2: a verifier must not accept a code twice.
+ */
+export function matchTotp(secret: string, code: string, timeMs = Date.now()): number | null {
+  if (!/^\d{6}$/.test(code)) return null;
+  const given = Buffer.from(code);
+  const base = Math.floor(timeMs / 1000 / TOTP_STEP_SECONDS);
+  for (const drift of [0, -1, 1]) {
+    const expected = Buffer.from(hotp(base32Decode(secret), base + drift));
+    if (given.length === expected.length && timingSafeEqual(given, expected)) return base + drift;
+  }
+  return null;
+}
+
 /** Accepts the current step ±1 to absorb clock drift; constant-time compare. */
 export function verifyTotp(secret: string, code: string, timeMs = Date.now()): boolean {
-  if (!/^\d{6}$/.test(code)) return false;
-  const given = Buffer.from(code);
-  for (const drift of [0, -1, 1]) {
-    const expected = Buffer.from(totpCode(secret, timeMs + drift * TOTP_STEP_SECONDS * 1000));
-    if (given.length === expected.length && timingSafeEqual(given, expected)) return true;
-  }
-  return false;
+  return matchTotp(secret, code, timeMs) !== null;
 }
 
 export function otpauthUri(secret: string, email: string): string {

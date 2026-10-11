@@ -6,14 +6,14 @@ import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
 import { TimeZoneSync, TZ_COOKIE } from "@/components/time-zone-sync";
 import { ApiClientError } from "@/lib/api/http";
-import { apiServer, getViewer } from "@/lib/api/server";
+import { apiServer, getViewer, loginRedirectPath } from "@/lib/api/server";
 import type { AnnouncementRow } from "@/lib/api/types";
 import { decodeTimeZoneCookie, setViewerFormat } from "@/lib/format";
 
 // Server-side guard on the layout (data-layer auth — no middleware.ts).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(await loginRedirectPath());
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   const api = await apiServer();
@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (err instanceof ApiClientError && err.status === 401) {
       // Session revoked (deactivation, password reset, sessionVersion bump)
       await signOut({ redirect: false });
-      redirect("/login");
+      redirect(await loginRedirectPath());
     }
     throw err;
   }

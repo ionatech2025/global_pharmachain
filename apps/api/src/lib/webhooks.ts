@@ -5,6 +5,7 @@ import type { WebhookEvent } from "@pharmachain/core";
 import { type Prisma, prisma } from "@pharmachain/db";
 import { defer } from "./defer";
 import { logger } from "./logger";
+import { openSecret } from "./secret-box";
 
 /**
  * Partner webhooks (Phase 5 §3): durable signed push to external systems.
@@ -110,79 +111,124 @@ export function signWebhookBody(secret: string, timestamp: string, id: string, b
   return createHmac("sha256", secret).update(`${timestamp}.${id}.${body}`).digest("hex");
 }
 
-export async function runWebhookDeliveryPass(now = new Date()): Promise<{ delivered: number }> {
+/** A pass stops starting deliveries after this long and leaves the rest due:
+ *  every pass shares a 60s function with whatever invoked it. */
+const PASS_BUDGET_MS = 25_000;
+/** Deliveries in flight at once — one slow endpoint must not hold up the rest. */
+const CONCURRENCY = 5;
+/** How long a claimed delivery is invisible to other passes. */
+const LEASE_MS = 60_000;
+
+type DueDelivery = Prisma.WebhookDeliveryGetPayload<{ include: { webhook: true } }>;
+
+/**
+ * Delivers due webhook rows. Passes can overlap — an event's immediate
+ * attempt and the retry job, or two events close together — so each row is
+ * claimed with a conditional update before it is sent: only the pass whose
+ * update wins delivers it. (Two overlapping passes used to POST the same
+ * delivery twice.) Rows a pass does not reach stay due for the next one.
+ */
+export async function runWebhookDeliveryPass(
+  now = new Date(),
+  opts: { webhookId?: string } = {},
+): Promise<{ delivered: number }> {
   const due = await prisma.webhookDelivery.findMany({
-    where: { deliveredAt: null, nextAttemptAt: { lte: now }, attempts: { lt: MAX_ATTEMPTS } },
+    where: {
+      deliveredAt: null,
+      nextAttemptAt: { lte: now },
+      attempts: { lt: MAX_ATTEMPTS },
+      webhook: { active: true },
+      ...(opts.webhookId ? { webhookId: opts.webhookId } : {}),
+    },
     include: { webhook: true },
     orderBy: { createdAt: "asc" },
     take: 50,
   });
+  const started = Date.now();
   let delivered = 0;
-  for (const delivery of due) {
-    if (!delivery.webhook.active) continue;
-    const body = JSON.stringify(delivery.payload);
-    const timestamp = String(Math.floor(now.getTime() / 1000));
-    const signature = signWebhookBody(delivery.webhook.secret, timestamp, delivery.id, body);
-    let status = 0;
-    let error: string | null = null;
-    try {
-      await assertSafeWebhookUrl(delivery.webhook.url);
-      const res = await fetch(delivery.webhook.url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-pharmachain-event": delivery.event,
-          "x-pharmachain-delivery": delivery.id,
-          "x-pharmachain-timestamp": timestamp,
-          "x-pharmachain-signature": `v1=${signature}`,
-        },
-        body,
-        redirect: "manual",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      status = res.status;
-      // Never follow or read: a redirect is a misconfigured endpoint, and the
-      // body of any response is untrusted — cancel it unread.
-      await res.body?.cancel().catch(() => {});
-      if (res.status >= 300 && res.status < 400) {
-        error = `endpoint redirected (${res.status}) — redirects are not followed`;
-      } else if (!res.ok) {
-        error = `endpoint returned ${res.status}`;
-      }
-    } catch (err) {
-      error = String(err).slice(0, 300);
-    }
-    const attempts = delivery.attempts + 1;
-    if (!error) {
-      delivered += 1;
-      await prisma.$transaction([
-        prisma.webhookDelivery.update({
-          where: { id: delivery.id },
-          data: { deliveredAt: new Date(), attempts, lastStatus: status, lastError: null },
-        }),
-        prisma.webhook.update({
-          where: { id: delivery.webhookId },
-          data: { lastSuccessAt: new Date(), failCount: 0 },
-        }),
-      ]);
-    } else {
-      const backoffMinutes = Math.min(attempts * attempts * 5, 240);
-      await prisma.$transaction([
-        prisma.webhookDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            attempts,
-            lastStatus: status || null,
-            lastError: error,
-            nextAttemptAt: new Date(now.getTime() + backoffMinutes * 60_000),
-          },
-        }),
-        prisma.webhook.update({
-          where: { id: delivery.webhookId },
-          data: { failCount: { increment: 1 } },
-        }),
-      ]);
-    }
+  for (let i = 0; i < due.length; i += CONCURRENCY) {
+    if (Date.now() - started > PASS_BUDGET_MS) break;
+    const results = await Promise.all(
+      due.slice(i, i + CONCURRENCY).map((delivery) => deliverOne(delivery, now)),
+    );
+    delivered += results.filter(Boolean).length;
   }
   return { delivered };
+}
+
+async function deliverOne(delivery: DueDelivery, now: Date): Promise<boolean> {
+  const claimed = await prisma.webhookDelivery.updateMany({
+    where: { id: delivery.id, deliveredAt: null, nextAttemptAt: delivery.nextAttemptAt },
+    data: { nextAttemptAt: new Date(Date.now() + LEASE_MS) },
+  });
+  if (claimed.count === 0) return false; // another pass has it
+
+  const body = JSON.stringify(delivery.payload);
+  const timestamp = String(Math.floor(now.getTime() / 1000));
+  const signature = signWebhookBody(
+    openSecret(delivery.webhook.secret),
+    timestamp,
+    delivery.id,
+    body,
+  );
+  let status = 0;
+  let error: string | null = null;
+  try {
+    await assertSafeWebhookUrl(delivery.webhook.url);
+    const res = await fetch(delivery.webhook.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-pharmachain-event": delivery.event,
+        "x-pharmachain-delivery": delivery.id,
+        "x-pharmachain-timestamp": timestamp,
+        "x-pharmachain-signature": `v1=${signature}`,
+      },
+      body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    status = res.status;
+    // Never follow or read: a redirect is a misconfigured endpoint, and the
+    // body of any response is untrusted — cancel it unread.
+    await res.body?.cancel().catch(() => {});
+    if (res.status >= 300 && res.status < 400) {
+      error = `endpoint redirected (${res.status}) — redirects are not followed`;
+    } else if (!res.ok) {
+      error = `endpoint returned ${res.status}`;
+    }
+  } catch (err) {
+    error = String(err).slice(0, 300);
+  }
+  const attempts = delivery.attempts + 1;
+  if (!error) {
+    await prisma.$transaction([
+      prisma.webhookDelivery.update({
+        where: { id: delivery.id },
+        data: { deliveredAt: new Date(), attempts, lastStatus: status, lastError: null },
+      }),
+      prisma.webhook.update({
+        where: { id: delivery.webhookId },
+        data: { lastSuccessAt: new Date(), failCount: 0 },
+      }),
+    ]);
+  } else {
+    const backoffMinutes = Math.min(attempts * attempts * 5, 240);
+    await prisma.$transaction([
+      prisma.webhookDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          attempts,
+          lastStatus: status || null,
+          lastError: error,
+          nextAttemptAt: new Date(now.getTime() + backoffMinutes * 60_000),
+        },
+      }),
+      prisma.webhook.update({
+        where: { id: delivery.webhookId },
+        data: { failCount: { increment: 1 } },
+      }),
+    ]);
+  }
+  return !error;
 }

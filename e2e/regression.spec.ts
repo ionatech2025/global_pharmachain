@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { apiOrigin } from "./helpers";
 
@@ -21,7 +22,14 @@ test("web app does not leak the x-powered-by fingerprint", async ({ request, bas
 // The API honours x-client-ip only from the web tier, which proves itself
 // with x-proxy-secret (the deployment's AUTH_SECRET). With the secret the
 // suite can pin fresh client IPs the way real browser traffic gets them.
-const PROXY_SECRET = process.env.E2E_PROXY_SECRET ?? process.env.AUTH_SECRET ?? "";
+// The header carries an HMAC of AUTH_SECRET, derived exactly as the web tier
+// does (packages/auth/src/proxy-secret.ts) — never the secret itself.
+const AUTH_SECRET_FOR_PROXY = process.env.E2E_PROXY_SECRET ?? process.env.AUTH_SECRET ?? "";
+const PROXY_SECRET = AUTH_SECRET_FOR_PROXY
+  ? createHmac("sha256", AUTH_SECRET_FOR_PROXY)
+      .update("pharmachain/proxy-identity/v1")
+      .digest("hex")
+  : "";
 
 test("OTP request is throttled per client IP (10 / 15 min)", async ({ request, baseURL }) => {
   test.skip(!PROXY_SECRET, "set E2E_PROXY_SECRET (deployment AUTH_SECRET) to pin client IPs");

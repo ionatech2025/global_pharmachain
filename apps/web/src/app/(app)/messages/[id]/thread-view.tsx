@@ -8,7 +8,7 @@ import { cn } from "@pharmachain/ui/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Paperclip, SendHorizontal, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DocumentChip } from "@/components/document-chip";
 import { api } from "@/lib/api/browser";
@@ -20,6 +20,8 @@ import { uploadDocument } from "@/lib/upload";
 // SSE pushes "changed" pings for near-instant updates; the slow poll is the
 // safety net when the stream can't connect (old proxies, buffering CDNs).
 const FALLBACK_POLL_INTERVAL_MS = 20_000;
+/** The API's window size: a full window means there may be more before it. */
+const PAGE_SIZE = 200;
 
 function entityHref(thread: ThreadMessages["thread"]): { href: string; label: string } | null {
   if (thread.order)
@@ -87,6 +89,34 @@ export function ThreadView({
       close();
     };
   }, [threadId, queryClient]);
+
+  // History beyond the latest window, paged in on request. Kept apart from
+  // the query data, which every poll replaces with the latest window.
+  const [older, setOlder] = useState<ThreadMessages["messages"]>([]);
+  const [olderExhausted, setOlderExhausted] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const allMessages = useMemo(() => {
+    const latest = new Set(messages.map((m) => m.id));
+    return [...older.filter((m) => !latest.has(m.id)), ...messages];
+  }, [older, messages]);
+  const canLoadOlder = !olderExhausted && (older.length > 0 || messages.length >= PAGE_SIZE);
+
+  async function loadOlder() {
+    const oldest = allMessages[0];
+    if (!oldest) return;
+    setLoadingOlder(true);
+    try {
+      const page = await api.get<ThreadMessages>(`/threads/${threadId}/messages`, {
+        query: { before: oldest.createdAt },
+      });
+      setOlder((prev) => [...page.messages, ...prev]);
+      if (page.messages.length < PAGE_SIZE) setOlderExhausted(true);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -164,13 +194,20 @@ export function ThreadView({
         aria-live="polite"
         aria-label="Conversation message history"
       >
-        {messages.length === 0 && (
+        {canLoadOlder && (
+          <div className="flex justify-center">
+            <Button variant="outline" size="sm" disabled={loadingOlder} onClick={loadOlder}>
+              {loadingOlder ? "Loading…" : "Load earlier messages"}
+            </Button>
+          </div>
+        )}
+        {allMessages.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No messages yet — start the conversation below.
           </p>
         )}
         {[
-          ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
+          ...allMessages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
           ...systemEvents.map((e) => ({ kind: "system" as const, at: e.createdAt, event: e })),
         ]
           .sort((a, b) => a.at.localeCompare(b.at))

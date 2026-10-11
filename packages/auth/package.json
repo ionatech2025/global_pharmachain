@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./session": "./src/session.ts"
+    "./session": "./src/session.ts",
+    "./proxy-secret": "./src/proxy-secret.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

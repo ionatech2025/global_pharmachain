@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { DocumentRequestUpload } from "@pharmachain/core";
 import {
+  contentMatchesType,
   DOCUMENT_KIND_LABELS,
   formatFileSize,
   isAllowedMime,
@@ -157,6 +158,15 @@ export class DocumentService {
     if (!isAllowedMime(document.kind, document.contentType)) {
       throw badRequest("File type not allowed for this document kind");
     }
+    // The declared type is otherwise taken on trust from the extension and
+    // the browser: a script or executable renamed `.pdf` would be stored and
+    // later opened by a counterparty — or by the admin reviewing a
+    // verification upload — as a PDF. The bytes must be what they claim.
+    if (!contentMatchesType(new Uint8Array(body), document.contentType)) {
+      throw badRequest(
+        "This file's contents don't match its type — it may be damaged or renamed. Export it again and retry.",
+      );
+    }
 
     await putObject(document.storageKey, new Uint8Array(body), document.contentType);
     return { id: document.id, size: body.byteLength };
@@ -170,6 +180,10 @@ export class DocumentService {
     if (document.uploadedById !== user.id) {
       throw forbidden("Only the uploader can complete this upload");
     }
+    // Idempotent: a retried or double-clicked completion returns the
+    // document as it is, instead of re-running the checks and telling every
+    // order party about the same upload twice.
+    if (document.uploadCompletedAt) return document;
 
     // Trust nothing the client declared: a presigned PUT cannot cap the size,
     // and complete can be called without any upload at all. Verify what is

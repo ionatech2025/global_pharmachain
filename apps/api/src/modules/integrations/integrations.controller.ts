@@ -22,7 +22,8 @@ import {
 import { badRequest, notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser, Membership } from "../../lib/context";
-import { assertSafeWebhookUrl, emitWebhookEvent, runWebhookDeliveryPass } from "../../lib/webhooks";
+import { sealSecret } from "../../lib/secret-box";
+import { assertSafeWebhookUrl, runWebhookDeliveryPass } from "../../lib/webhooks";
 import { authenticateApiKey, generateApiKey } from "./api-key";
 
 @Controller()
@@ -58,7 +59,9 @@ export class IntegrationsController {
         companyId: membership.companyId,
         url: body.url,
         events: body.events,
-        secret,
+        // Sealed at rest: a database dump must not hand out every partner's
+        // signing secret. The plaintext is returned once, below.
+        secret: sealSecret(secret),
         createdById: user.id,
       },
     });
@@ -101,11 +104,21 @@ export class IntegrationsController {
       where: { id: params.id, companyId: membership.companyId, active: true },
     });
     if (!hook) throw notFound("Webhook not found");
-    await emitWebhookEvent([membership.companyId], "order.created", {
-      test: true,
-      message: "PharmaChain webhook test delivery",
+    // A test reaches this endpoint only. It used to emit to every one of the
+    // company's hooks subscribed to order.created, then run the platform-wide
+    // delivery pass inline — waiting on other tenants' endpoints.
+    await prisma.webhookDelivery.create({
+      data: {
+        webhookId: hook.id,
+        event: "order.created",
+        payload: {
+          event: "order.created",
+          occurredAt: new Date().toISOString(),
+          data: { test: true, message: "PharmaChain webhook test delivery" },
+        },
+      },
     });
-    const result = await runWebhookDeliveryPass();
+    const result = await runWebhookDeliveryPass(new Date(), { webhookId: hook.id });
     return { ok: true, deliveredNow: result.delivered };
   }
 

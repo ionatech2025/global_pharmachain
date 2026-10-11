@@ -1,6 +1,7 @@
 import { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { AuthenticatedUser } from "./contracts";
+import { proxyIdentitySecret } from "./proxy-secret";
 import "./types";
 
 export type { AuthenticatedUser } from "./contracts";
@@ -14,9 +15,11 @@ export const IDLE_WARNING_AFTER_SECONDS = 25 * 60;
 /**
  * The only refusals the browser is allowed to tell apart. Everything else stays
  * deliberately indistinguishable: the login form must never hint at which
- * factor failed or whether an account exists (US-206). Both codes below are
- * safe on that count — the lockout counts attempts per email address whether or
- * not the address belongs to an account, so it enumerates nothing.
+ * factor failed or whether an account exists (US-206). These codes are safe on
+ * that count — the lockout counts attempts per email address whether or not
+ * the address belongs to an account, so it enumerates nothing — and so is
+ * "unavailable" (the API could not be asked at all), which says nothing about
+ * any account.
  */
 const CLIENT_SAFE_CODES: Record<string, string> = {
   TOTP_REQUIRED: "totp_required",
@@ -60,18 +63,19 @@ async function verifyWithApi(
         // the API ignores x-client-ip from anyone who cannot present it.
         "x-forwarded-for": forwardedFor,
         "x-client-ip": forwardedFor.split(",")[0]?.trim() ?? "",
-        "x-proxy-secret": process.env.AUTH_SECRET ?? "",
+        "x-proxy-secret": proxyIdentitySecret(process.env.AUTH_SECRET ?? ""),
         "x-client-user-agent": request?.headers.get("user-agent") ?? "",
       },
       body: JSON.stringify(body),
     });
+    if (res.status >= 500) throw new ApiSignInError("unavailable");
     if (!res.ok) throw await refusal(res);
     return (await res.json()) as AuthenticatedUser;
   } catch (err) {
     if (err instanceof CredentialsSignin) throw err;
-    // The API was unreachable or answered something unparseable. There is
-    // nothing true to tell the user apart from "that didn't work".
-    return null;
+    // The API was unreachable or answered something unparseable. Reporting
+    // that as a bad password sent people to reset passwords that were fine.
+    throw new ApiSignInError("unavailable");
   }
 }
 

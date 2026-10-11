@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ThrottlerGuard } from "@nestjs/throttler";
+import { proxyIdentitySecret } from "@pharmachain/auth/proxy-secret";
 import { env } from "../../env";
 import { clientIp } from "../../lib/context";
 
@@ -11,8 +12,8 @@ import { clientIp } from "../../lib/context";
  * /api/proxy route), so the default req.ip tracker would collapse every user
  * into the web server's single bucket — 20 failed logins by anyone would
  * lock the whole platform out. The web tier forwards the caller's address as
- * x-client-ip and proves it is the web tier with x-proxy-secret (the shared
- * AUTH_SECRET both deployments already hold).
+ * x-client-ip and proves it is the web tier with x-proxy-secret — an HMAC of
+ * the shared AUTH_SECRET, never the secret itself.
  *
  * Without that proof the header is ignored — a direct caller spoofing
  * x-client-ip must not be able to rotate rate-limit buckets — and the tracker
@@ -40,6 +41,6 @@ function isTrustedProxy(secret: unknown): boolean {
   if (typeof secret !== "string" || secret.length === 0) return false;
   // Hash both sides so the comparison is constant-time over equal lengths.
   const given = createHash("sha256").update(secret).digest();
-  const expected = createHash("sha256").update(env.AUTH_SECRET).digest();
+  const expected = createHash("sha256").update(proxyIdentitySecret(env.AUTH_SECRET)).digest();
   return timingSafeEqual(given, expected);
 }

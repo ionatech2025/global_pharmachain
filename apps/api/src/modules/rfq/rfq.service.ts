@@ -8,6 +8,7 @@ import { badRequest, conflict, forbidden, limitReached, notFound } from "../../c
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { defer } from "../../lib/defer";
+import { withSerializableRetry } from "../../lib/tx";
 import { emitWebhookEvent } from "../../lib/webhooks";
 import { evaluateCompanyUsage } from "../billing/usage";
 
@@ -43,55 +44,57 @@ export class RfqService {
       }
     }
 
-    const { rfq, usage } = await prisma.$transaction(async (tx) => {
-      const usage = await evaluateCompanyUsage(
-        tx,
-        membership.companyId,
-        membership.company.subscriptionTier,
-        "RFQ",
-      );
-      if (usage.blocked) {
-        throw limitReached("Monthly RFQ limit reached for your Freemium plan", {
-          used: usage.used,
-          limit: usage.limit,
-          upgradePath: "/company/usage",
-        });
-      }
-      const visibleSupplierCount = await tx.company.count({
-        where: { type: input.targetCompanyType, verificationStatus: "VERIFIED" },
-      });
-      const rfq = await tx.rfq.create({
-        data: {
-          refNo: generateRefNo("RFQ"),
-          buyerCompanyId: membership.companyId,
-          createdById: user.id,
-          title: input.title,
-          specifications: input.specifications,
-          quantity: input.quantity,
-          unit: input.unit,
-          targetCompanyType: input.targetCompanyType,
-          categoryId: input.categoryId,
-          deadline: new Date(input.deadline),
-          bomItemId: input.bomItemId,
-          visibleSupplierCount,
-        },
-      });
-      if (input.attachmentDocumentIds.length > 0) {
-        const linked = await tx.document.updateMany({
-          where: {
-            id: { in: input.attachmentDocumentIds },
-            ownerCompanyId: membership.companyId,
-            kind: "RFQ_ATTACHMENT",
-            rfqId: null,
-          },
-          data: { rfqId: rfq.id },
-        });
-        if (linked.count !== input.attachmentDocumentIds.length) {
-          throw badRequest("One or more attachments are invalid");
+    const { rfq, usage } = await withSerializableRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const usage = await evaluateCompanyUsage(
+          tx,
+          membership.companyId,
+          membership.company.subscriptionTier,
+          "RFQ",
+        );
+        if (usage.blocked) {
+          throw limitReached("Monthly RFQ limit reached for your Freemium plan", {
+            used: usage.used,
+            limit: usage.limit,
+            upgradePath: "/company/usage",
+          });
         }
-      }
-      return { rfq, usage };
-    }, SERIALIZABLE);
+        const visibleSupplierCount = await tx.company.count({
+          where: { type: input.targetCompanyType, verificationStatus: "VERIFIED" },
+        });
+        const rfq = await tx.rfq.create({
+          data: {
+            refNo: generateRefNo("RFQ"),
+            buyerCompanyId: membership.companyId,
+            createdById: user.id,
+            title: input.title,
+            specifications: input.specifications,
+            quantity: input.quantity,
+            unit: input.unit,
+            targetCompanyType: input.targetCompanyType,
+            categoryId: input.categoryId,
+            deadline: new Date(input.deadline),
+            bomItemId: input.bomItemId,
+            visibleSupplierCount,
+          },
+        });
+        if (input.attachmentDocumentIds.length > 0) {
+          const linked = await tx.document.updateMany({
+            where: {
+              id: { in: input.attachmentDocumentIds },
+              ownerCompanyId: membership.companyId,
+              kind: "RFQ_ATTACHMENT",
+              rfqId: null,
+            },
+            data: { rfqId: rfq.id },
+          });
+          if (linked.count !== input.attachmentDocumentIds.length) {
+            throw badRequest("One or more attachments are invalid");
+          }
+        }
+        return { rfq, usage };
+      }, SERIALIZABLE),
+    );
 
     if (usage.crossesWarnThreshold) await this.usageWarning(membership.companyId, "RFQ");
     return rfq;
@@ -304,59 +307,61 @@ export class RfqService {
     }
     this.assertRfqOpenForQuoting(rfq);
 
-    const { quotation, usage } = await prisma.$transaction(async (tx) => {
-      // Inside the serializable transaction so a concurrent submit can't slip
-      // past; the partial unique index (one live quotation per rfq+supplier)
-      // is the final backstop either way.
-      const existing = await tx.quotation.findFirst({
-        where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-      });
-      if (existing) {
-        throw conflict("You already have a quotation on this RFQ — resubmit it instead");
-      }
-      const usage = await evaluateCompanyUsage(
-        tx,
-        membership.companyId,
-        membership.company.subscriptionTier,
-        "QUOTATION",
-      );
-      if (usage.blocked) {
-        throw limitReached("Monthly quotation limit reached for your Freemium plan", {
-          used: usage.used,
-          limit: usage.limit,
-          upgradePath: "/company/usage",
+    const { quotation, usage } = await withSerializableRetry(() =>
+      prisma.$transaction(async (tx) => {
+        // Inside the serializable transaction so a concurrent submit can't slip
+        // past; the partial unique index (one live quotation per rfq+supplier)
+        // is the final backstop either way.
+        const existing = await tx.quotation.findFirst({
+          where: { rfqId, supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
         });
-      }
-      const quotation = await tx.quotation.create({
-        data: {
-          refNo: generateRefNo("QUO"),
-          rfqId,
-          supplierCompanyId: membership.companyId,
-          submittedById: user.id,
-          unitPrice: input.unitPrice,
-          currency: input.currency,
-          totalPrice: new Prisma.Decimal(input.unitPrice).mul(rfq.quantity).toDP(2),
-          leadTimeDays: input.leadTimeDays,
-          validUntil: new Date(input.validUntil),
-          notes: input.notes,
-        },
-      });
-      if (input.attachmentDocumentIds.length > 0) {
-        const linked = await tx.document.updateMany({
-          where: {
-            id: { in: input.attachmentDocumentIds },
-            ownerCompanyId: membership.companyId,
-            kind: "QUOTATION_ATTACHMENT",
-            quotationId: null,
-          },
-          data: { quotationId: quotation.id },
-        });
-        if (linked.count !== input.attachmentDocumentIds.length) {
-          throw badRequest("One or more attachments are invalid");
+        if (existing) {
+          throw conflict("You already have a quotation on this RFQ — resubmit it instead");
         }
-      }
-      return { quotation, usage };
-    }, SERIALIZABLE);
+        const usage = await evaluateCompanyUsage(
+          tx,
+          membership.companyId,
+          membership.company.subscriptionTier,
+          "QUOTATION",
+        );
+        if (usage.blocked) {
+          throw limitReached("Monthly quotation limit reached for your Freemium plan", {
+            used: usage.used,
+            limit: usage.limit,
+            upgradePath: "/company/usage",
+          });
+        }
+        const quotation = await tx.quotation.create({
+          data: {
+            refNo: generateRefNo("QUO"),
+            rfqId,
+            supplierCompanyId: membership.companyId,
+            submittedById: user.id,
+            unitPrice: input.unitPrice,
+            currency: input.currency,
+            totalPrice: new Prisma.Decimal(input.unitPrice).mul(rfq.quantity).toDP(2),
+            leadTimeDays: input.leadTimeDays,
+            validUntil: new Date(input.validUntil),
+            notes: input.notes,
+          },
+        });
+        if (input.attachmentDocumentIds.length > 0) {
+          const linked = await tx.document.updateMany({
+            where: {
+              id: { in: input.attachmentDocumentIds },
+              ownerCompanyId: membership.companyId,
+              kind: "QUOTATION_ATTACHMENT",
+              quotationId: null,
+            },
+            data: { quotationId: quotation.id },
+          });
+          if (linked.count !== input.attachmentDocumentIds.length) {
+            throw badRequest("One or more attachments are invalid");
+          }
+        }
+        return { quotation, usage };
+      }, SERIALIZABLE),
+    );
 
     if (usage.crossesWarnThreshold) await this.usageWarning(membership.companyId, "QUOTATION");
     await this.notifyBuyerOfQuotation(rfq, membership.company.name, false);

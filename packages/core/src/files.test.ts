@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+  contentMatchesType,
   describeAllowedTypes,
   expiryRequired,
   formatFileSize,
   isAllowedMime,
   MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_LABEL,
   requiredVerificationKinds,
   resolveUploadMime,
   validateUpload,
@@ -50,7 +52,7 @@ describe("upload gate (US-102)", () => {
 
   test("rejects a 15MB file with a file-size error naming both sizes", () => {
     const message = validateUpload("TAX_ID", file("scan.pdf", "application/pdf", 15 * MB));
-    expect(message).toBe("That file is 15MB — the limit is 10MB");
+    expect(message).toBe("That file is 15MB — the limit is 4MB");
   });
 
   test("a file exactly on the limit is still accepted", () => {
@@ -101,9 +103,47 @@ describe("upload gate (US-102)", () => {
   });
 
   test("sizes read the way a person would write them", () => {
-    expect(formatFileSize(MAX_FILE_SIZE_BYTES)).toBe("10MB");
+    expect(formatFileSize(MAX_FILE_SIZE_BYTES)).toBe("4MB");
+    expect(MAX_FILE_SIZE_LABEL).toBe("4MB");
     expect(formatFileSize(15 * MB)).toBe("15MB");
     expect(formatFileSize(2.5 * MB)).toBe("2.5MB");
     expect(formatFileSize(400 * 1024)).toBe("400KB");
+  });
+});
+
+describe("upload cap vs the platform", () => {
+  test("a whole upload body fits under Vercel's 4.5MB request limit", () => {
+    // Upload bytes pass through serverless functions; a cap above the
+    // platform's body limit is a promise production cannot keep.
+    expect(MAX_FILE_SIZE_BYTES).toBeLessThan(4.5 * 1024 * 1024);
+  });
+});
+
+describe("contentMatchesType", () => {
+  const bytes = (...values: number[]) => new Uint8Array(values);
+  const text = (value: string) => new TextEncoder().encode(value);
+
+  test("real files pass", () => {
+    expect(contentMatchesType(text("%PDF-1.7\n..."), "application/pdf")).toBe(true);
+    expect(
+      contentMatchesType(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0), "image/png"),
+    ).toBe(true);
+    expect(contentMatchesType(bytes(0xff, 0xd8, 0xff, 0xe0, 0), "image/jpeg")).toBe(true);
+    const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    expect(contentMatchesType(bytes(0x50, 0x4b, 0x03, 0x04, 0x14), docx)).toBe(true);
+  });
+
+  test("a PDF header may follow a few leading bytes", () => {
+    expect(contentMatchesType(text("\ufeff\n%PDF-1.4"), "application/pdf")).toBe(true);
+  });
+
+  test("a renamed file is caught", () => {
+    expect(contentMatchesType(text("<!doctype html><script>"), "application/pdf")).toBe(false);
+    expect(contentMatchesType(text("MZ\x90\x00"), "image/png")).toBe(false);
+    expect(contentMatchesType(bytes(0x25, 0x50, 0x44, 0x46, 0x2d), "image/jpeg")).toBe(false);
+  });
+
+  test("an unknown type never matches", () => {
+    expect(contentMatchesType(text("%PDF-1.7"), "text/html")).toBe(false);
   });
 });

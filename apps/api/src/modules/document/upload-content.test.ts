@@ -68,12 +68,14 @@ describe("upload content route", () => {
   });
 
   test("a file-sized body is within the raised limit", async () => {
-    // Fastify's default 1MB limit would 413 this; the upload parser raises it.
+    // Fastify's default 1MB limit would 413 this; the upload parser raises it
+    // to the file cap. A body exactly at the cap must reach the handler.
+    expect(MAX_FILE_SIZE_BYTES).toBeGreaterThan(1024 * 1024);
     const res = await app.inject({
       method: "PUT",
       url: PATH,
       headers: { "content-type": "application/pdf" },
-      payload: Buffer.alloc(8 * 1024 * 1024),
+      payload: Buffer.alloc(MAX_FILE_SIZE_BYTES),
     });
     expect(res.statusCode).not.toBe(413);
     expect(res.statusCode).toBe(401);

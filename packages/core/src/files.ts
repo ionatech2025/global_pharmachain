@@ -1,6 +1,14 @@
 import type { CompanyType, DocumentKind } from "./enums";
 
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB across all upload contexts
+/**
+ * One cap across all upload contexts. Upload bytes travel through serverless
+ * functions (browser → web proxy → API), and Vercel refuses any request body
+ * over 4.5MB before our code runs — so the 10MB this used to promise was never
+ * true in production: a 6MB file failed after uploading with a bare 413. 4MB
+ * keeps the whole body under the platform limit. Raising it means uploading
+ * straight to object storage (presigned PUT + a bucket CORS rule) instead.
+ */
+export const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024;
 export const MAX_MESSAGE_ATTACHMENTS = 5;
 
 const PDF = "application/pdf";
@@ -113,6 +121,40 @@ export function formatFileSize(bytes: number): string {
     return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}MB`;
   }
   return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+
+/** The cap as users read it ("4MB") — every hint and message uses this, so
+ *  the number shown can never drift from the number enforced. */
+export const MAX_FILE_SIZE_LABEL = formatFileSize(MAX_FILE_SIZE_BYTES);
+
+const ZIP = [0x50, 0x4b, 0x03, 0x04]; // DOCX and XLSX are ZIP containers
+const SIGNATURES: Record<string, number[]> = {
+  "image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  "image/jpeg": [0xff, 0xd8, 0xff],
+  [DOCX]: ZIP,
+  [XLSX]: ZIP,
+};
+const PDF_MARKER = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+
+function startsWith(bytes: Uint8Array, signature: number[], offset = 0): boolean {
+  return signature.every((byte, i) => bytes[offset + i] === byte);
+}
+
+/**
+ * Whether a file's bytes are what its declared type claims. The type is
+ * otherwise taken on trust from the extension and the browser, so an HTML or
+ * executable file renamed `.pdf` would be stored and served as a PDF. Checks
+ * the format's magic number; a PDF's header may sit anywhere in its first
+ * 1KB (the spec tolerates leading bytes).
+ */
+export function contentMatchesType(bytes: Uint8Array, mime: string): boolean {
+  if (mime === PDF) {
+    const window = Math.min(bytes.length - PDF_MARKER.length, 1024);
+    for (let i = 0; i <= window; i++) if (startsWith(bytes, PDF_MARKER, i)) return true;
+    return false;
+  }
+  const signature = SIGNATURES[mime];
+  return signature !== undefined && startsWith(bytes, signature);
 }
 
 /**

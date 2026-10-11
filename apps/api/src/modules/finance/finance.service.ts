@@ -16,7 +16,7 @@ import {
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
-import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
+import { ApiException, badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
 import { defer } from "../../lib/defer";
@@ -86,26 +86,43 @@ export class FinanceService {
     }
     const gateway = gatewayFor(input.method);
     const bankDetails = await getParam(PARAM_KEYS.PLATFORM_BANK_DETAILS);
-    const initiated = await gateway.initiate({
-      reference: refCode("PAY"),
-      amount: input.amount,
-      currency: order.currency,
-      method: input.method,
-      bankDetails,
-    });
+    // Record first, then start the checkout. The other way round, a provider
+    // checkout could succeed while our insert failed — money moving against a
+    // reference nothing here knows, and every webhook for it a 404.
+    const reference = refCode("PAY");
     const payment = await prisma.payment.create({
       data: {
         orderId,
         payerCompanyId: membership.companyId,
         method: input.method,
-        provider: initiated.provider,
-        providerRef: initiated.providerRef,
+        provider: gateway.id,
+        providerRef: reference,
         amount: input.amount,
         currency: order.currency,
         note: input.note,
         recordedById: user.id,
       },
     });
+    let initiated: Awaited<ReturnType<typeof gateway.initiate>>;
+    try {
+      initiated = await gateway.initiate({
+        reference,
+        amount: input.amount,
+        currency: order.currency,
+        method: input.method,
+        bankDetails,
+      });
+    } catch (err) {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: "FAILED", failureReason: "The payment provider could not start it" },
+      });
+      throw new ApiException(
+        502,
+        "GATEWAY_UNAVAILABLE",
+        `The payment provider is unavailable — try again shortly (${String(err).slice(0, 80)})`,
+      );
+    }
     // The payee's finance team hears about the incoming payment immediately.
     await notify({
       companyId: order.sellerCompanyId,
@@ -178,7 +195,7 @@ export class FinanceService {
     // the PENDING-conditioned flip keeps the whole path idempotent (replays
     // roll back with a 409). The commission rate is read before the
     // transaction so no external call runs inside it.
-    const commissionPct = Number(await getParam(PARAM_KEYS.PLATFORM_COMMISSION_PCT));
+    const commissionPct = new Prisma.Decimal(await getParam(PARAM_KEYS.PLATFORM_COMMISSION_PCT));
     const payment = await prisma.$transaction(async (tx) => {
       const flipped = await tx.payment.updateMany({
         where: { id: paymentId, status: "PENDING" },
@@ -207,14 +224,19 @@ export class FinanceService {
       });
       if (payment.status !== "CONFIRMED") return payment;
 
-      const amount = toNum(payment.amount);
-      const commission = Math.round(amount * commissionPct) / 100;
+      // Exact decimal arithmetic for ledger amounts: binary floating point
+      // put commission a cent out whenever amount × rate landed on a half.
+      const amount = new Prisma.Decimal(payment.amount);
+      const commission = amount
+        .mul(commissionPct)
+        .div(100)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       await tx.ledgerEntry.createMany({
         data: [
           {
             companyId: payment.payerCompanyId,
             kind: "PAYMENT_OUT",
-            amount: -amount,
+            amount: amount.neg(),
             currency: payment.currency,
             refType: "Payment",
             refId: payment.id,
@@ -234,7 +256,7 @@ export class FinanceService {
           {
             companyId: payment.order.sellerCompanyId,
             kind: "PLATFORM_FEE",
-            amount: -commission,
+            amount: commission.neg(),
             currency: payment.currency,
             refType: "Payment",
             refId: payment.id,

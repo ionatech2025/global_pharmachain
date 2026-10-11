@@ -1,6 +1,6 @@
 import { Injectable, type MessageEvent } from "@nestjs/common";
 import type { ThreadLookup } from "@pharmachain/core";
-import { prisma } from "@pharmachain/db";
+import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { Observable } from "rxjs";
@@ -77,15 +77,25 @@ export class MessagingService {
       throw forbidden();
     }
 
-    const existing = await prisma.messageThread.findFirst({
-      where: parties.orderId
-        ? { orderId: parties.orderId }
-        : parties.quotationId
-          ? { quotationId: parties.quotationId }
-          : { rfqId: parties.rfqId, supplierCompanyId: parties.supplierCompanyId },
-    });
+    const where = parties.orderId
+      ? { orderId: parties.orderId }
+      : parties.quotationId
+        ? { quotationId: parties.quotationId }
+        : { rfqId: parties.rfqId, supplierCompanyId: parties.supplierCompanyId };
+    const existing = await prisma.messageThread.findFirst({ where });
     if (existing) return existing;
-    return prisma.messageThread.create({ data: parties });
+    try {
+      return await prisma.messageThread.create({ data: parties });
+    } catch (err) {
+      // Two people opening the same conversation at once: the unique index
+      // lets one create win; the other gets the thread it created rather
+      // than a 409 for asking for something that now exists.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const created = await prisma.messageThread.findFirst({ where });
+        if (created) return created;
+      }
+      throw err;
+    }
   }
 
   private async loadThreadForMember(membership: Membership, threadId: string) {
@@ -153,7 +163,7 @@ export class MessagingService {
     });
   }
 
-  async listMessages(membership: Membership, threadId: string, after?: string) {
+  async listMessages(membership: Membership, threadId: string, after?: string, before?: string) {
     const thread = await this.loadThreadForMember(membership, threadId);
     const include = {
       sender: { select: { id: true, name: true } },
@@ -163,7 +173,9 @@ export class MessagingService {
       },
     };
     // Initial load: the LATEST window (oldest-first take would strand new
-    // messages in long threads). Polling with `after` streams what follows.
+    // messages in long threads). Polling with `after` streams what follows;
+    // `before` pages back through history — messages are permanent, so the
+    // whole conversation must stay reachable, not just its last 200.
     const messages = after
       ? await prisma.message.findMany({
           where: { threadId, createdAt: { gt: new Date(after) } },
@@ -173,7 +185,7 @@ export class MessagingService {
         })
       : (
           await prisma.message.findMany({
-            where: { threadId },
+            where: { threadId, ...(before ? { createdAt: { lt: new Date(before) } } : {}) },
             include,
             orderBy: { createdAt: "desc" },
             take: 200,
