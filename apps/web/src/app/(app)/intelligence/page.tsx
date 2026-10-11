@@ -1,13 +1,22 @@
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
-import { Download, PackageX, Sparkles, TrendingDown, TrendingUp, Truck, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Download,
+  PackageX,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  Truck,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { ForecastChart } from "@/components/dashboard/charts";
 import { Panel, PanelBody, PanelHeader, Provenance } from "@/components/dashboard/panel";
 import { StatGrid, StatTile } from "@/components/dashboard/stat-tile";
 import { PageHeader } from "@/components/page-header";
 import { apiServer } from "@/lib/api/server";
-import { fmtNumber } from "@/lib/format";
+import { fmtMoney, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Intelligence" };
 
@@ -20,9 +29,13 @@ interface Forecast {
 }
 interface PriceTrend {
   months: string[];
-  series: number[];
-  direction: string;
+  /** null where no quotation in `currency` was made that month. */
+  series: (number | null)[];
+  direction: "rising" | "falling" | "stable" | "insufficient data";
+  /** The one currency the series is in; other currencies are left out. */
+  currency: string | null;
   sampleSize: number;
+  otherCurrencyQuotes: number;
 }
 interface DelayRisk {
   orderId: string;
@@ -87,7 +100,17 @@ export default async function IntelligencePage() {
   const nextQuarter = demand.forecast.reduce((sum, v) => sum + v, 0);
   const lastQuarter = demand.series.slice(-3).reduce((sum, v) => sum + v, 0);
   const atRisk = delayRisk.filter((r) => r.risk === "HIGH" || r.risk === "MEDIUM").length;
-  const priceRising = prices.direction.toLowerCase().includes("ris");
+  // Rising prices are the warning for a buyer; "stable" and "insufficient
+  // data" are not news, so they stay neutral instead of borrowing green.
+  const priceBadge =
+    prices.direction === "rising"
+      ? { variant: "warning" as const, Icon: TrendingUp }
+      : prices.direction === "falling"
+        ? { variant: "success" as const, Icon: TrendingDown }
+        : prices.direction === "stable"
+          ? { variant: "secondary" as const, Icon: ArrowRight }
+          : { variant: "secondary" as const, Icon: null };
+  const priceCurrency = prices.currency;
   const topScore = recommendations.find((r) => r.score !== null)?.score ?? null;
 
   return (
@@ -107,7 +130,7 @@ export default async function IntelligencePage() {
           value={fmtNumber(Math.round(nextQuarter))}
           icon={TrendingUp}
           delta={{ current: nextQuarter, previous: lastQuarter }}
-          caption="RFQs projected over the next 3 months"
+          caption={`RFQs projected over the next 3 months, vs ${fmtNumber(lastQuarter)} raised in the last 3`}
         />
         <StatTile
           // Named for what it measures. MAPE is an ERROR: labelling it
@@ -146,7 +169,7 @@ export default async function IntelligencePage() {
         <Panel>
           <PanelHeader
             title="Demand forecast"
-            description="Monthly RFQ volume across all categories: 12 months measured, 3 months projected."
+            description="RFQs raised per month across all categories: 12 months measured, 3 projected."
           />
           <PanelBody>
             <ForecastChart
@@ -158,7 +181,7 @@ export default async function IntelligencePage() {
             <Provenance>
               {demand.accuracyMapePct === null
                 ? `Backtest pending — more history needed. Based on ${fmtNumber(demand.sampleSize)} RFQ(s).`
-                : `Backtest accuracy ${demand.accuracyMapePct.toFixed(1)}% MAPE on held-out months, from ${fmtNumber(demand.sampleSize)} RFQ(s).`}
+                : `Backtest error ${demand.accuracyMapePct.toFixed(1)}% MAPE on held-out months (lower is better), from ${fmtNumber(demand.sampleSize)} RFQ(s).`}
             </Provenance>
           </PanelBody>
         </Panel>
@@ -166,14 +189,14 @@ export default async function IntelligencePage() {
         <Panel>
           <PanelHeader
             title="Price trend"
-            description="Average quoted unit price by month."
+            description={
+              priceCurrency
+                ? `Average quoted unit price by month, in ${priceCurrency}.`
+                : "Average quoted unit price by month."
+            }
             action={
-              <Badge variant={priceRising ? "warning" : "success"}>
-                {priceRising ? (
-                  <TrendingUp className="size-3" />
-                ) : (
-                  <TrendingDown className="size-3" />
-                )}
+              <Badge variant={priceBadge.variant}>
+                {priceBadge.Icon && <priceBadge.Icon className="size-3" />}
                 {prices.direction}
               </Badge>
             }
@@ -183,11 +206,15 @@ export default async function IntelligencePage() {
               labels={prices.months.map(monthLabel)}
               history={prices.series}
               baseline="fit"
+              format={priceCurrency ? (v) => fmtMoney(v, priceCurrency) : fmtNumber}
+              gapNote="no quotations"
               emptyNote="No quotations priced yet."
             />
             <Provenance>
-              Across {fmtNumber(prices.sampleSize)} quotation(s). Unit prices are normalised to the
-              quoted currency at issue — no FX re-basing.
+              Across {fmtNumber(prices.sampleSize)} {priceCurrency ?? ""} quotation(s); a gap is a
+              month without one.
+              {prices.otherCurrencyQuotes > 0 &&
+                ` ${fmtNumber(prices.otherCurrencyQuotes)} in other currencies are left out — prices are never converted or averaged across currencies.`}
             </Provenance>
           </PanelBody>
         </Panel>

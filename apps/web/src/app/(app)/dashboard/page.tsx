@@ -43,7 +43,7 @@ import {
   PanelHeader,
   Provenance,
 } from "@/components/dashboard/panel";
-import { StatGrid, StatTile } from "@/components/dashboard/stat-tile";
+import { type DeltaInput, StatGrid, StatTile } from "@/components/dashboard/stat-tile";
 import { DashboardRefresh } from "@/components/dashboard-refresh";
 import { EmptyState } from "@/components/empty-state";
 import { CustomizeDashboardButton, type Kpi, KpiGrid } from "@/components/kpi-widgets";
@@ -64,8 +64,17 @@ export const metadata = { title: "Dashboard" };
 const sparkFor = (activity: DashboardActivity, key: string) =>
   activity.trend.map((p) => p.values[key] ?? 0);
 
-/** The window caption every delta on the page is measured against. */
-const vsPrevious = (days: number) => `vs previous ${days} days`;
+/**
+ * Names what a tile's delta compares. Most tiles show a stock (open RFQs,
+ * live orders) while their delta compares a flow (RFQs raised per window), so
+ * the pill must say which flow — "4 ▼75%" alone reads as open RFQs falling.
+ */
+const flowCaption = (delta: DeltaInput | undefined, verb: string, days: number) =>
+  `${fmtNumber(delta?.current ?? 0)} ${verb} in ${days} days vs ${fmtNumber(delta?.previous ?? 0)} before`;
+
+/** For a tile whose figure IS the flow: the period, and what it is compared with. */
+const vsPrevious = (delta: DeltaInput | undefined, days: number) =>
+  `last ${days} days vs ${fmtNumber(delta?.previous ?? 0)} before`;
 
 /** Section label with an optional action, for tile rows that aren't panels. */
 function SectionHeading({
@@ -295,7 +304,7 @@ export default async function DashboardPage() {
             icon={Truck}
             href="/shipments"
             delta={activity.deltas.appointments}
-            caption={vsPrevious(window)}
+            deltaCaption={flowCaption(activity.deltas.appointments, "new", window)}
             spark={sparkFor(activity, "appointments")}
           />
           <StatTile
@@ -303,7 +312,7 @@ export default async function DashboardPage() {
             value={fmtNumber(activity.deltas.deliveries?.current ?? 0)}
             icon={Package}
             delta={activity.deltas.deliveries}
-            caption={`last ${window} days`}
+            caption={vsPrevious(activity.deltas.deliveries, window)}
             spark={sparkFor(activity, "deliveries")}
           />
           <StatTile
@@ -461,7 +470,7 @@ export default async function DashboardPage() {
             icon={Building2}
             href="/admin/companies"
             delta={activity.deltas.companies}
-            caption={vsPrevious(window)}
+            deltaCaption={flowCaption(activity.deltas.companies, "joined", window)}
             spark={sparkFor(activity, "companies")}
           />
           <StatTile
@@ -476,7 +485,7 @@ export default async function DashboardPage() {
             value={fmtNumber(p.ordersLast30d)}
             icon={ShoppingCart}
             delta={activity.deltas.orders}
-            caption={vsPrevious(window)}
+            caption={vsPrevious(activity.deltas.orders, window)}
             spark={sparkFor(activity, "orders")}
           />
           <StatTile
@@ -484,6 +493,7 @@ export default async function DashboardPage() {
             value={fmtNumber(p.openRfqs)}
             icon={ListChecks}
             delta={activity.deltas.rfqs}
+            deltaCaption={flowCaption(activity.deltas.rfqs, "raised", window)}
             caption={`${fmtNumber(p.totalUsers)} users across the network`}
             spark={sparkFor(activity, "rfqs")}
           />
@@ -666,7 +676,7 @@ export default async function DashboardPage() {
             icon={ListChecks}
             href="/rfqs"
             delta={activity.deltas.rfqs}
-            caption={`${fmtNumber(activity.deltas.rfqs?.current ?? 0)} raised in ${window} days`}
+            deltaCaption={flowCaption(activity.deltas.rfqs, "raised", window)}
             spark={sparkFor(activity, "rfqs")}
           />
         )}
@@ -679,7 +689,7 @@ export default async function DashboardPage() {
             // view rather than the inbox of RFQs still waiting for an offer.
             href="/quotes?view=sent"
             delta={activity.deltas.quotations}
-            caption={`${fmtNumber(activity.deltas.quotations?.current ?? 0)} sent in ${window} days`}
+            deltaCaption={flowCaption(activity.deltas.quotations, "sent", window)}
             spark={sparkFor(activity, "quotations")}
           />
         )}
@@ -689,6 +699,7 @@ export default async function DashboardPage() {
           icon={ShoppingCart}
           href="/orders"
           delta={activity.deltas.orders}
+          deltaCaption={flowCaption(activity.deltas.orders, "placed", window)}
           caption={`${fmtNumber(c.ordersAsBuyer)} buying · ${fmtNumber(c.ordersAsSeller)} supplying`}
           spark={sparkFor(activity, "orders")}
         />

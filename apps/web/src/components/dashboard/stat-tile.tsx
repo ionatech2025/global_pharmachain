@@ -68,6 +68,12 @@ export interface StatTileProps {
   /** Trailing window vs the one before it. */
   delta?: DeltaInput;
   goodDirection?: "up" | "down" | "neutral";
+  /**
+   * What the delta measures, when that is not the figure itself. "Open RFQs"
+   * is a stock but its delta compares RFQs RAISED per window; without this
+   * line "4 ▼75%" reads as open RFQs having fallen by three quarters.
+   */
+  deltaCaption?: string;
   /** The "where this came from" line — period, sample size, definition. */
   caption?: string;
   /** Real history behind the figure. Omitted when there is nothing to plot. */
@@ -89,6 +95,7 @@ export function StatTile({
   href,
   delta,
   goodDirection = "up",
+  deltaCaption,
   caption,
   spark,
   tone = "default",
@@ -118,9 +125,16 @@ export function StatTile({
         <div className="mt-2.5 flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1">
           {delta && <TrendPill delta={delta} goodDirection={goodDirection} />}
           {/* Provenance wraps rather than truncates: "23/25 within ETA (+1 day
-              grace)" losing its tail is worse than a second line. */}
-          {caption && (
+              grace)" losing its tail is worse than a second line. When the
+              delta needs naming, its subject takes this row beside the pill
+              and the provenance drops to a line of its own. */}
+          {(deltaCaption ?? caption) && (
             <span className="min-w-0 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+              {deltaCaption ?? caption}
+            </span>
+          )}
+          {deltaCaption && caption && (
+            <span className="w-full min-w-0 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
               {caption}
             </span>
           )}

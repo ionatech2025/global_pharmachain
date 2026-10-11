@@ -4,21 +4,9 @@ import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
+import { lastMonths, monthlyCounts, monthlyPriceSeries } from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
-
-function monthKey(d: Date): string {
-  return d.toISOString().slice(0, 7);
-}
-
-function lastMonths(n: number): string[] {
-  const out: string[] = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i -= 1) {
-    out.push(monthKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))));
-  }
-  return out;
-}
 
 /**
  * Intelligence engine (Phase 5 §1): transparent statistics over live
@@ -27,7 +15,12 @@ function lastMonths(n: number): string[] {
  */
 @Injectable()
 export class IntelligenceService {
-  /** Monthly demand (RFQ quantity) per category, with a 3-month forecast. */
+  /**
+   * Monthly demand as the number of RFQs raised, with a 3-month forecast.
+   * A count is the only demand measure that adds up across the platform: each
+   * RFQ quantity carries its own free-text unit (kg, tablets, litres), so a
+   * sum of quantities is a number with no unit at all.
+   */
   async demandForecast(categoryId?: string) {
     const months = lastMonths(12);
     const rfqs = await prisma.rfq.findMany({
@@ -35,24 +28,23 @@ export class IntelligenceService {
         createdAt: { gte: new Date(Date.now() - 366 * DAY) },
         ...(categoryId ? { categoryId } : {}),
       },
-      select: { createdAt: true, quantity: true, category: { select: { name: true } } },
+      select: { createdAt: true },
     });
-    const byMonth = new Map<string, number>(months.map((m) => [m, 0]));
-    for (const rfq of rfqs) {
-      const key = monthKey(rfq.createdAt);
-      if (byMonth.has(key)) byMonth.set(key, (byMonth.get(key) ?? 0) + Number(rfq.quantity));
-    }
-    const series = months.map((m) => byMonth.get(m) ?? 0);
+    const series = monthlyCounts(
+      rfqs.map((r) => r.createdAt),
+      months,
+    );
     return {
       months,
       series,
       forecast: forecast(series, 3).map((v) => Math.round(v * 100) / 100),
       accuracyMapePct: backtestMape(series, 3),
-      sampleSize: rfqs.length,
+      // The RFQs the series actually counts — the window is whole months.
+      sampleSize: series.reduce((sum, v) => sum + v, 0),
     };
   }
 
-  /** Monthly average quoted unit price (market price trend). */
+  /** Monthly average quoted unit price in one currency — see monthlyPriceSeries. */
   async priceTrends(categoryId?: string) {
     const months = lastMonths(12);
     const quotes = await prisma.quotation.findMany({
@@ -63,28 +55,7 @@ export class IntelligenceService {
       },
       select: { createdAt: true, unitPrice: true, currency: true },
     });
-    const sums = new Map<string, { total: number; count: number }>();
-    for (const q of quotes) {
-      const key = monthKey(q.createdAt);
-      const bucket = sums.get(key) ?? { total: 0, count: 0 };
-      bucket.total += Number(q.unitPrice);
-      bucket.count += 1;
-      sums.set(key, bucket);
-    }
-    const series = months.map((m) => {
-      const bucket = sums.get(m);
-      return bucket ? Math.round((bucket.total / bucket.count) * 100) / 100 : 0;
-    });
-    const known = series.filter((v) => v > 0);
-    const direction =
-      known.length >= 2
-        ? (known[known.length - 1] as number) > (known[0] as number) * 1.03
-          ? "rising"
-          : (known[known.length - 1] as number) < (known[0] as number) * 0.97
-            ? "falling"
-            : "stable"
-        : "insufficient data";
-    return { months, series, direction, sampleSize: quotes.length };
+    return { months, ...monthlyPriceSeries(quotes, months) };
   }
 
   /** Delay risk on active shipments from historical stage timing. */

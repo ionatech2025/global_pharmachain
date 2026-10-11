@@ -374,6 +374,10 @@ export function TrendChart({
  * drawn dashed beyond a labelled boundary so a reader can never mistake a
  * model's output for a recorded fact — the distinction a forecast lives or
  * dies on. A single series needs no legend: the panel title names it.
+ *
+ * A null in `history` is a period with nothing to measure — a month without a
+ * quotation has no average price — so the line breaks there instead of
+ * diving to a zero that never happened.
  */
 export function ForecastChart({
   labels,
@@ -382,10 +386,12 @@ export function ForecastChart({
   height = 220,
   emptyNote = "Not enough history yet.",
   baseline = "zero",
+  format = fmtNumber,
+  gapNote = "no data",
 }: {
   /** One label per point, history first then forecast. */
   labels: string[];
-  history: number[];
+  history: (number | null)[];
   forecast?: number[];
   height?: number;
   emptyNote?: string;
@@ -397,6 +403,10 @@ export function ForecastChart({
    * the magnitude it appears to encode.
    */
   baseline?: "zero" | "fit";
+  /** Formats a value for the readout and the table — money, say. */
+  format?: (value: number) => string;
+  /** What a gap means, for the readout and the table: "no quotations". */
+  gapNote?: string;
 }) {
   const W = 740;
   const H = height;
@@ -406,23 +416,34 @@ export function ForecastChart({
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
-  const all = [...history, ...forecast];
-  const dataMax = Math.max(...all, 0);
-  const dataMin = Math.min(...all, dataMax);
+  const measured = history.filter((v): v is number => v !== null);
+  const values = [...measured, ...forecast];
+  if (values.length === 0) {
+    return <p className="py-10 text-center text-sm text-muted-foreground">{emptyNote}</p>;
+  }
+
+  const count = history.length + forecast.length;
+  const dataMax = Math.max(...values, 0);
+  const dataMin = Math.min(...values, dataMax);
   const fitted = baseline === "fit" && dataMin > 0 && dataMax - dataMin < dataMin;
   const { top, step } = fitted ? niceScale(dataMax - dataMin, 4) : niceScale(dataMax);
   const bottom = fitted ? Math.max(0, Math.floor(dataMin / step) * step) : 0;
   const ceiling = fitted ? bottom + top : top;
 
-  const x = (i: number) => pad.left + (all.length < 2 ? plotW / 2 : (i / (all.length - 1)) * plotW);
+  const x = (i: number) => pad.left + (count < 2 ? plotW / 2 : (i / (count - 1)) * plotW);
   const y = (v: number) =>
     pad.top + plotH - ((v - bottom) / Math.max(1e-6, ceiling - bottom)) * plotH;
-  const ticks = Array.from({ length: (ceiling - bottom) / step + 1 }, (_, i) => bottom + i * step);
-  const slotW = all.length < 2 ? plotW : plotW / (all.length - 1);
+  // Rounded, not truncated: (ceiling - bottom) / step can land a hair under a
+  // whole number in floating point and silently drop the top tick.
+  const ticks = Array.from(
+    { length: Math.round((ceiling - bottom) / step) + 1 },
+    (_, i) => bottom + i * step,
+  );
+  const slotW = count < 2 ? plotW : plotW / (count - 1);
   const color = seriesColor(0);
   // Axis positions carry their own identity: month labels repeat across years
   // ("Aug" twice), so a stable id is minted here rather than keyed on the label.
-  const slots = all.map((value, i) => ({
+  const slots = [...history, ...forecast].map((value, i) => ({
     id: `slot-${i}`,
     value,
     i,
@@ -430,18 +451,32 @@ export function ForecastChart({
     projected: i > history.length - 1,
   }));
 
-  const path = (values: number[], from: number) =>
-    values
-      .map((v, i) => `${i === 0 ? "M" : "L"}${x(from + i).toFixed(1)},${y(v).toFixed(1)}`)
+  // Consecutive measured points form a run; each run is its own line and a
+  // run of one is a dot, so a gap in the data stays a gap on the page.
+  const runs: Array<Array<{ i: number; v: number }>> = [];
+  history.forEach((v, i) => {
+    if (v === null) return;
+    const run = runs.at(-1);
+    if (run && run.at(-1)?.i === i - 1) run.push({ i, v });
+    else runs.push([{ i, v }]);
+  });
+  const lastIndex = history.findLastIndex((v) => v !== null);
+  const lastValue = history[lastIndex] ?? null;
+  const path = (points: Array<{ i: number; v: number }>) =>
+    points
+      .map((p, k) => `${k === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`)
       .join(" ");
-  // The projection starts at the last measured point so the two paths meet.
+  // The projection starts at the last measured point so the two paths meet —
+  // unless that period is a gap, in which case it starts on its own.
   const projected = forecast.length
-    ? path([history.at(-1) ?? 0, ...forecast], history.length - 1)
+    ? path([
+        ...(lastIndex === history.length - 1 && lastValue !== null
+          ? [{ i: lastIndex, v: lastValue }]
+          : []),
+        ...forecast.map((v, k) => ({ i: history.length + k, v })),
+      ])
     : "";
-
-  if (all.length === 0) {
-    return <p className="py-10 text-center text-sm text-muted-foreground">{emptyNote}</p>;
-  }
+  const gaps = history.length - measured.length;
 
   return (
     <figure className="m-0">
@@ -451,9 +486,11 @@ export function ForecastChart({
           viewBox={`0 0 ${W} ${H}`}
           className="w-full min-w-[30rem]"
           role="img"
-          aria-label={`${history.length} measured points${
-            forecast.length ? `, then ${forecast.length} projected points` : ""
-          }. Latest measured value ${fmtNumber(history.at(-1) ?? 0)}.`}
+          aria-label={`${measured.length} measured point${measured.length === 1 ? "" : "s"}${
+            gaps ? ` (${gaps} period${gaps === 1 ? "" : "s"} with ${gapNote})` : ""
+          }${forecast.length ? `, then ${forecast.length} projected` : ""}.${
+            lastValue === null ? "" : ` Latest measured value ${format(lastValue)}.`
+          }`}
         >
           <defs>
             <linearGradient id="forecast-wash" x1="0" y1="0" x2="0" y2="1">
@@ -499,21 +536,40 @@ export function ForecastChart({
             ) : null,
           )}
 
-          {history.length > 1 && !fitted && (
-            <path
-              d={`${path(history, 0)} L${x(history.length - 1).toFixed(1)},${(pad.top + plotH).toFixed(1)} L${pad.left},${(pad.top + plotH).toFixed(1)} Z`}
-              fill="url(#forecast-wash)"
-              className="chart-wash"
-            />
+          {!fitted &&
+            runs
+              .filter((run) => run.length > 1)
+              .map((run) => (
+                <path
+                  key={`wash-${run[0]?.i}`}
+                  d={`${path(run)} L${x(run.at(-1)?.i ?? 0).toFixed(1)},${(pad.top + plotH).toFixed(1)} L${x(run[0]?.i ?? 0).toFixed(1)},${(pad.top + plotH).toFixed(1)} Z`}
+                  fill="url(#forecast-wash)"
+                  className="chart-wash"
+                />
+              ))}
+          {runs.map((run) =>
+            run.length > 1 ? (
+              <path
+                key={`run-${run[0]?.i}`}
+                d={path(run)}
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ) : run[0] && run[0].i !== lastIndex ? (
+              <circle
+                key={`run-${run[0].i}`}
+                cx={x(run[0].i)}
+                cy={y(run[0].v)}
+                r="4"
+                fill={color}
+                stroke="var(--card)"
+                strokeWidth="2"
+              />
+            ) : null,
           )}
-          <path
-            d={path(history, 0)}
-            fill="none"
-            stroke={color}
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
           {forecast.length > 0 && (
             <>
               {/* Boundary between what happened and what is projected */}
@@ -544,14 +600,16 @@ export function ForecastChart({
               />
             </>
           )}
-          <circle
-            cx={x(history.length - 1)}
-            cy={y(history.at(-1) ?? 0)}
-            r="4"
-            fill={color}
-            stroke="var(--card)"
-            strokeWidth="2"
-          />
+          {lastValue !== null && (
+            <circle
+              cx={x(lastIndex)}
+              cy={y(lastValue)}
+              r="4"
+              fill={color}
+              stroke="var(--card)"
+              strokeWidth="2"
+            />
+          )}
 
           {slots.map(({ id, value: v, i, label, projected: isProjected }) => {
             const right = x(i) > pad.left + plotW * 0.6;
@@ -566,7 +624,9 @@ export function ForecastChart({
                   width={slotW}
                   height={plotH}
                 />
-                <title>{`${label}: ${fmtNumber(v)}${isProjected ? " (projected)" : ""}`}</title>
+                <title>
+                  {`${label}: ${v === null ? gapNote : format(v)}${isProjected ? " (projected)" : ""}`}
+                </title>
                 <g className="chart-hover">
                   <line
                     x1={x(i)}
@@ -576,14 +636,16 @@ export function ForecastChart({
                     stroke="var(--muted-foreground)"
                     strokeWidth="1"
                   />
-                  <circle
-                    cx={x(i)}
-                    cy={y(v)}
-                    r="4"
-                    fill={color}
-                    stroke="var(--card)"
-                    strokeWidth="2"
-                  />
+                  {v !== null && (
+                    <circle
+                      cx={x(i)}
+                      cy={y(v)}
+                      r="4"
+                      fill={color}
+                      stroke="var(--card)"
+                      strokeWidth="2"
+                    />
+                  )}
                   <rect
                     x={boxX}
                     y={pad.top + 4}
@@ -604,11 +666,11 @@ export function ForecastChart({
                   <text
                     x={boxX + 10}
                     y={pad.top + 36}
-                    fontSize="13"
-                    fontWeight="600"
-                    className="fill-popover-foreground"
+                    fontSize={v === null ? "12" : "13"}
+                    fontWeight={v === null ? "400" : "600"}
+                    className={v === null ? "fill-muted-foreground" : "fill-popover-foreground"}
                   >
-                    {fmtNumber(v)}
+                    {v === null ? gapNote : format(v)}
                   </text>
                   {isProjected && (
                     <text
@@ -643,8 +705,8 @@ export function ForecastChart({
             {slots.map(({ id, label, value, projected }) => (
               <tr key={id}>
                 <th scope="row">{label}</th>
-                <td>{fmtNumber(value)}</td>
-                <td>{projected ? "projected" : "measured"}</td>
+                <td>{value === null ? "—" : format(value)}</td>
+                <td>{value === null ? gapNote : projected ? "projected" : "measured"}</td>
               </tr>
             ))}
           </tbody>

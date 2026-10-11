@@ -62,6 +62,15 @@ function headline(rows: Array<{ amount: string; currency: string }>): {
   };
 }
 
+/**
+ * The tile shows money but its delta compares payment COUNTS, so the caption
+ * beside the pill names that count and what it is compared with.
+ */
+const paymentsCaption = (current: number, previous: number, compared: boolean) =>
+  compared
+    ? `${fmtNumber(current)} payment(s) in 30 days vs ${fmtNumber(previous)} before`
+    : `${fmtNumber(current)} payment(s) in 30 days`;
+
 const within = (rows: PaymentRow[], from: number, to = Number.POSITIVE_INFINITY) =>
   rows.filter((p) => {
     const at = new Date(p.createdAt).getTime();
@@ -127,7 +136,7 @@ export default async function FinancePage() {
           value={received.value}
           icon={ArrowDownLeft}
           delta={inComplete ? { current: inNow.length, previous: inPrev.length } : undefined}
-          caption={`${fmtNumber(inNow.length)} payment(s) in 30 days${received.extra}`}
+          caption={`${paymentsCaption(inNow.length, inPrev.length, inComplete)}${received.extra}`}
         />
         <StatTile
           label="Paid out"
@@ -135,7 +144,7 @@ export default async function FinancePage() {
           icon={ArrowUpRight}
           goodDirection="neutral"
           delta={outComplete ? { current: outNow.length, previous: outPrev.length } : undefined}
-          caption={`${fmtNumber(outNow.length)} payment(s) in 30 days${paid.extra}`}
+          caption={`${paymentsCaption(outNow.length, outPrev.length, outComplete)}${paid.extra}`}
         />
         <StatTile
           label="Outstanding"
