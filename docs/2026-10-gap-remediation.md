@@ -92,6 +92,44 @@ quotation (now it raises its own RFQ); and the idle-session post-check raced
 the sign-out response (it now waits for it). Each passed against production
 after the fix.
 
+## Phase 5 — the analytical surfaces ([`5f16983`], [`28d254e`], [`485ae5a`], [`911bdf6`])
+
+An audit of the dashboard, intelligence and finance charts against the
+dataviz method. The palettes themselves were re-validated and pass every gate
+in both themes (categorical: worst adjacent CVD ΔE 8.5 light / 10.6 dark,
+normal-vision 23.3 / 23.2; ordinal: monotone, one hue, light end 2.21 / 2.69:1).
+The defects were in what the charts said and who could read them. Rendering
+the surfaces against production data found them; an offline render of the
+real components (light, dark, phone) checked each fix before release.
+
+| Finding | Fix |
+| --- | --- |
+| Price trend plotted months without a quotation as a price of **0**, and averaged unit prices **across currencies** (the provenance line obscured it). | One currency — the most-quoted; others counted and left out, never converted. Empty months are null and the line breaks there; gappy series mark where each run starts and ends. |
+| Demand forecast **summed RFQ quantities** (each in its own free-text unit: kg, tablets, litres) while the tile, panel and provenance all said "RFQs" — 37,174 "RFQs" in a month from 64 RFQs. | Counts RFQs raised. "Backtest accuracy" for a MAPE (an error) now reads "Backtest error". |
+| Stat tiles showed a **stock** with a delta comparing a **flow**: "Live orders 28 ▼82%" meant orders *placed* per 30 days fell, not live orders. Two tiles never named the delta's subject. | `deltaCaption` names the flow and its comparison ("2 placed in 30 days vs 11 before"); finance tiles name the payment counts their deltas use. |
+| Values were reachable only by **mouse hover** or a screen-reader-only table: touch and keyboard users could not read a week's figures; the slots' focus rule was dead code. | Every chart has a "View as table" disclosure — a native `<details>`, still zero client JS. |
+| On a phone the charts scrolled but opened on the **oldest** periods — the latest week and the projection started off-screen. | The scroll box opens on the latest data (`dir="rtl"`), with a copy of the y-axis pinned left by a container query exactly while the plot scrolls. |
+| Red delta pills **3.95:1 / 4.03:1** (under AA for 11px text); dark `text-destructive` 4.39:1 on the card. | `--destructive-accent` (5.0:1 light, 5.7:1 dark on the tint); the dark `text-destructive` override follows the `text-primary` precedent. |
+| Meter warnings were colour-only. | Icon + words ("Nearly used", "Limit reached"), figures in text ink, `aria-valuetext`. |
+| Spec drift: dot keys in tooltips, label-first readouts, donut gaps showing a grey track, no donut hover, sparkline wholly in the accent, strokes and ~8px labels scaling with the panel, the last month unlabelled on odd counts. | Line keys and value-first readouts; true 2px surface gaps and a CSS-only donut readout; grey sparkline with the current period in the accent; non-scaling strokes and a forecast viewBox sized to its panel; axis labels thinned from the end. |
+
+The series rules (`apps/api/src/modules/intelligence/series.ts`) have unit tests.
+
+Live: the price series reads USD with nulls for its nine empty months (48
+quotations, none in other currencies — so the zeros, not the mixing, were what
+production showed); demand counts 64 RFQs, matching its provenance line, and
+the backtest error on the honest series is 76.4% MAPE (172% on summed
+quantities); every chart serves its table view and every tile names its delta.
+The live render also caught a font detail the offline render could not: Geist
+sets the decimal point against the foot of a 2, so the tick "12.5" read "125";
+tick labels now carry a hair of tracking ([`485ae5a`]). On a phone, line ends
+peeked past the pinned axis through the scroll box's 0.25rem gutter; the
+pinned copy now covers it ([`911bdf6`]).
+
+The full e2e suite against production after the release: **65 passed,
+1 skipped (the secret-gated throttle test), 0 failed, 0 flaky** — every test
+that can run from here, including the Epic 2 mailbox chain.
+
 ## Examined, not changed
 
 - **Forgot-password says when no account exists** — a deliberate product change
@@ -101,6 +139,17 @@ after the fix.
 - **Raw-SQL rewrites of the guard chain / dashboard counts** — after co-location
   each query costs a few ms; the rewrite's risk outweighed its saving.
 - **Virus scanning** remains a stub (now backed by file-signature checks).
+- **Direct end-labels on the trend charts** — the method wants them for ≤ 4
+  series, but these lines converge at zero in real data; the legend carries
+  each series' latest value instead, the method's sanctioned fallback.
+- **Donut → stacked bar** for the pipeline — five segments with every count and
+  share listed beside it stay inside the method's "≤ 6 segments, at a glance".
+- **Average unit price across products** — now currency-consistent, but still a
+  mean over unlike products and units. A per-category view would be the honest
+  next step; it needs a product decision on which categories to chart.
+- **Tinted destructive badges outside the analytical surfaces** (light mode)
+  may sit under 4.5:1 like the delta pill did; `text-destructive-accent` is the
+  fix wherever one turns up.
 
 ## Needs an operator
 
@@ -129,3 +178,7 @@ after the fix.
 [`3741457`]: https://github.com/ionatech2025/global_pharmachain/commit/3741457
 [`ec2ba52`]: https://github.com/ionatech2025/global_pharmachain/commit/ec2ba52
 [`fbed418`]: https://github.com/ionatech2025/global_pharmachain/commit/fbed418
+[`5f16983`]: https://github.com/ionatech2025/global_pharmachain/commit/5f16983
+[`28d254e`]: https://github.com/ionatech2025/global_pharmachain/commit/28d254e
+[`485ae5a`]: https://github.com/ionatech2025/global_pharmachain/commit/485ae5a
+[`911bdf6`]: https://github.com/ionatech2025/global_pharmachain/commit/911bdf6
