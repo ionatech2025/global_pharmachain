@@ -20,6 +20,11 @@ export const API_URL = resolveApiUrl();
 // deployment's hash-suffixed URL into every share card): explicit
 // NEXT_PUBLIC_SITE_URL wins, then Vercel's system var for the project's
 // actual production domain, then localhost for local dev.
+//
+// Statically generated output (the landing page, sitemap.xml, robots.txt)
+// resolves this at BUILD time, where a local `vercel build` has no system
+// variables — so scripts/deploy-vercel.sh sets NEXT_PUBLIC_SITE_URL, and
+// refuses to release output that still names localhost.
 function resolveSiteUrl(): string {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {

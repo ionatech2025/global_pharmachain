@@ -16,6 +16,11 @@ cd "$ROOT"
 REGION="${VERCEL_FUNCTION_REGION:-sin1}"
 # Vercel stopped accepting Node 20 for new deployments on 2026-10-01.
 API_RUNTIME="nodejs24.x"
+# The public origin baked into statically generated output — the landing
+# page's canonical/OG URLs, sitemap.xml, robots.txt. A local `vercel build`
+# does not see Vercel's system variables, so without this the static pages
+# fell back to http://localhost:3000. Step 4c refuses to release if it leaks.
+export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-https://global-pharmachain.vercel.app}"
 
 echo "== 1. Build the API serverless bundle =="
 cd apps/api
@@ -106,6 +111,19 @@ if bad:
     sys.exit(1)
 print(f"   pinned {pinned} Node function(s) to {region}; {skipped} edge function(s) left global")
 PY
+
+echo "== 4c. No development origin in the built output =="
+# Prerendered HTML/RSC, sitemap.xml and robots.txt are fixed at build time;
+# a localhost origin in them is broken share cards and a wrong canonical URL
+# on production. Grep the generated artefacts, not the bundled server code.
+leaks=$(grep -rIl --include='*.html' --include='*.rsc' --include='*.xml' --include='*.txt' \
+  --include='*.body' --include='*.meta' 'http://localhost:3000' .vercel/output 2>/dev/null | head -5 || true)
+if [ -n "$leaks" ]; then
+  echo "   LOCALHOST ORIGIN IN BUILT OUTPUT — refusing to release:"
+  echo "$leaks" | sed 's/^/     /'
+  exit 1
+fi
+echo "   none (public origin: $NEXT_PUBLIC_SITE_URL)"
 
 echo "== 5. Route /api/backend/* to the function =="
 python3 - <<'PY'
