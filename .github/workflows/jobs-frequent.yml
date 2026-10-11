@@ -6,6 +6,10 @@ name: Scheduled jobs (frequent)
 # quotation expiry, notification-outbox retry, webhook retry, token cleanup.
 # Advisory locks + heartbeats inside the dispatcher make overlaps harmless
 # and freshness observable at /admin (jobs/heartbeats).
+#
+# GitHub disables scheduled workflows in a public repository after 60 days
+# without activity — when that happens nothing here runs and nothing here
+# can say so. /admin/jobs (and the platform dashboard) flag stale jobs.
 
 on:
   schedule:
@@ -24,10 +28,33 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Run frequent tier
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
           response=$(curl -fsS --max-time 240 \
-            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "authorization: Bearer $CRON_SECRET" \
             "https://global-pharmachain.vercel.app/api/backend/jobs/run?tier=frequent")
           echo "$response"
           echo "$response" | grep -q '"ok":false' && { echo "::error::a job reported failure"; exit 1; } || true
+
+  alert-on-failure:
+    needs: dispatch
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      # Every ten minutes would bury the signal: open the issue once, and let
+      # the daily run's comments carry the ongoing story.
+      - name: Open the scheduled-jobs issue if none is open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Scheduled jobs failing"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "A frequent scheduled-job run failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} — /admin/jobs shows each job's last error."
+          fi

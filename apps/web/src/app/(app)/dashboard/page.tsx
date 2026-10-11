@@ -418,6 +418,16 @@ export default async function DashboardPage() {
         href: "/admin/data-requests",
       });
 
+    if (p.jobsNeedingAttention > 0)
+      queues.push({
+        key: "jobs",
+        icon: FileClock,
+        tone: "danger",
+        title: `${p.jobsNeedingAttention} scheduled job(s) stale or failing`,
+        detail: "RFQ closing, expiries and retries depend on them — check the scheduler",
+        href: "/admin/jobs",
+      });
+
     const verifiedPct = p.totalCompanies
       ? Math.round((p.verifiedCompanies / p.totalCompanies) * 100)
       : 0;

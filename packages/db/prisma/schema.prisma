@@ -475,6 +475,7 @@ model LoginActivity {
 
   @@index([userId, createdAt])
   @@index([email, createdAt])
+  @@index([createdAt])
 }
 
 // ─── Catalogue ───────────────────────────────────────────────────────────────
@@ -583,6 +584,9 @@ model Document {
   @@index([expiresAt, status])
   @@index([orderId])
   @@index([listingId])
+  @@index([rfqId])
+  @@index([quotationId])
+  @@index([messageId])
 }
 
 // ─── RFQ → Quotation → Order ─────────────────────────────────────────────────
@@ -1374,4 +1378,5 @@ model AuditLog {
   @@index([companyId, createdAt])
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+  @@index([createdAt])
 }

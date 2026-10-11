@@ -388,6 +388,8 @@ export interface DashboardSummary {
     ordersLast30d: number;
     pendingCredits: number;
     pendingDeletions: number;
+    /** Failing, or no success within the tier's window (see /admin/jobs). */
+    jobsNeedingAttention: number;
   } | null;
   company: {
     verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED" | "EXPIRED_DOCUMENT";

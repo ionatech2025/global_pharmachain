@@ -265,6 +265,10 @@ grown with each phase. Notable entries beyond the initial schema:
 - `…_phase2_logistics` … `…_phase5_intelligence` — logistics stages,
   payments/ledger/invoicing, analytics, trace ledger + webhooks + API keys.
 - `…_job_heartbeats` — the `JobHeartbeat` table behind `/admin/jobs`.
+- `…_expanded_company_types` — nine more company types (registration and
+  RFQ targeting for them fail until it is applied).
+- `…_lookup_indexes` — indexes for attachment lookups and the newest-first
+  admin audit/login lists (additive; safe before or after the code ships).
 
 ```bash
 bun run db:migrate:deploy   # release pipeline, against prod
@@ -314,10 +318,16 @@ function has no clock — so production scheduling is **pull-based**:
   `CRON_SECRET` with a constant-time compare; 404 when the secret is unset,
   401 on mismatch. Runs are serialised by per-job advisory locks, so
   overlapping calls are harmless.
-- **Cron** — `.github/workflows/jobs-frequent.yml` (every 10 minutes) and
-  `jobs-daily.yml` (05:00 UTC) curl the dispatcher; both support
-  `workflow_dispatch` for manual runs and fail loudly on `"ok":false`.
-  `CRON_SECRET` lives as a GitHub Actions secret and a Vercel env var.
+- **Cron** — `.github/workflows/jobs-frequent.yml` (every 10 minutes, one
+  request for the tier) and `jobs-daily.yml` (05:00 UTC, **one request per
+  job**, so each gets the whole 60s budget and one slow job cannot stop the
+  rest) curl the dispatcher; both support `workflow_dispatch` for manual runs,
+  fail on `"ok":false`, and open a "Scheduled jobs failing" issue.
+  `registry.test.ts` fails the build if the daily workflow's job list drifts
+  from the registry. `CRON_SECRET` lives as a GitHub Actions secret and a
+  Vercel env var. **GitHub disables scheduled workflows in a public repository
+  after 60 days without activity** — then nothing runs and nothing alerts, so
+  the platform dashboard also counts stale/failing jobs for super admins.
 - **Heartbeats** — every run upserts a `JobHeartbeat` row; super admins get
   `GET /jobs/heartbeats` and the `/admin/jobs` page (healthy / stale >26h /
   failing with the captured error).

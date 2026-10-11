@@ -2,7 +2,8 @@ name: Scheduled jobs (daily)
 
 # Daily tier of the HTTP job dispatcher (see jobs-frequent.yml for context):
 # document expiry, upload/throttle cleanup, DSR-SLA paging, saved-search
-# alerts, logistics alerts, FX refresh, scheduled reports, trust badges.
+# alerts, logistics alerts, FX refresh, scheduled reports, trust badges,
+# trace sealing.
 
 on:
   schedule:
@@ -18,13 +19,57 @@ concurrency:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Run daily tier
+      - name: Run daily jobs, one request each
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          set -euo pipefail
-          response=$(curl -fsS --max-time 500 \
-            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://global-pharmachain.vercel.app/api/backend/jobs/run?tier=daily")
-          echo "$response"
-          echo "$response" | grep -q '"ok":false' && { echo "::error::a job reported failure"; exit 1; } || true
+          set -uo pipefail
+          # One request per job: each gets the function's whole 60s budget,
+          # and a slow or failing job no longer takes the ones after it down
+          # with it (the whole tier used to share one request). Keep this list
+          # in step with apps/api/src/jobs/registry.ts — registry.test.ts
+          # fails the build when they drift.
+          JOBS="document-expiry upload-cleanup throttle-cleanup dsr-sla saved-search-alerts logistics-alerts fx-refresh scheduled-reports trust-badges trace-seal"
+          failed=""
+          for job in $JOBS; do
+            if ! response=$(curl -fsS --max-time 90 --retry 2 --retry-delay 10 \
+              -H "authorization: Bearer $CRON_SECRET" \
+              "https://global-pharmachain.vercel.app/api/backend/jobs/run?job=$job"); then
+              echo "::error::$job: the dispatcher request failed"
+              failed="$failed $job"
+              continue
+            fi
+            echo "$job: $response"
+            if echo "$response" | grep -q '"ok":false'; then
+              echo "::error::$job reported failure"
+              failed="$failed $job"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "failed:$failed"
+            exit 1
+          fi
+
+  alert-on-failure:
+    needs: dispatch
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the scheduled-jobs issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Scheduled jobs failing"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Daily run failed again: $run_url"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "A daily scheduled-job run failed: $run_url — /admin/jobs shows each job's last error."
+          fi

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { prisma } from "@pharmachain/db";
+import { jobNames } from "../../jobs/registry";
 import type { AuthUser, Membership } from "../../lib/context";
 import { getUsageSummary } from "../billing/usage";
 
@@ -36,7 +37,29 @@ export async function platformStats() {
     ordersLast30d,
     pendingCredits,
     pendingDeletions,
+    jobsNeedingAttention: await jobsNeedingAttention(),
   };
+}
+
+/**
+ * Scheduled jobs that are failing, or have not succeeded within their tier's
+ * window. Production has no resident clock — an external scheduler calls the
+ * dispatcher — so when that stops (GitHub disables cron in an idle public
+ * repository after 60 days) nothing fails loudly: RFQs just stop closing.
+ * Counting it here puts it in front of the platform team on every visit.
+ */
+async function jobsNeedingAttention(now = Date.now()): Promise<number> {
+  const frequent = new Set(jobNames("frequent"));
+  const beats = await prisma.jobHeartbeat.findMany({
+    select: { name: true, lastOkAt: true, lastError: true },
+  });
+  const seen = new Set(beats.map((b) => b.name));
+  const neverRan = jobNames().filter((name) => !seen.has(name)).length;
+  const unhealthy = beats.filter((b) => {
+    const windowMs = frequent.has(b.name) ? 60 * 60_000 : 26 * 60 * 60_000;
+    return b.lastError !== null || !b.lastOkAt || now - b.lastOkAt.getTime() > windowMs;
+  }).length;
+  return neverRan + unhealthy;
 }
 
 @Injectable()
