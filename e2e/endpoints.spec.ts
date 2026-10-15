@@ -86,6 +86,7 @@ test.describe
       await ok(page, "/notifications/preferences");
       await ok(page, "/billing/credit-requests");
       await ok(page, "/announcements/active");
+      await ok(page, "/issues");
       const threadId = await firstId(page, "/threads");
       if (threadId) await ok(page, `/threads/${threadId}/messages`);
       // /boms is scoped to a product listing the company owns.
@@ -101,7 +102,12 @@ test.describe
       // redirects to /login and the app layout calls signOut — so returning 401
       // here signs a perfectly valid session out instead of showing
       // access-denied. Accepting either status would not catch that regression.
-      for (const path of ["/admin/stats", "/admin/companies", "/admin/audit-logs"]) {
+      for (const path of [
+        "/admin/stats",
+        "/admin/companies",
+        "/admin/audit-logs",
+        "/admin/issues",
+      ]) {
         const res = await page.request.get(`${API_PATH}${path}`);
         expect(res.status(), `admin guard on ${path}`).toBe(403);
       }
@@ -143,6 +149,7 @@ test.describe
       await ok(page, "/admin/exchange-rates");
       await ok(page, "/admin/login-activity");
       await ok(page, "/admin/audit-logs");
+      await ok(page, "/admin/issues");
       const companyId = await firstId(page, "/admin/companies");
       if (companyId) await ok(page, `/admin/companies/${companyId}`);
     });

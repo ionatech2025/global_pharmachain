@@ -25,6 +25,8 @@ import type {
   OrderStatusEvent,
   Quotation,
   Rfq,
+  SupportIssue,
+  SupportIssueMessage,
   SystemParameter,
 } from "@pharmachain/db";
 import type { Jsonify } from "./http";
@@ -377,6 +379,66 @@ export type DeletionRequestRow = Jsonify<DataDeletionRequest> & {
   user: { id: string; email: string; name: string };
 };
 
+export type SupportIssueMessageRow = Jsonify<SupportIssueMessage> & {
+  author: {
+    id: string;
+    name: string;
+    email: string;
+    isSuperAdmin: boolean;
+  };
+};
+
+export type SupportIssueRow = Jsonify<SupportIssue> & {
+  company: {
+    id: string;
+    name: string;
+    type?: string;
+    country?: string;
+  } | null;
+  reportedBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  resolvedBy: {
+    id: string;
+    name: string;
+  } | null;
+  _count?: {
+    messages: number;
+  };
+};
+
+export type SupportIssueDetail = SupportIssueRow & {
+  messages: SupportIssueMessageRow[];
+};
+
+export type SupportIssueListResponse = Paginated<SupportIssueRow> & {
+  counts: {
+    open: number;
+    inProgress: number;
+    resolved: number;
+    closed: number;
+    criticalOpen?: number;
+  };
+};
+
+export interface ClientOnboardResponse {
+  created: Array<{
+    companyId: string;
+    companyName: string;
+    contactName: string;
+    contactEmail: string;
+    registrationNumber: string;
+    setupUrl: string;
+  }>;
+  skipped: Array<{
+    companyName: string;
+    contactEmail: string;
+    reason: string;
+  }>;
+}
+
 export interface DashboardSummary {
   scope: "platform" | "company";
   platform: {
@@ -388,11 +450,13 @@ export interface DashboardSummary {
     ordersLast30d: number;
     pendingCredits: number;
     pendingDeletions: number;
+    openIssues?: number;
     /** Failing, or no success within the tier's window (see /admin/jobs). */
     jobsNeedingAttention: number;
   } | null;
   company: {
     verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED" | "EXPIRED_DOCUMENT";
+    profilePublished?: boolean;
     publishedListings: number;
     draftListings: number;
     openRfqs: number;
@@ -401,6 +465,7 @@ export interface DashboardSummary {
     ordersAsSeller: number;
     unreadNotifications: number;
     expiringDocuments: number;
+    openIssues?: number;
     usage: UsageSummary;
   } | null;
 }

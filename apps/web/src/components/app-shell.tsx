@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import { VERIFICATION_STATUS_LABELS } from "@pharmachain/core";
+import { COMPANY_ROLE_LABELS, VERIFICATION_STATUS_LABELS } from "@pharmachain/core";
 import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
@@ -21,7 +21,7 @@ import {
   SheetTrigger,
 } from "@pharmachain/ui/components/sheet";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { ChevronRight, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
+import { ChevronRight, LifeBuoy, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -34,6 +34,7 @@ import { IdleSession } from "./idle-session";
 import { Logo, LogoMark } from "./logo";
 import { type NavSection, navFor } from "./nav-config";
 import { NotificationsBell } from "./notifications-bell";
+import { ReportIssueDialog } from "./report-issue-dialog";
 
 interface Announcement {
   id: string;
@@ -74,7 +75,15 @@ function NavLinks({
           </p>
           <div className="grid gap-0.5">
             {section.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const hasMoreSpecificSibling = section.items.some(
+                (other) =>
+                  other.href !== item.href &&
+                  other.href.startsWith(`${item.href}/`) &&
+                  (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+              );
+              const active =
+                !hasMoreSpecificSibling &&
+                (pathname === item.href || pathname.startsWith(`${item.href}/`));
               return (
                 <Link
                   key={item.href}
@@ -105,7 +114,9 @@ function NavLinks({
 /** Where you are, in the sidebar's own words — the top bar's left anchor. */
 function Breadcrumb({ sections, pathname }: { sections: NavSection[]; pathname: string }) {
   for (const section of sections) {
-    for (const item of section.items) {
+    // Match most-specific item first so /company/verification beats /company.
+    const sorted = [...section.items].sort((a, b) => b.href.length - a.href.length);
+    for (const item of sorted) {
       if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
         return (
           <nav
@@ -120,6 +131,24 @@ function Breadcrumb({ sections, pathname }: { sections: NavSection[]; pathname: 
       }
     }
   }
+  if (pathname.startsWith("/account")) {
+    return (
+      <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm lg:flex">
+        <span className="text-muted-foreground">Account</span>
+        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+        <span className="truncate font-medium">Account & privacy</span>
+      </nav>
+    );
+  }
+  if (pathname.startsWith("/notifications")) {
+    return (
+      <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm lg:flex">
+        <span className="text-muted-foreground">Account</span>
+        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+        <span className="truncate font-medium">Notifications</span>
+      </nav>
+    );
+  }
   return null;
 }
 
@@ -133,12 +162,19 @@ function CompanyCard({ me }: { me: AuthenticatedUser }) {
         className="block rounded-xl border bg-muted/40 px-3 py-2.5 transition-colors hover:bg-accent"
       >
         <p className="truncate text-sm font-medium">{membership.companyName}</p>
-        <Badge
-          variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}
-          className="mt-1.5"
-        >
-          {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
-        </Badge>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {COMPANY_ROLE_LABELS[membership.role]}
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <Badge variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}>
+            {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
+          </Badge>
+          {membership.subscriptionTier !== "FREEMIUM" && (
+            <Badge variant="outline" className="capitalize">
+              {membership.subscriptionTier.toLowerCase()}
+            </Badge>
+          )}
+        </div>
       </Link>
     </div>
   );
@@ -226,6 +262,19 @@ export function AppShell({
 
           <div className="ml-auto flex items-center gap-1.5">
             <CommandMenu sections={sections} canTrade={canTrade} />
+            <ReportIssueDialog
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Report an issue"
+                  className="gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <LifeBuoy className="size-4 shrink-0" />
+                  <span className="hidden md:inline">Report issue</span>
+                </Button>
+              }
+            />
             <ThemeToggle />
             <NotificationsBell />
             <DropdownMenu>
@@ -252,6 +301,11 @@ export function AppShell({
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/notifications">Notification settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={me.isSuperAdmin && !me.membership ? "/admin/issues" : "/issues"}>
+                    Support & issues
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

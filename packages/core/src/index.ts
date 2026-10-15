@@ -21,6 +21,7 @@ export * from "./schemas/company";
 export * from "./schemas/document";
 export * from "./schemas/finance";
 export * from "./schemas/integrations";
+export * from "./schemas/issue";
 export * from "./schemas/logistics";
 export * from "./schemas/messaging";
 export * from "./schemas/notification";

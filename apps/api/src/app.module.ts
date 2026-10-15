@@ -29,6 +29,7 @@ import { DocumentModule } from "./modules/document/document.module";
 import { FinanceModule } from "./modules/finance/finance.module";
 import { IntegrationsModule } from "./modules/integrations/integrations.module";
 import { IntelligenceModule } from "./modules/intelligence/intelligence.module";
+import { IssueModule } from "./modules/issue/issue.module";
 import { LogisticsModule } from "./modules/logistics/logistics.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { NotificationModule } from "./modules/notification/notification.module";
@@ -56,6 +57,7 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     OrderModule,
     LogisticsModule,
     DisputeModule,
+    IssueModule,
     FinanceModule,
     AnalyticsModule,
     IntelligenceModule,

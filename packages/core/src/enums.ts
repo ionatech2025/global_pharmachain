@@ -282,6 +282,47 @@ export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
   WITHDRAWN: "Withdrawn",
 };
 
+// ─── Platform support issues & tickets ───────────────────────────────────────
+
+export const ISSUE_CATEGORIES = [
+  "BUG",
+  "FEATURE_REQUEST",
+  "ONBOARDING",
+  "VERIFICATION",
+  "BILLING",
+  "OTHER",
+] as const;
+export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+
+export const ISSUE_CATEGORY_LABELS: Record<IssueCategory, string> = {
+  BUG: "Bug / technical error",
+  FEATURE_REQUEST: "Feature request",
+  ONBOARDING: "Onboarding & setup",
+  VERIFICATION: "Verification & compliance",
+  BILLING: "Billing & credits",
+  OTHER: "General question / other",
+};
+
+export const ISSUE_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
+
+export const ISSUE_PRIORITY_LABELS: Record<IssuePriority, string> = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  CRITICAL: "Critical",
+};
+
+export const ISSUE_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+
+export const ISSUE_STATUS_LABELS: Record<IssueStatus, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+};
+
 export const BOM_STATUSES = ["DRAFT", "ACTIVE", "ARCHIVED"] as const;
 export type BomStatus = (typeof BOM_STATUSES)[number];
 
@@ -307,6 +348,7 @@ export const NOTIFICATION_TYPES = [
   "DISPUTE_UPDATE",
   "APPROVAL_PENDING",
   "PAYMENT_OVERDUE",
+  "ISSUE_UPDATE",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -323,6 +365,7 @@ export const PREFERENCE_EVENT_TYPES = [
   "DELIVERY_FAILED",
   "DOCUMENT_MISSING",
   "DISPUTE_UPDATE",
+  "ISSUE_UPDATE",
 ] as const satisfies readonly NotificationType[];
 export type PreferenceEventType = (typeof PREFERENCE_EVENT_TYPES)[number];
 
@@ -338,6 +381,7 @@ export const PREFERENCE_EVENT_LABELS: Record<PreferenceEventType, string> = {
   DELIVERY_FAILED: "Failed delivery attempts",
   DOCUMENT_MISSING: "Missing shipment documents",
   DISPUTE_UPDATE: "Dispute and complaint updates",
+  ISSUE_UPDATE: "Support issue and ticket updates",
 };
 
 export const ANNOUNCEMENT_AUDIENCES = ["ALL", "ROLE", "COMPANY"] as const;

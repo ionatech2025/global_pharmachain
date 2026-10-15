@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@pharmachain/ui/components/card";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { VerificationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
@@ -51,7 +52,11 @@ export default async function CompanyPage() {
         <CardHeader>
           <CardTitle className="text-sm">Registration details</CardTitle>
           <CardDescription>
-            Fixed at registration — contact the platform team to correct them.
+            Fixed at registration —{" "}
+            <Link href="/issues" className="font-medium text-primary hover:underline">
+              raise a support ticket
+            </Link>{" "}
+            if the platform team needs to correct them.
           </CardDescription>
         </CardHeader>
         <CardContent>

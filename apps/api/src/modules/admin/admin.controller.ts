@@ -16,6 +16,8 @@ import {
   adminRoleReassignSchema,
   announcementSchema,
   auditLogQuerySchema,
+  type BulkClientOnboardInput,
+  bulkClientOnboardSchema,
   creditDecisionSchema,
   exchangeRateUpsertSchema,
   idParamSchema,
@@ -110,6 +112,25 @@ export class AdminController {
   @Get("companies/:id")
   companyDetail(@Param(zodPipe(idParamSchema)) params: { id: string }) {
     return this.adminService.companyDetail(params.id);
+  }
+
+  @HttpCode(201)
+  @Post("companies/onboard")
+  async onboardClients(
+    @Body(zodPipe(bulkClientOnboardSchema)) body: BulkClientOnboardInput,
+    @Req() req: FastifyRequest,
+  ) {
+    const result = await this.adminService.onboardClients(body);
+    setAudit(req, {
+      action: "admin.clients-onboard",
+      entityType: "Company",
+      newValues: {
+        requested: body.clients.length,
+        createdCount: result.created.length,
+        skippedCount: result.skipped.length,
+      },
+    });
+    return result;
   }
 
   @HttpCode(200)

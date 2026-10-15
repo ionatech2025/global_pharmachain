@@ -17,30 +17,64 @@ import { VerificationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { AdminCompanyRow, Paginated } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
+import { OnboardClientsDialog } from "./onboard-clients";
 
 export const metadata = { title: "Companies" };
 
 const TIER_VARIANT = { FREEMIUM: "outline", PREMIUM: "default", FEATURED: "success" } as const;
 
+const STATUS_FILTERS: ReadonlyArray<readonly [string, string]> = [
+  ["", "All"],
+  ["VERIFIED", "Verified"],
+  ["PENDING_VERIFICATION", "Pending"],
+  ["EXPIRED_DOCUMENT", "Expired docs"],
+  ["REJECTED", "Rejected"],
+];
+
 export default async function AdminCompaniesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const api = await apiServer();
   const companies = await api.get<Paginated<AdminCompanyRow>>("/admin/companies", {
-    query: { q: params.q, page: params.page ?? 1 },
+    query: { q: params.q, status: params.status, page: params.page ?? 1 },
   });
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Companies"
-        description="All registered companies; open one to manage verification, tier and members."
+        description="All registered companies; open one to manage verification, tier and members, or onboard a trial client cohort."
       >
         <LiveSearch label="Search companies" placeholder="Search by name…" className="w-64" />
+        <OnboardClientsDialog />
       </PageHeader>
+
+      <div className="flex flex-wrap gap-1 text-sm">
+        {STATUS_FILTERS.map(([value, label]) => {
+          const active = (params.status ?? "") === value;
+          const search = new URLSearchParams();
+          if (value) search.set("status", value);
+          if (params.q) search.set("q", params.q);
+          const qs = search.toString();
+          return (
+            <Link
+              key={label}
+              href={qs ? `/admin/companies?${qs}` : "/admin/companies"}
+              aria-current={active ? "page" : undefined}
+              className={`touch-target rounded-md px-3 py-1.5 transition-colors ${
+                active
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </div>
 
       {companies.items.length === 0 ? (
         <EmptyState
@@ -96,7 +130,7 @@ export default async function AdminCompaniesPage({
             total={companies.total}
             noun="compan(ies)"
             basePath="/admin/companies"
-            params={{ q: params.q }}
+            params={{ q: params.q, status: params.status }}
           />
         </>
       )}

@@ -17,10 +17,13 @@ import {
 import {
   Bell,
   Building2,
+  CheckCircle2,
+  Circle,
   FileClock,
   FileText,
   Inbox,
   Layers,
+  LifeBuoy,
   ListChecks,
   Package,
   Search,
@@ -274,6 +277,15 @@ export default async function DashboardPage() {
         detail: "Shipment updates and appointments",
         href: "/notifications",
       });
+    if ((c?.openIssues ?? 0) > 0)
+      attention.push({
+        key: "issues",
+        icon: LifeBuoy,
+        tone: "info",
+        title: `${c?.openIssues} active support ticket(s)`,
+        detail: "Track replies and resolution from the development team",
+        href: "/issues",
+      });
 
     return (
       <div className="space-y-5">
@@ -427,6 +439,15 @@ export default async function DashboardPage() {
         detail: "Data requests are time-bound — action them promptly",
         href: "/admin/data-requests",
       });
+    if ((p.openIssues ?? 0) > 0)
+      queues.push({
+        key: "issues",
+        icon: LifeBuoy,
+        tone: "warning",
+        title: `${p.openIssues} support issue(s) open`,
+        detail: "Tickets raised by companies for the development team",
+        href: "/admin/issues",
+      });
 
     if (p.jobsNeedingAttention > 0)
       queues.push({
@@ -567,14 +588,14 @@ export default async function DashboardPage() {
             {
               href: "/admin/companies",
               label: "Companies",
-              hint: "Directory and profiles",
+              hint: "Directory, profiles & onboarding",
               icon: Building2,
             },
             {
-              href: "/admin/finance",
-              label: "Platform finance",
-              hint: "Revenue and reconciliation",
-              icon: Wallet,
+              href: "/admin/issues",
+              label: "Support issues",
+              hint: "Client tickets & dev triage",
+              icon: LifeBuoy,
             },
             {
               href: "/admin/disputes",
@@ -644,6 +665,40 @@ export default async function DashboardPage() {
       detail: "Quotes, orders and shipment updates",
       href: "/notifications",
     });
+  if ((c.openIssues ?? 0) > 0)
+    attention.push({
+      key: "issues",
+      icon: LifeBuoy,
+      tone: "info",
+      title: `${c.openIssues} active support ticket(s)`,
+      detail: "Track replies and resolution from the development team",
+      href: "/issues",
+    });
+
+  const onboardingSteps = [
+    {
+      done: c.verificationStatus === "VERIFIED",
+      title: "Verify compliance documents",
+      detail: "Upload your incorporation, trading and regulatory certificates for review.",
+      href: "/company/verification",
+      cta: c.verificationStatus === "VERIFIED" ? "Verified" : "Upload documents",
+    },
+    {
+      done: Boolean(c.profilePublished),
+      title: "Publish your company profile",
+      detail: "Add your capabilities and markets served so counterparties can discover you.",
+      href: "/company",
+      cta: c.profilePublished ? "Published" : "Edit profile",
+    },
+    {
+      done: sells || buys,
+      title: "Start trading on the network",
+      detail: "Raise your first RFQ to source inputs or publish a listing to your catalogue.",
+      href: "/rfqs/new",
+      cta: sells || buys ? "Active" : "Raise an RFQ",
+    },
+  ];
+  const showOnboarding = onboardingSteps.some((s) => !s.done);
 
   return (
     <div className="space-y-5">
@@ -672,6 +727,46 @@ export default async function DashboardPage() {
           </Link>
         </Button>
       </DashboardHeader>
+
+      {showOnboarding && (
+        <Panel>
+          <PanelHeader
+            title="Getting started on PharmaChain"
+            description="Complete these steps to unlock full marketplace discovery and trading."
+          />
+          <PanelBody className="space-y-3">
+            <ol className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+              {onboardingSteps.map((step) => (
+                <li key={step.title} className="min-w-0">
+                  <Link
+                    href={step.href}
+                    className="panel-link flex h-full flex-col justify-between gap-2 rounded-xl border bg-muted/20 p-3.5 text-sm"
+                  >
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      {step.done ? (
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+                      ) : (
+                        <Circle className="mt-0.5 size-4 shrink-0 text-primary" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium leading-snug">{step.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{step.detail}</p>
+                      </div>
+                    </div>
+                    <span className="pl-6 text-xs font-medium text-primary">{step.cta} →</span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            <Provenance>
+              Need help setting up or spotted an issue?{" "}
+              <Link href="/issues" className="font-medium text-primary hover:underline">
+                Raise a support ticket for the development team →
+              </Link>
+            </Provenance>
+          </PanelBody>
+        </Panel>
+      )}
 
       <StatGrid>
         {(buys || fresh) && (
@@ -842,7 +937,12 @@ export default async function DashboardPage() {
             hint: "Certificates and shipment papers",
             icon: FileText,
           },
-          { href: "/finance", label: "Finance", hint: "Invoices, payments, ledger", icon: Wallet },
+          {
+            href: "/issues",
+            label: "Support & issues",
+            hint: "Raise a ticket for the dev team",
+            icon: LifeBuoy,
+          },
         ]}
       />
     </div>

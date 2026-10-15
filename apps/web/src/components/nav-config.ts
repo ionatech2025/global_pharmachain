@@ -8,6 +8,7 @@ import {
   Inbox,
   Landmark,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
   Megaphone,
   MessageSquare,
@@ -50,6 +51,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
           { href: "/admin/companies", label: "Companies", icon: Building2 },
           { href: "/admin/credits", label: "Credit requests", icon: Wallet },
           { href: "/admin/disputes", label: "Disputes", icon: ShieldAlert },
+          { href: "/admin/issues", label: "Support issues", icon: LifeBuoy },
           { href: "/admin/finance", label: "Finance", icon: Landmark },
           { href: "/admin/tax-rules", label: "Tax & duty rules", icon: Percent },
           { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
@@ -80,6 +82,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
         items: [
           { href: "/company/verification", label: "Verification Status", icon: ShieldCheck },
           { href: "/company", label: "Company", icon: Building2 },
+          { href: "/issues", label: "Support & issues", icon: LifeBuoy },
         ],
       },
     ];
@@ -115,6 +118,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
         { href: "/messages", label: "Messages", icon: MessageSquare },
         { href: "/company/verification", label: "Verification Status", icon: ShieldCheck },
         { href: "/company", label: "Company", icon: Building2 },
+        { href: "/issues", label: "Support & issues", icon: LifeBuoy },
         ...(isCompanyAdmin ? [{ href: "/developers", label: "Developers", icon: Code2 }] : []),
       ],
     },
