@@ -14,7 +14,7 @@ import {
 } from "@pharmachain/ui/components/dialog";
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
-import { KeyRound, Plus, Webhook as WebhookIcon } from "lucide-react";
+import { KeyRound, Webhook as WebhookIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";

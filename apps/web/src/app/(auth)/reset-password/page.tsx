@@ -39,7 +39,9 @@ function ResetForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Choose a new password</CardTitle>
+        <CardTitle>
+          <h1>Choose a new password</h1>
+        </CardTitle>
         <CardDescription>
           Resetting signs you out everywhere — all existing sessions are invalidated.
         </CardDescription>

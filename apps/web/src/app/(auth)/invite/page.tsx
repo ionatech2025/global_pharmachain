@@ -26,7 +26,9 @@ function RejectedCard({ reason }: { reason: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>This invitation can’t be used</CardTitle>
+        <CardTitle>
+          <h1>This invitation can’t be used</h1>
+        </CardTitle>
         <CardDescription>{reason}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
@@ -91,7 +93,9 @@ function InviteForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Accept your invitation</CardTitle>
+        <CardTitle>
+          <h1>Accept your invitation</h1>
+        </CardTitle>
         <CardDescription>Set up your account to join your company on PharmaChain.</CardDescription>
       </CardHeader>
       <CardContent>

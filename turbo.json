@@ -4,6 +4,7 @@
   "envMode": "loose",
   "globalEnv": ["NODE_ENV"],
   "globalPassThroughEnv": [
+    "AUTH_SECRET",
     "E2E_BASE_URL",
     "E2E_API_PATH",
     "E2E_API_ORIGIN",

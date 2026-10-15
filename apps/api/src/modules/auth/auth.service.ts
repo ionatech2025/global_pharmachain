@@ -387,22 +387,37 @@ export class AuthService {
       },
     });
     const EXPORT_WINDOW = 500;
-    const [notifications, notificationTotal, loginActivity, loginActivityTotal, messages] =
-      await Promise.all([
-        prisma.notification.findMany({
-          where: { userId },
+    const [
+      notifications,
+      notificationTotal,
+      loginActivity,
+      loginActivityTotal,
+      messages,
+      supportIssues,
+      authoredIssueMessagesCount,
+    ] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: EXPORT_WINDOW,
+      }),
+      prisma.notification.count({ where: { userId } }),
+      prisma.loginActivity.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: EXPORT_WINDOW,
+      }),
+      prisma.loginActivity.count({ where: { userId } }),
+      prisma.message.count({ where: { senderId: userId } }),
+      prisma.supportIssue
+        .findMany({
+          where: { reportedById: userId },
           orderBy: { createdAt: "desc" },
           take: EXPORT_WINDOW,
-        }),
-        prisma.notification.count({ where: { userId } }),
-        prisma.loginActivity.findMany({
-          where: { userId },
-          orderBy: { createdAt: "desc" },
-          take: EXPORT_WINDOW,
-        }),
-        prisma.loginActivity.count({ where: { userId } }),
-        prisma.message.count({ where: { senderId: userId } }),
-      ]);
+        })
+        .catch(() => []),
+      prisma.supportIssueMessage.count({ where: { authorId: userId } }).catch(() => 0),
+    ]);
     return {
       exportedAt: new Date().toISOString(),
       profile: {
@@ -423,6 +438,8 @@ export class AuthService {
       loginActivityTotal,
       loginActivityTruncated: loginActivityTotal > loginActivity.length,
       authoredMessagesCount: messages,
+      supportIssues,
+      authoredIssueMessagesCount,
     };
   }
 

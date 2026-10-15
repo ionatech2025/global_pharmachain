@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { DocumentRequestUpload } from "@pharmachain/core";
 import {
+  can,
   contentMatchesType,
   DOCUMENT_KIND_LABELS,
   formatFileSize,
@@ -309,22 +310,27 @@ export class DocumentService {
     });
   }
 
-  /** Order-scoped document list — both parties and the appointed logistics
-   *  companies see the same set (US-502, Phase 2 §2). */
-  async listOrderDocuments(membership: Membership, orderId: string) {
+  /** Order-scoped document list — both parties, appointed logistics companies,
+   *  and super admins (auditing disputes) see the same set (US-502, Phase 2 §2). */
+  async listOrderDocuments(user: AuthUser, membership: Membership | undefined, orderId: string) {
+    if (!user.isSuperAdmin && (!membership || !can(membership.role, "document:read"))) {
+      throw forbidden();
+    }
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     const isParty =
       order &&
+      membership !== undefined &&
       (order.buyerCompanyId === membership.companyId ||
         order.sellerCompanyId === membership.companyId);
     const appointed =
       order &&
+      membership !== undefined &&
       !isParty &&
       (await prisma.shipmentAppointment.findFirst({
         where: { orderId, companyId: membership.companyId, status: "ACTIVE" },
         select: { id: true },
       }));
-    if (!order || (!isParty && !appointed)) {
+    if (!order || (!user.isSuperAdmin && !isParty && !appointed)) {
       throw notFound("Order not found");
     }
     return prisma.document.findMany({
@@ -402,11 +408,26 @@ export class DocumentService {
         document.listing.status === "PUBLISHED" &&
         document.listing.company.verificationStatus === "VERIFIED";
     } else if (companyId && document.rfq) {
-      allowed =
-        document.rfq.buyerCompanyId === companyId ||
-        (membership !== undefined &&
-          document.rfq.targetCompanyType === membership.company.type &&
-          membership.company.verificationStatus === "VERIFIED");
+      if (document.rfq.buyerCompanyId === companyId) {
+        allowed = true;
+      } else if (
+        membership !== undefined &&
+        document.rfq.targetCompanyType === membership.company.type &&
+        membership.company.verificationStatus === "VERIFIED"
+      ) {
+        allowed = document.rfq.categoryId
+          ? Boolean(
+              await prisma.listing.findFirst({
+                where: {
+                  companyId,
+                  status: "PUBLISHED",
+                  categoryId: document.rfq.categoryId,
+                },
+                select: { id: true },
+              }),
+            )
+          : true;
+      }
     } else if (companyId && document.quotation) {
       allowed =
         document.quotation.supplierCompanyId === companyId ||

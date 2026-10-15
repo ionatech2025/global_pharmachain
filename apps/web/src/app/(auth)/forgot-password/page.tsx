@@ -45,7 +45,9 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
+        <CardTitle>
+          <h1>Reset your password</h1>
+        </CardTitle>
         <CardDescription>
           {sent
             ? "A password reset link (valid for 60 minutes) has been sent to your email."

@@ -214,10 +214,13 @@ export class CatalogueService {
   }
 
   async setActive(membership: Membership, id: string, active: boolean) {
+    if (active) {
+      return this.publish(membership, id);
+    }
     const listing = await this.findOwn(membership, id);
     return prisma.listing.update({
       where: { id: listing.id },
-      data: { status: active ? "PUBLISHED" : "DEACTIVATED" },
+      data: { status: "DEACTIVATED" },
     });
   }
 }
