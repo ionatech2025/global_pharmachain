@@ -60,28 +60,43 @@ async function ensureSupportSchema(): Promise<void> {
   await schemaEnsurePromise;
 }
 
+async function withSupportSchema<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    const msg = String((err as Error)?.message ?? "");
+    if (code === "P2021" || /SupportIssue|does not exist/i.test(msg)) {
+      await ensureSupportSchema();
+      return fn();
+    }
+    throw err;
+  }
+}
+
 @Injectable()
 export class IssueService {
   /** Raise a new platform issue / support ticket for the development team. */
   async create(user: AuthUser, membership: Membership | undefined, body: IssueCreateInput) {
-    await ensureSupportSchema();
     const refNo = generateRefNo("ISS");
-    const issue = await prisma.supportIssue.create({
-      data: {
-        refNo,
-        companyId: membership?.companyId ?? null,
-        reportedById: user.id,
-        category: body.category,
-        priority: body.priority,
-        subject: body.subject,
-        description: body.description,
-        pageUrl: body.pageUrl || null,
-      },
-      include: {
-        company: { select: { id: true, name: true, type: true, country: true } },
-        reportedBy: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const issue = await withSupportSchema(() =>
+      prisma.supportIssue.create({
+        data: {
+          refNo,
+          companyId: membership?.companyId ?? null,
+          reportedById: user.id,
+          category: body.category,
+          priority: body.priority,
+          subject: body.subject,
+          description: body.description,
+          pageUrl: body.pageUrl || null,
+        },
+        include: {
+          company: { select: { id: true, name: true, type: true, country: true } },
+          reportedBy: { select: { id: true, name: true, email: true } },
+        },
+      }),
+    );
 
     const superAdmins = await prisma.user.findMany({
       where: { isSuperAdmin: true, status: "ACTIVE" },
@@ -110,7 +125,6 @@ export class IssueService {
 
   /** Paginated list of issues for the caller's company (or personal account). */
   async listMine(user: AuthUser, membership: Membership | undefined, query: IssueQuery) {
-    await ensureSupportSchema();
     const scopeWhere: Prisma.SupportIssueWhereInput = membership
       ? { companyId: membership.companyId }
       : { reportedById: user.id };
@@ -131,26 +145,28 @@ export class IssueService {
         : {}),
     };
 
-    const [items, total, grouped] = await prisma.$transaction([
-      prisma.supportIssue.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        ...skipTake(query),
-        include: {
-          company: { select: { id: true, name: true } },
-          reportedBy: { select: { id: true, name: true, email: true } },
-          resolvedBy: { select: { id: true, name: true } },
-          _count: { select: { messages: true } },
-        },
-      }),
-      prisma.supportIssue.count({ where }),
-      prisma.supportIssue.groupBy({
-        by: ["status"],
-        where: scopeWhere,
-        orderBy: { status: "asc" },
-        _count: { _all: true },
-      }),
-    ]);
+    const [items, total, grouped] = await withSupportSchema(() =>
+      prisma.$transaction([
+        prisma.supportIssue.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          ...skipTake(query),
+          include: {
+            company: { select: { id: true, name: true } },
+            reportedBy: { select: { id: true, name: true, email: true } },
+            resolvedBy: { select: { id: true, name: true } },
+            _count: { select: { messages: true } },
+          },
+        }),
+        prisma.supportIssue.count({ where }),
+        prisma.supportIssue.groupBy({
+          by: ["status"],
+          where: scopeWhere,
+          orderBy: { status: "asc" },
+          _count: { _all: true },
+        }),
+      ]),
+    );
 
     const byStatus = new Map(
       grouped.map((g) => [
@@ -172,21 +188,22 @@ export class IssueService {
 
   /** Load full ticket detail + conversation thread, enforcing tenant isolation. */
   async detail(user: AuthUser, membership: Membership | undefined, id: string) {
-    await ensureSupportSchema();
-    const issue = await prisma.supportIssue.findUnique({
-      where: { id },
-      include: {
-        company: { select: { id: true, name: true, type: true, country: true } },
-        reportedBy: { select: { id: true, name: true, email: true } },
-        resolvedBy: { select: { id: true, name: true } },
-        messages: {
-          orderBy: { createdAt: "asc" },
-          include: {
-            author: { select: { id: true, name: true, email: true, isSuperAdmin: true } },
+    const issue = await withSupportSchema(() =>
+      prisma.supportIssue.findUnique({
+        where: { id },
+        include: {
+          company: { select: { id: true, name: true, type: true, country: true } },
+          reportedBy: { select: { id: true, name: true, email: true } },
+          resolvedBy: { select: { id: true, name: true } },
+          messages: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              author: { select: { id: true, name: true, email: true, isSuperAdmin: true } },
+            },
           },
         },
-      },
-    });
+      }),
+    );
     if (!issue) throw notFound("Support issue not found");
 
     const canAccess =
@@ -299,7 +316,6 @@ export class IssueService {
   // ─── Platform Admin / Development Team ─────────────────────────────────────
 
   async adminList(query: IssueQuery) {
-    await ensureSupportSchema();
     const where: Prisma.SupportIssueWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.category ? { category: query.category } : {}),
@@ -317,28 +333,30 @@ export class IssueService {
         : {}),
     };
 
-    const [items, total, grouped, criticalOpen] = await prisma.$transaction([
-      prisma.supportIssue.findMany({
-        where,
-        orderBy: [{ createdAt: "desc" }],
-        ...skipTake(query),
-        include: {
-          company: { select: { id: true, name: true, type: true, country: true } },
-          reportedBy: { select: { id: true, name: true, email: true } },
-          resolvedBy: { select: { id: true, name: true } },
-          _count: { select: { messages: true } },
-        },
-      }),
-      prisma.supportIssue.count({ where }),
-      prisma.supportIssue.groupBy({
-        by: ["status"],
-        orderBy: { status: "asc" },
-        _count: { _all: true },
-      }),
-      prisma.supportIssue.count({
-        where: { status: { in: ["OPEN", "IN_PROGRESS"] }, priority: "CRITICAL" },
-      }),
-    ]);
+    const [items, total, grouped, criticalOpen] = await withSupportSchema(() =>
+      prisma.$transaction([
+        prisma.supportIssue.findMany({
+          where,
+          orderBy: [{ createdAt: "desc" }],
+          ...skipTake(query),
+          include: {
+            company: { select: { id: true, name: true, type: true, country: true } },
+            reportedBy: { select: { id: true, name: true, email: true } },
+            resolvedBy: { select: { id: true, name: true } },
+            _count: { select: { messages: true } },
+          },
+        }),
+        prisma.supportIssue.count({ where }),
+        prisma.supportIssue.groupBy({
+          by: ["status"],
+          orderBy: { status: "asc" },
+          _count: { _all: true },
+        }),
+        prisma.supportIssue.count({
+          where: { status: { in: ["OPEN", "IN_PROGRESS"] }, priority: "CRITICAL" },
+        }),
+      ]),
+    );
 
     const byStatus = new Map(
       grouped.map((g) => [
@@ -360,8 +378,7 @@ export class IssueService {
   }
 
   async adminUpdate(admin: AuthUser, id: string, body: IssueAdminUpdateInput) {
-    await ensureSupportSchema();
-    const before = await prisma.supportIssue.findUnique({ where: { id } });
+    const before = await withSupportSchema(() => prisma.supportIssue.findUnique({ where: { id } }));
     if (!before) throw notFound("Support issue not found");
 
     const nextStatus = body.status ?? before.status;

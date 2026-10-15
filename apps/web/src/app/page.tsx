@@ -201,7 +201,7 @@ export default async function LandingPage() {
             <Link href="/" aria-label="Global PharmaChain home">
               <Logo markClassName="size-7 sm:size-8" wordClassName="text-base sm:text-xl" />
             </Link>
-            <nav className="hidden items-center gap-1 md:flex" aria-label="Landing sections">
+            <nav className="hidden items-center gap-1 lg:flex" aria-label="Landing sections">
               {NAV_LINKS.map((link) => (
                 <a
                   key={link.href}
