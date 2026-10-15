@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import type { VerificationDecision } from "@pharmachain/core";
-import { requiredVerificationKinds } from "@pharmachain/core";
+import {
+  type BulkClientOnboardInput,
+  generateRefNo,
+  requiredVerificationKinds,
+  type VerificationDecision,
+} from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
 import { Prisma, prisma } from "@pharmachain/db";
 import {
@@ -12,6 +16,7 @@ import { notify } from "@pharmachain/notifications";
 import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import { hashToken, randomToken } from "../../lib/crypto";
+import { defer } from "../../lib/defer";
 import { buildVerificationChecklist, describeBlocking } from "../company/verification-checklist";
 import { sendEmailTo } from "../shared/mailer";
 
@@ -282,5 +287,170 @@ export class AdminService {
       return anonymized;
     }, SERIALIZABLE);
     return { before: { email: user.email }, anonymized };
+  }
+
+  /**
+   * Provision a single or bulk cohort of client companies (up to 200 at once).
+   * Each company gets an active Company Admin account and a 7-day password-setup
+   * link (plus immediate OTP login access), skipping existing emails/reg numbers
+   * without failing the batch.
+   */
+  async onboardClients(input: BulkClientOnboardInput) {
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const created: Array<{
+      companyId: string;
+      companyName: string;
+      contactName: string;
+      contactEmail: string;
+      registrationNumber: string;
+      setupUrl: string;
+    }> = [];
+    const skipped: Array<{
+      companyName: string;
+      contactEmail: string;
+      reason: string;
+    }> = [];
+
+    const seenEmails = new Set<string>();
+    const seenRegs = new Set<string>();
+    const candidates: Array<{
+      row: (typeof input.clients)[number];
+      email: string;
+      regNo: string;
+    }> = [];
+
+    for (const row of input.clients) {
+      const email = row.contactEmail.trim().toLowerCase();
+      const regNo = (row.registrationNumber?.trim() || generateRefNo("REG")).toUpperCase();
+
+      if (seenEmails.has(email) || seenRegs.has(regNo)) {
+        skipped.push({
+          companyName: row.companyName,
+          contactEmail: email,
+          reason: "Duplicate email or registration number in batch",
+        });
+        continue;
+      }
+      seenEmails.add(email);
+      seenRegs.add(regNo);
+      candidates.push({ row, email, regNo });
+    }
+
+    if (candidates.length === 0) {
+      return { created, skipped };
+    }
+
+    // Batch lookup: 2 queries total for the entire 100-200 client cohort instead of 2N.
+    const [existingUsers, existingCompanies] = await Promise.all([
+      prisma.user.findMany({
+        where: { email: { in: candidates.map((c) => c.email) } },
+        select: { email: true },
+      }),
+      prisma.company.findMany({
+        where: { registrationNumber: { in: candidates.map((c) => c.regNo) } },
+        select: { registrationNumber: true },
+      }),
+    ]);
+
+    const takenEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
+    const takenRegs = new Set(existingCompanies.map((c) => c.registrationNumber.toUpperCase()));
+
+    const toCreate: typeof candidates = [];
+    for (const item of candidates) {
+      if (takenEmails.has(item.email)) {
+        skipped.push({
+          companyName: item.row.companyName,
+          contactEmail: item.email,
+          reason: "Email already registered",
+        });
+      } else if (takenRegs.has(item.regNo)) {
+        skipped.push({
+          companyName: item.row.companyName,
+          contactEmail: item.email,
+          reason: `Registration number ${item.regNo} already registered`,
+        });
+      } else {
+        toCreate.push(item);
+      }
+    }
+
+    // Bounded concurrency (10 per wave) so a 100-client batch completes well
+    // inside serverless timeouts without exhausting connection pool slots.
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < toCreate.length; i += CHUNK_SIZE) {
+      const chunk = toCreate.slice(i, i + CHUNK_SIZE);
+      const batchCreated = await Promise.all(
+        chunk.map(async ({ row, email, regNo }) => {
+          const token = randomToken();
+          const company = await prisma.$transaction(async (tx) => {
+            const company = await tx.company.create({
+              data: {
+                name: row.companyName.trim(),
+                type: row.companyType,
+                country: row.country.trim(),
+                address: row.address?.trim() || `${row.country.trim()} (Registered Office)`,
+                registrationNumber: regNo,
+                primaryContactName: row.contactName.trim(),
+                primaryContactEmail: email,
+                primaryContactPhone: row.contactPhone?.trim() || null,
+              },
+            });
+            const user = await tx.user.create({
+              data: {
+                email,
+                name: row.contactName.trim(),
+                status: "ACTIVE",
+              },
+            });
+            await tx.companyUserRole.create({
+              data: {
+                userId: user.id,
+                companyId: company.id,
+                role: "COMPANY_ADMIN",
+              },
+            });
+            await tx.passwordResetToken.create({
+              data: {
+                userId: user.id,
+                tokenHash: hashToken(token),
+                expiresAt: new Date(Date.now() + SEVEN_DAYS_MS),
+              },
+            });
+            return company;
+          });
+
+          const setupUrl = `${env.APP_URL}/reset-password?token=${token}`;
+          return {
+            companyId: company.id,
+            companyName: company.name,
+            contactName: row.contactName.trim(),
+            contactEmail: email,
+            registrationNumber: regNo,
+            setupUrl,
+          };
+        }),
+      );
+      created.push(...batchCreated);
+    }
+
+    if (input.sendWelcomeEmail && created.length > 0) {
+      defer(
+        Promise.allSettled(
+          created.map((item) =>
+            sendEmailTo(
+              item.contactEmail,
+              genericEventEmail({
+                title: `Welcome to PharmaChain — ${item.companyName} is ready`,
+                body: `Your company "${item.companyName}" has been set up on PharmaChain.\n\nUse the button below to choose your password (or sign in anytime using a one-time email code at ${env.APP_URL}/login).`,
+                url: item.setupUrl,
+                cta: "Set password & sign in",
+              }),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return { created, skipped };
   }
 }

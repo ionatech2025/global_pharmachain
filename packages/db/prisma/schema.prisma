@@ -241,6 +241,30 @@ enum NotificationType {
   DISPUTE_UPDATE
   APPROVAL_PENDING
   PAYMENT_OVERDUE
+  ISSUE_UPDATE
+}
+
+enum IssueCategory {
+  BUG
+  FEATURE_REQUEST
+  ONBOARDING
+  VERIFICATION
+  BILLING
+  OTHER
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 enum AnnouncementAudience {
@@ -335,6 +359,7 @@ model Company {
   ratingsReceived        Rating[]          @relation("RatingsReceived")
   webhooks               Webhook[]
   apiKeys                ApiKey[]
+  supportIssues          SupportIssue[]
 
   @@index([verificationStatus])
   @@index([type, verificationStatus])
@@ -398,6 +423,9 @@ model User {
   ratingsAuthored         Rating[]
   pushSubscriptions       PushSubscription[]
   dashboardPreference     DashboardPreference?
+  issuesReported          SupportIssue[]          @relation("IssueReporter")
+  issuesResolved          SupportIssue[]          @relation("IssueResolver")
+  issueMessages           SupportIssueMessage[]
 }
 
 // One membership per user in Phase 1 (US-201: an email active in another
@@ -1102,6 +1130,49 @@ model Dispute {
 
   @@index([orderId, createdAt])
   @@index([status, createdAt])
+}
+
+// Platform support issues & tickets: raised by any user/company for the
+// development / platform team to triage, reply to and resolve.
+model SupportIssue {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  refNo        String        @unique
+  companyId    String?       @db.Uuid
+  reportedById String        @db.Uuid
+  category     IssueCategory @default(BUG)
+  priority     IssuePriority @default(MEDIUM)
+  status       IssueStatus   @default(OPEN)
+  subject      String
+  description  String
+  pageUrl      String?
+  resolution   String?
+  resolvedById String?       @db.Uuid
+  resolvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  company    Company?              @relation(fields: [companyId], references: [id])
+  reportedBy User                  @relation("IssueReporter", fields: [reportedById], references: [id])
+  resolvedBy User?                 @relation("IssueResolver", fields: [resolvedById], references: [id])
+  messages   SupportIssueMessage[]
+
+  @@index([companyId, createdAt])
+  @@index([reportedById, createdAt])
+  @@index([status, priority, createdAt])
+}
+
+model SupportIssueMessage {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  issueId   String   @db.Uuid
+  authorId  String   @db.Uuid
+  isStaff   Boolean  @default(false)
+  body      String
+  createdAt DateTime @default(now())
+
+  issue  SupportIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id])
+
+  @@index([issueId, createdAt])
 }
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────

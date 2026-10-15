@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@pharmachain/ui/components/command";
-import { FilePlus2, Monitor, Moon, PackagePlus, Search, Sun } from "lucide-react";
+import { FilePlus2, LifeBuoy, Monitor, Moon, PackagePlus, Search, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
@@ -71,10 +71,10 @@ export function CommandMenu({ sections, canTrade }: { sections: NavSection[]; ca
               ))}
             </CommandGroup>
           ))}
-          {canTrade && (
-            <>
-              <CommandSeparator />
-              <CommandGroup heading="Quick actions">
+          <CommandSeparator />
+          <CommandGroup heading="Quick actions">
+            {canTrade && (
+              <>
                 <CommandItem onSelect={() => run(() => router.push("/rfqs/new"))}>
                   <FilePlus2 />
                   Raise an RFQ
@@ -83,9 +83,17 @@ export function CommandMenu({ sections, canTrade }: { sections: NavSection[]; ca
                   <PackagePlus />
                   Add a listing
                 </CommandItem>
-              </CommandGroup>
-            </>
-          )}
+              </>
+            )}
+            <CommandItem
+              onSelect={() =>
+                run(() => window.dispatchEvent(new CustomEvent("pharmachain:open-issue-dialog")))
+              }
+            >
+              <LifeBuoy />
+              Report an issue / support ticket
+            </CommandItem>
+          </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Appearance">
             <CommandItem onSelect={() => run(() => setTheme("light"))}>

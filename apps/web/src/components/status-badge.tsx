@@ -1,4 +1,8 @@
 import {
+  ISSUE_PRIORITY_LABELS,
+  ISSUE_STATUS_LABELS,
+  type IssuePriority,
+  type IssueStatus,
   ORDER_STATUS_LABELS,
   type OrderStatus,
   QUOTATION_STATUS_LABELS,
@@ -164,4 +168,35 @@ export function CreditStatusBadge({ status }: { status: string }) {
 export function TierBadge({ tier }: { tier: string }) {
   if (tier === "FREEMIUM") return null;
   return <StatusBadge variant="warning" label={tier === "FEATURED" ? "Featured" : "Premium"} />;
+}
+
+const ISSUE_STATUS_VARIANTS: Record<IssueStatus, Variant> = {
+  OPEN: "warning",
+  IN_PROGRESS: "info",
+  RESOLVED: "success",
+  CLOSED: "secondary",
+};
+
+export function IssueStatusBadge({ status }: { status: IssueStatus }) {
+  return (
+    <StatusBadge
+      variant={ISSUE_STATUS_VARIANTS[status] ?? "secondary"}
+      label={ISSUE_STATUS_LABELS[status] ?? status}
+    />
+  );
+}
+
+const ISSUE_PRIORITY_VARIANTS: Record<IssuePriority, Variant> = {
+  LOW: "outline",
+  MEDIUM: "secondary",
+  HIGH: "warning",
+  CRITICAL: "destructive",
+};
+
+export function IssuePriorityBadge({ priority }: { priority: IssuePriority }) {
+  return (
+    <Badge variant={ISSUE_PRIORITY_VARIANTS[priority] ?? "secondary"}>
+      {ISSUE_PRIORITY_LABELS[priority] ?? priority}
+    </Badge>
+  );
 }

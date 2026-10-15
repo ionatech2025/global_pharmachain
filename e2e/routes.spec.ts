@@ -88,6 +88,7 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     await visit(page, "/company", /Nile Pharma Industries/i);
     await visit(page, "/company/usage", /usage|credit|limit/i);
     await visit(page, "/company/verification", /verif/i);
+    await visit(page, "/issues", /support|issue|ticket/i);
   });
 
   test("marketplace + a public listing + a public company profile", async () => {
@@ -185,7 +186,47 @@ test.describe("Super admin routes render platform data", () => {
     await visit(page, "/admin/logins", /login|activity|admin@nilepharma/i);
     await visit(page, "/admin/audit", /audit|action|company.verify/i);
     await visit(page, "/admin/data-requests", /deletion|data request|Former/i);
+    await visit(page, "/admin/issues", /support|issue|ticket/i);
     const companyId = await firstId(page, "/admin/companies");
     if (companyId) await visit(page, `/admin/companies/${companyId}`, /verif|document|check|tier/i);
+  });
+
+  test("support issue lifecycle, mobile responsiveness and a11y", async ({ browser }) => {
+    const buyer = await signIn(browser, "ops@nilepharma.demo", DEMO_PW);
+    const created = await buyer.request.post(`${API_PATH}/issues`, {
+      data: {
+        category: "ONBOARDING",
+        priority: "MEDIUM",
+        subject: "E2E support ticket verification",
+        description: "Automated verification of the support issue lifecycle.",
+        pageUrl: "/company/verification",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const issue = await created.json();
+    expect(issue.refNo).toMatch(/^ISS-\d{4}-/);
+
+    await visit(buyer, `/issues/${issue.id}`, new RegExp(issue.refNo));
+
+    // Mobile viewport (375x812) sweep: confirm zero horizontal overflow on /issues and /issues/:id
+    await buyer.setViewportSize({ width: 375, height: 812 });
+    for (const path of ["/issues", `/issues/${issue.id}`]) {
+      await buyer.goto(path, { waitUntil: "domcontentloaded" });
+      await expect(buyer.locator("main")).toBeVisible();
+      const overflow = await buyer.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `horizontal overflow on ${path} at 375px`).toBeLessThanOrEqual(0);
+    }
+    await buyer.context().close();
+
+    // Super admin resolves and closes the test ticket so no open test noise remains.
+    const resolved = await page.request.patch(`${API_PATH}/admin/issues/${issue.id}`, {
+      data: {
+        status: "CLOSED",
+        resolution: "Verified end-to-end by automated route suite.",
+      },
+    });
+    expect(resolved.ok()).toBeTruthy();
   });
 });

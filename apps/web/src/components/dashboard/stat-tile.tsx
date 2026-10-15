@@ -1,5 +1,5 @@
 import { cn } from "@pharmachain/ui/lib/utils";
-import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Children, type ComponentType, type ReactNode } from "react";
 import { Sparkline } from "./charts";
@@ -115,7 +115,13 @@ export function StatTile({
             <Icon className="size-3.5" />
           </span>
         )}
-        <p className="min-w-0 truncate text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">{label}</p>
+        {href && (
+          <ArrowUpRight
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover/tile:translate-x-0.5 group-hover/tile:-translate-y-0.5 group-hover/tile:text-primary"
+          />
+        )}
       </div>
       <div className="mt-3 flex items-end justify-between gap-3">
         <p className="figure text-[1.7rem] leading-none">{value}</p>
@@ -145,7 +151,7 @@ export function StatTile({
 
   const className = "panel p-4";
   return href ? (
-    <Link href={href} className={cn(className, "panel-link block")}>
+    <Link href={href} className={cn(className, "panel-link group/tile block")}>
       {body}
     </Link>
   ) : (
