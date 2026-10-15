@@ -1,5 +1,5 @@
-import { type Browser, expect, type Page, test } from "@playwright/test";
-import { ADMIN_PASSWORD, API_PATH, DEMO_PASSWORD as PASSWORD, signIn } from "./helpers";
+import { type Browser, expect, test } from "@playwright/test";
+import { ADMIN_PASSWORD, API_PATH, signIn } from "./helpers";
 
 /**
  * Phase 1 golden path against the seeded demo stack (see e2e/README.md):

@@ -1,5 +1,5 @@
 import { DetailSkeleton } from "@/components/page-skeleton";
 
-export default function Loading() {
+export default function MarketplaceListingLoading() {
   return <DetailSkeleton />;
 }

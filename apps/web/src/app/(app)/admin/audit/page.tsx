@@ -21,6 +21,12 @@ function fmtJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function safeIsoDate(raw: string | undefined, endOfDay = false): string | undefined {
+  if (!raw) return undefined;
+  const d = new Date(endOfDay ? `${raw}T23:59:59Z` : raw);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 export default async function AdminAuditPage({
   searchParams,
 }: {
@@ -38,8 +44,8 @@ export default async function AdminAuditPage({
     query: {
       actorEmail: params.actorEmail || undefined,
       entityType: params.entityType || undefined,
-      from: params.from ? new Date(params.from).toISOString() : undefined,
-      to: params.to ? new Date(`${params.to}T23:59:59Z`).toISOString() : undefined,
+      from: safeIsoDate(params.from),
+      to: safeIsoDate(params.to, true),
       page: params.page ?? 1,
     },
   });

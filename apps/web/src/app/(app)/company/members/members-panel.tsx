@@ -1,7 +1,6 @@
 "use client";
 
 import { COMPANY_ROLE_LABELS, COMPANY_ROLES, type CompanyRole } from "@pharmachain/core";
-import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,

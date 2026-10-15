@@ -97,7 +97,9 @@ function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
+        <CardTitle>
+          <h1>Sign in</h1>
+        </CardTitle>
         <CardDescription>
           {params.get("registered")
             ? "Registration received — sign in to upload your verification documents."

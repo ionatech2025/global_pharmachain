@@ -94,7 +94,9 @@ function RegisterForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Register your company</CardTitle>
+        <CardTitle>
+          <h1>Register your company</h1>
+        </CardTitle>
         <CardDescription>
           Self-service onboarding — your company starts in “pending verification” until our team
           reviews your compliance documents.

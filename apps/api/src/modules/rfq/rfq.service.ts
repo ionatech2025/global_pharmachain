@@ -226,6 +226,29 @@ export class RfqService {
     return paginate(items, total, query);
   }
 
+  private async isEligibleSupplierForRfq(
+    membership: Membership | undefined,
+    rfq: { targetCompanyType: CompanyType; categoryId: string | null },
+  ): Promise<boolean> {
+    if (
+      !membership ||
+      membership.company.type !== rfq.targetCompanyType ||
+      membership.company.verificationStatus !== "VERIFIED"
+    ) {
+      return false;
+    }
+    if (!rfq.categoryId) return true;
+    const match = await prisma.listing.findFirst({
+      where: {
+        companyId: membership.companyId,
+        status: "PUBLISHED",
+        categoryId: rfq.categoryId,
+      },
+      select: { id: true },
+    });
+    return match !== null;
+  }
+
   async getRfq(user: AuthUser, membership: Membership | undefined, rfqId: string) {
     const rfq = await prisma.rfq.findUnique({
       where: { id: rfqId },
@@ -243,10 +266,7 @@ export class RfqService {
     if (!rfq) throw notFound("RFQ not found");
 
     const isBuyer = membership?.companyId === rfq.buyerCompanyId;
-    const isEligibleSupplier =
-      membership !== undefined &&
-      membership.company.type === rfq.targetCompanyType &&
-      membership.company.verificationStatus === "VERIFIED";
+    const isEligibleSupplier = !isBuyer && (await this.isEligibleSupplierForRfq(membership, rfq));
     if (!isBuyer && !isEligibleSupplier && !user.isSuperAdmin) throw notFound("RFQ not found");
 
     const myQuotation =
@@ -344,6 +364,9 @@ export class RfqService {
     }
     if (rfq.targetCompanyType !== membership.company.type) {
       throw forbidden("This RFQ is not targeted at your company category");
+    }
+    if (!(await this.isEligibleSupplierForRfq(membership, rfq))) {
+      throw forbidden("This RFQ requires a published listing in its material category");
     }
     this.assertRfqOpenForQuoting(rfq);
 

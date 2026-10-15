@@ -1,4 +1,3 @@
-import type { AuthenticatedUser } from "@pharmachain/auth";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";

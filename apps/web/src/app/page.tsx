@@ -177,7 +177,7 @@ export default async function LandingPage() {
 
   return (
     <ThemeOnlyProviders>
-      <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex min-h-screen flex-col overflow-x-clip bg-background">
         {/* Announcement topbar */}
         <div className="border-b bg-muted/40">
           <div className="mx-auto flex h-9 w-full max-w-7xl items-center justify-center gap-4 px-4 text-xs text-muted-foreground sm:justify-between sm:px-6">

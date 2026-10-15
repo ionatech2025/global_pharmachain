@@ -95,8 +95,10 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     await visit(page, "/marketplace", /Paracetamol|marketplace|catalogue|listings/i);
     const search = await page.request.get(`${API_PATH}/catalogue/search?page=1`);
     const item = (await search.json()).items?.[0];
-    if (item?.id)
+    if (item?.id) {
+      await visit(page, `/marketplace/${item.id}`, new RegExp(item.name.slice(0, 12), "i"));
       await visit(page, `/catalogue/${item.id}`, new RegExp(item.name.slice(0, 12), "i"));
+    }
     if (item?.company?.id)
       await visit(page, `/companies/${item.company.id}`, /Kampala|Fine Chemicals|profile/i);
   });
@@ -185,6 +187,7 @@ test.describe("Super admin routes render platform data", () => {
     await visit(page, "/admin/parameters", /parameter|FX|exchange|rate/i);
     await visit(page, "/admin/logins", /login|activity|admin@nilepharma/i);
     await visit(page, "/admin/audit", /audit|action|company.verify/i);
+    await visit(page, "/admin/audit?from=not-a-date", /audit/i);
     await visit(page, "/admin/data-requests", /deletion|data request|Former/i);
     await visit(page, "/admin/issues", /support|issue|ticket/i);
     const companyId = await firstId(page, "/admin/companies");
@@ -193,6 +196,11 @@ test.describe("Super admin routes render platform data", () => {
 
   test("support issue lifecycle, mobile responsiveness and a11y", async ({ browser }) => {
     const buyer = await signIn(browser, "ops@nilepharma.demo", DEMO_PW);
+    const orderId = await firstId(buyer, "/orders?page=1");
+    if (orderId) {
+      // H-03: Super Admin can inspect an order detail page (and its documents) without 403
+      await visit(page, `/orders/${orderId}`, /ORD-|Order documents/i);
+    }
     const created = await buyer.request.post(`${API_PATH}/issues`, {
       data: {
         category: "ONBOARDING",

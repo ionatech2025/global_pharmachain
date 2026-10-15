@@ -209,7 +209,7 @@ export class MessagingService {
    * and reconnects (EventSource Last-Event-ID) resume from the right point.
    * Streams complete after ~55 s; the browser reconnects automatically.
    */
-  streamChanges(membership: Membership, threadId: string, since: Date): Observable<MessageEvent> {
+  streamChanges(_membership: Membership, threadId: string, since: Date): Observable<MessageEvent> {
     return new Observable<MessageEvent>((subscriber) => {
       let cursor = since;
       let stopped = false;

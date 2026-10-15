@@ -123,13 +123,13 @@ export class OrderController {
     };
   }
 
-  /** Order document space (US-501/502). */
-  @RequirePermission("document:read")
+  /** Order document space (US-501/502; super admins may inspect for disputes). */
   @Get(":id/documents")
   documents(
-    @CurrentMembership() membership: Membership,
+    @CurrentUser() user: AuthUser,
+    @OptionalMembership() membership: Membership | undefined,
     @Param(zodPipe(idParamSchema)) params: { id: string },
   ) {
-    return this.documentService.listOrderDocuments(membership, params.id);
+    return this.documentService.listOrderDocuments(user, membership, params.id);
   }
 }
