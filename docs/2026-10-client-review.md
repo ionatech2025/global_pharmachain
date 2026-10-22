@@ -136,6 +136,29 @@ topology, and it was measured, not assumed:
   missed two backtick-prefixed lines, and the admin status filter would have
   rejected the new statuses.
 
+## Release (2026-10-22)
+
+Order mattered and was followed: **migrate, then deploy.**
+
+1. `db-migrate` run `39838307030` on this branch: *before* — one pending migration
+   (`20261022000000_company_suspension`; the Oct 15 support migration was already
+   applied and is idempotent anyway); *after* — applied, host masked.
+2. `scripts/deploy-vercel.sh` from this branch (PR #20, CI `verify` green). Two
+   attempts died on the known transient `fetch failed`; the third released, with the
+   script's own fail-closed checks (`sin1`, `nodejs24.x`, streaming) passing.
+3. Verified live without credentials: functions in `sin1`, `/health/ready` ok; the new
+   reset-password answer is served (no `sent` flag); a free-text country is refused with
+   a 400 before any write; the new hero labels and the `select option` rule are in the
+   served HTML/CSS; no `localhost` in the output.
+
+**Not yet verified in production:** anything behind sign-in (the admin
+Deactivate/Delete controls, the in-app disclaimer, the expiry field) and the
+production e2e run, because both need `SEED_DEMO_PASSWORD` and
+`SEED_SUPER_ADMIN_PASSWORD`. Run
+`E2E_BASE_URL=https://global-pharmachain.vercel.app SEED_DEMO_PASSWORD=… SEED_SUPER_ADMIN_PASSWORD=… bun run test:e2e --retries=1`.
+Note the new spec's lifecycle case registers and then archives one company
+(`Review Lifecycle … Ltd`), and its last case is skipped on deployed targets.
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,
