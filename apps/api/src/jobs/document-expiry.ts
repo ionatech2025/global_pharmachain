@@ -1,4 +1,4 @@
-import { DOCUMENT_KIND_LABELS, PARAM_KEYS } from "@pharmachain/core";
+import { DOCUMENT_KIND_LABELS, EXPIRY_ENFORCED_KINDS, PARAM_KEYS } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
@@ -68,16 +68,7 @@ export async function runDocumentExpiryJob(now = new Date()): Promise<void> {
       uploadCompletedAt: { not: null },
       expiresAt: { lt: now },
       ownerCompany: { verificationStatus: "VERIFIED" },
-      kind: {
-        in: [
-          "CERTIFICATE_OF_INCORPORATION",
-          "TRADING_LICENCE",
-          "TAX_ID",
-          "IMPORT_EXPORT_LICENCE",
-          "MANUFACTURING_LICENCE",
-          "GMP_CERTIFICATE",
-        ],
-      },
+      kind: { in: [...EXPIRY_ENFORCED_KINDS] },
     },
     select: { ownerCompanyId: true, fileName: true, kind: true },
   });

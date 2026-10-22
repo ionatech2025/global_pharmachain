@@ -16,7 +16,12 @@ import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
 import type { AdminCompanyDetail } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
-import { MemberOverrides, TierSelect, VerificationDecision } from "./review-panel";
+import {
+  CompanyAccessControls,
+  MemberOverrides,
+  TierSelect,
+  VerificationDecision,
+} from "./review-panel";
 
 export const metadata = { title: "Company review" };
 
@@ -128,15 +133,35 @@ export default async function AdminCompanyPage({ params }: { params: Promise<{ i
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Members & overrides</CardTitle>
+          <CardTitle className="text-sm">Company access</CardTitle>
           <CardDescription>
-            Every override requires a reason, is audited, and emails the affected user.
+            Deactivate to lock the whole company out (reversible). Delete is permanent and only
+            available once deactivated.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <MemberOverrides members={company.members} />
+          <CompanyAccessControls
+            companyId={company.id}
+            companyName={company.name}
+            status={company.verificationStatus}
+          />
         </CardContent>
       </Card>
+
+      {company.verificationStatus !== "DELETED" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Members & overrides</CardTitle>
+            <CardDescription>
+              Every override requires a reason, is audited, and emails the affected user. Roles
+              inside the company are managed by its own admins.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MemberOverrides members={company.members} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

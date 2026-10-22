@@ -169,7 +169,7 @@ export function IssueThread({
         <CardHeader>
           <CardTitle className="text-sm">Discussion & updates ({issue.messages.length})</CardTitle>
           <CardDescription>
-            Replies between your team and the PharmaChain development team.
+            Replies between your team and the Global PharmaChain development team.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

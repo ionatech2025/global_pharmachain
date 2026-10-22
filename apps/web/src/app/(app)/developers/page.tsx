@@ -59,7 +59,7 @@ export default async function DevelopersPage() {
       <PageHeader
         eyebrow="Integrations"
         title="Developers"
-        description="Connect PharmaChain to the systems your company already runs on."
+        description="Connect Global PharmaChain to the systems your company already runs on."
       >
         <div className="flex gap-2">
           <CreateWebhookButton />
@@ -76,7 +76,7 @@ export default async function DevelopersPage() {
         <CardHeader>
           <CardTitle className="text-sm">What this section is for</CardTitle>
           <CardDescription>
-            Optional. Everything here can also be done by hand in PharmaChain — this is for
+            Optional. Everything here can also be done by hand in Global PharmaChain — this is for
             companies that would rather their own systems did it.
           </CardDescription>
         </CardHeader>
@@ -84,7 +84,7 @@ export default async function DevelopersPage() {
           <div>
             <p className="font-medium">Stop re-keying orders</p>
             <p className="text-muted-foreground">
-              Pull your PharmaChain orders, quantities and totals straight into your ERP or
+              Pull your Global PharmaChain orders, quantities and totals straight into your ERP or
               accounting system instead of copying them across.
             </p>
           </div>

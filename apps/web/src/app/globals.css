@@ -226,6 +226,24 @@
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+  /*
+   * Native <select> popups. Every select in the app is `bg-transparent` so it
+   * blends into its card, and its options inherit that. Chromium on Windows and
+   * Linux (Chrome, Edge, Opera) cannot paint a transparent option row, so it
+   * falls back to white while the text stays the theme's near-white in dark
+   * mode — an unreadable list (reported twice: 2026-08-19 and 2026-10-22). The
+   * popup is OS-painted and ignores every other property, but it does honour an
+   * explicit opaque colour pair on the options, so give them the popover tokens.
+   * Contrast of the pair is asserted in e2e/client-review.spec.ts.
+   */
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+  select option:disabled {
+    color: var(--muted-foreground);
+  }
 }
 
 @layer utilities {

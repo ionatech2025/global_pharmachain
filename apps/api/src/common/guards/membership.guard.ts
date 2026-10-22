@@ -1,6 +1,8 @@
 import { type CanActivate, type ExecutionContext, Injectable } from "@nestjs/common";
+import { companyAccessBlocked } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import type { FastifyRequest } from "fastify";
+import { ApiException } from "../errors";
 
 /**
  * Loads the caller's company membership fresh from the database (no stale
@@ -28,6 +30,15 @@ export class MembershipGuard implements CanActivate {
         },
       });
       if (membership) {
+        // Suspension also bumps every member's session version, so this is the
+        // backstop for a request already past that check.
+        if (companyAccessBlocked(membership.company.verificationStatus)) {
+          throw new ApiException(
+            403,
+            "COMPANY_SUSPENDED",
+            "Your company's access has been suspended by a platform administrator.",
+          );
+        }
         req.membership = {
           companyId: membership.companyId,
           role: membership.role,

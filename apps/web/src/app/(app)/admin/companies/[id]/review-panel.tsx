@@ -2,10 +2,10 @@
 
 import {
   COMPANY_ROLE_LABELS,
-  COMPANY_ROLES,
   type CompanyRole,
   SUBSCRIPTION_TIERS,
   type SubscriptionTier,
+  type VerificationStatus,
 } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@pharmachain/ui/components/dropdown-menu";
+import { Input } from "@pharmachain/ui/components/input";
 import {
   Table,
   TableBody,
@@ -34,7 +35,7 @@ import {
 import { Textarea } from "@pharmachain/ui/components/textarea";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UserStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
@@ -148,8 +149,18 @@ type OverrideAction =
   | { kind: "role"; role: CompanyRole }
   | { kind: "anonymize" };
 
-/** Super-admin user overrides (US-203) + GDPR anonymize (US-1003). */
+/**
+ * Super-admin user overrides (US-203) + GDPR anonymize (US-1003).
+ *
+ * Day-to-day roles (Operations, Finance) belong to the company's own admins, so
+ * they are not offered here. The one role action a platform admin keeps is
+ * appointing a Company Admin when the company has none — otherwise it would be
+ * locked out of its own account for good.
+ */
 export function MemberOverrides({ members }: { members: MemberRow[] }) {
+  const hasActiveAdmin = members.some(
+    (m) => m.role === "COMPANY_ADMIN" && m.user.status === "ACTIVE",
+  );
   const router = useRouter();
   const [pending, setPending] = useState<{ member: MemberRow; action: OverrideAction } | null>(
     null,
@@ -166,7 +177,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
       case "reactivate":
         return "reactivate the account";
       case "role":
-        return `reassign the role to ${COMPANY_ROLE_LABELS[action.role]}`;
+        return `appoint this member as ${COMPANY_ROLE_LABELS[action.role]} (the company has none)`;
       case "anonymize":
         return "permanently anonymize the account (GDPR deletion — irreversible)";
     }
@@ -242,15 +253,15 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
                         Reactivate
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator />
-                    {COMPANY_ROLES.filter((r) => r !== member.role).map((role) => (
+                    {!hasActiveAdmin && member.role !== "COMPANY_ADMIN" && (
                       <DropdownMenuItem
-                        key={role}
-                        onClick={() => setPending({ member, action: { kind: "role", role } })}
+                        onClick={() =>
+                          setPending({ member, action: { kind: "role", role: "COMPANY_ADMIN" } })
+                        }
                       >
-                        Make {COMPANY_ROLE_LABELS[role]}
+                        Appoint as Company Admin
                       </DropdownMenuItem>
-                    ))}
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       variant="destructive"
@@ -292,6 +303,192 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
               onClick={run}
             >
               {busy ? "Applying…" : "Apply override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+type LifecycleAction = "suspend" | "reactivate" | "delete";
+
+interface Obligations {
+  openOrders: number;
+  openDisputes: number;
+  pendingPayments: number;
+}
+
+const LIFECYCLE_COPY: Record<LifecycleAction, { title: string; body: string; button: string }> = {
+  suspend: {
+    title: "Deactivate company",
+    body: "Every member is signed out at once and cannot sign back in, and nothing the company published stays visible. Nothing is erased — you can reactivate it.",
+    button: "Deactivate company",
+  },
+  reactivate: {
+    title: "Reactivate company",
+    body: "Members can sign in again. The company returns to Verified if it was verified before and its documents still pass; otherwise it goes back into the verification queue.",
+    button: "Reactivate company",
+  },
+  delete: {
+    title: "Delete company",
+    body: "Permanent. Every member's personal data is erased, the primary contact is removed, API keys and invitations are revoked and listings withdrawn. Trading records (orders, documents, audit entries) are kept for the statutory retention period, so the company's registration number stays reserved.",
+    button: "Delete company permanently",
+  },
+};
+
+/**
+ * Company-level access control. Deactivation is reversible; deletion is a
+ * second, deliberate step available only once the company is deactivated, and
+ * it is refused while orders, disputes or payments are still in flight.
+ */
+export function CompanyAccessControls({
+  companyId,
+  companyName,
+  status,
+}: {
+  companyId: string;
+  companyName: string;
+  status: VerificationStatus;
+}) {
+  const router = useRouter();
+  const [action, setAction] = useState<LifecycleAction | null>(null);
+  const [reason, setReason] = useState("");
+  const [confirmName, setConfirmName] = useState("");
+  const [obligations, setObligations] = useState<Obligations | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (action !== "delete") return;
+    let cancelled = false;
+    setObligations(null);
+    api
+      .get<Obligations>(`/admin/companies/${companyId}/obligations`)
+      .then((o) => !cancelled && setObligations(o))
+      .catch((err) => toast.error(errorMessage(err)));
+    return () => {
+      cancelled = true;
+    };
+  }, [action, companyId]);
+
+  if (status === "DELETED") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This company was deleted. Its personal data has been erased; its trading records are
+        retained for the statutory period.
+      </p>
+    );
+  }
+
+  const blockers = obligations
+    ? obligations.openOrders + obligations.openDisputes + obligations.pendingPayments
+    : null;
+  const nameMatches = confirmName.trim().toLowerCase() === companyName.trim().toLowerCase();
+  const canSubmit =
+    !busy && reason.trim().length >= 5 && (action !== "delete" || (nameMatches && blockers === 0));
+
+  function close() {
+    setAction(null);
+    setReason("");
+    setConfirmName("");
+  }
+
+  async function run() {
+    if (!action) return;
+    setBusy(true);
+    try {
+      await api.post(`/admin/companies/${companyId}/${action}`, {
+        reason,
+        ...(action === "delete" ? { confirmName } : {}),
+      });
+      toast.success(
+        action === "delete"
+          ? "Company deleted"
+          : action === "suspend"
+            ? "Company deactivated — members have been signed out"
+            : "Company reactivated",
+      );
+      close();
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const copy = action ? LIFECYCLE_COPY[action] : null;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        {status === "SUSPENDED" ? (
+          <>
+            <Button variant="outline" onClick={() => setAction("reactivate")}>
+              Reactivate company
+            </Button>
+            <Button variant="destructive" onClick={() => setAction("delete")}>
+              Delete company…
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={() => setAction("suspend")}>
+            Deactivate company
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={action !== null} onOpenChange={(open) => !open && close()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{copy?.title}</DialogTitle>
+            <DialogDescription>
+              {copy?.body} A reason (min 5 characters) is required and is audited.
+            </DialogDescription>
+          </DialogHeader>
+          {action === "delete" && (
+            <div className="grid gap-3 text-sm">
+              {obligations === null ? (
+                <p className="text-muted-foreground">Checking for open obligations…</p>
+              ) : blockers === 0 ? (
+                <p className="text-success">Nothing in flight — this company can be deleted.</p>
+              ) : (
+                <p role="alert" className="text-destructive">
+                  Cannot delete yet: {obligations.openOrders} order(s) not delivered,{" "}
+                  {obligations.openDisputes} open dispute(s), {obligations.pendingPayments} pending
+                  payment(s).
+                </p>
+              )}
+              <div className="grid gap-1.5">
+                <label htmlFor="confirm-company-name" className="text-muted-foreground">
+                  Type <span className="font-medium text-foreground">{companyName}</span> to confirm
+                </label>
+                <Input
+                  id="confirm-company-name"
+                  autoComplete="off"
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <Textarea
+            rows={3}
+            placeholder="Reason…"
+            aria-label="Reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              variant={action === "delete" || action === "suspend" ? "destructive" : "default"}
+              disabled={!canSubmit}
+              onClick={run}
+            >
+              {busy ? "Applying…" : copy?.button}
             </Button>
           </DialogFooter>
         </DialogContent>

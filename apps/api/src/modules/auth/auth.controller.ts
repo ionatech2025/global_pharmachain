@@ -77,8 +77,8 @@ export class AuthController {
   @HttpCode(200)
   @Post("password/forgot")
   async forgotPassword(@Body(zodPipe(forgotPasswordSchema)) body: { email: string }) {
-    const result = await this.authService.forgotPassword(body.email);
-    return { ok: true, ...result };
+    const { message } = await this.authService.forgotPassword(body.email);
+    return { ok: true, message };
   }
 
   @Public()

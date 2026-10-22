@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 // PharmaChain installable as a standalone app with the brand icons.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PharmaChain — B2B pharmaceutical marketplace",
+    name: "Global PharmaChain — B2B pharmaceutical marketplace",
     short_name: "PharmaChain",
     description:
       "Source pharmaceutical raw materials and finished products from verified companies — RFQs, quotations, orders, shipment tracking and compliant document exchange.",

@@ -221,7 +221,7 @@ export class CompanyService {
     await sendEmailTo(
       user.email,
       genericEventEmail({
-        title: "Your PharmaChain access was deactivated",
+        title: "Your Global PharmaChain access was deactivated",
         body: "Your account was deactivated by your Company Admin. Contact them if you believe this is an error.",
       }),
     );
@@ -251,7 +251,7 @@ export class CompanyService {
     });
     // US-201 TC4: an email already active in a company is rejected
     if (existingUser?.membership) {
-      throw conflict("This email is already registered to a company on PharmaChain");
+      throw conflict("This email is already registered to a company on Global PharmaChain");
     }
     const pending = await prisma.invite.findFirst({
       where: {

@@ -18,23 +18,19 @@ import { errorMessage } from "@/lib/api/http";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await api.post<{ ok: boolean; sent: boolean; message: string }>(
-        "/auth/password/forgot",
-        { email },
-      );
-      if (res.sent) {
-        setSent(true);
-        toast.success(res.message);
-      } else {
-        toast.error(res.message || "No account exists for that email address.");
-      }
+      // The API answers the same for registered and unregistered addresses on
+      // purpose (account enumeration) — never branch on whether one existed.
+      const res = await api.post<{ ok: boolean; message: string }>("/auth/password/forgot", {
+        email,
+      });
+      setMessage(res.message);
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -49,16 +45,28 @@ export default function ForgotPasswordPage() {
           <h1>Reset your password</h1>
         </CardTitle>
         <CardDescription>
-          {sent
-            ? "A password reset link (valid for 60 minutes) has been sent to your email."
-            : "Enter your work email and we'll send a reset link."}
+          {message ??
+            "Enter your work email and, if it belongs to an active account, we'll send a reset link."}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {sent ? (
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Back to sign in</Link>
-          </Button>
+        {message ? (
+          <div className="grid gap-3">
+            <p role="status" className="text-sm text-muted-foreground">
+              Check your inbox (and spam folder). Wrong address?{" "}
+              <button
+                type="button"
+                className="text-primary underline"
+                onClick={() => setMessage(null)}
+              >
+                Try another email
+              </button>
+              .
+            </p>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/login">Back to sign in</Link>
+            </Button>
+          </div>
         ) : (
           <form onSubmit={submit} className="grid gap-4">
             <div className="grid gap-2">

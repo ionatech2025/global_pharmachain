@@ -63,7 +63,7 @@ function InviteForm() {
       });
       // Freshly set credentials — sign straight in
       await signIn("credentials", { email: user.email, password, redirect: false });
-      toast.success("Welcome to PharmaChain");
+      toast.success("Welcome to Global PharmaChain");
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -96,7 +96,9 @@ function InviteForm() {
         <CardTitle>
           <h1>Accept your invitation</h1>
         </CardTitle>
-        <CardDescription>Set up your account to join your company on PharmaChain.</CardDescription>
+        <CardDescription>
+          Set up your account to join your company on Global PharmaChain.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-4">

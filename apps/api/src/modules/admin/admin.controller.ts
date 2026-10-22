@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import {
   type AnnouncementInput,
+  adminCompanyDeleteSchema,
   adminReasonSchema,
   adminRoleReassignSchema,
   announcementSchema,
@@ -28,6 +29,7 @@ import {
   parameterUpdateSchema,
   skipTake,
   tierUpdateSchema,
+  VERIFICATION_STATUSES,
   validateParamValue,
 } from "@pharmachain/core";
 import type { CompanyRole, Prisma, SubscriptionTier } from "@pharmachain/db";
@@ -47,9 +49,7 @@ import { platformStats } from "../dashboard/dashboard.service";
 import { AdminService } from "./admin.service";
 
 const companiesQuerySchema = paginationQuerySchema.extend({
-  status: optionalFilter(
-    z.enum(["PENDING_VERIFICATION", "VERIFIED", "REJECTED", "EXPIRED_DOCUMENT"]),
-  ),
+  status: optionalFilter(z.enum(VERIFICATION_STATUSES)),
   q: optionalFilter(z.string().max(120)),
 });
 type CompaniesQuery = z.infer<typeof companiesQuerySchema>;
@@ -85,7 +85,8 @@ export class AdminController {
   @Get("companies")
   async companies(@Query(zodPipe(companiesQuerySchema)) query: CompaniesQuery) {
     const where: Prisma.CompanyWhereInput = {
-      ...(query.status ? { verificationStatus: query.status } : {}),
+      // Deleted companies are archived: out of the default list, reachable by filtering.
+      verificationStatus: query.status ?? { not: "DELETED" },
       ...(query.q ? { name: { contains: query.q, mode: "insensitive" } } : {}),
     };
     const [items, total] = await prisma.$transaction([
@@ -152,6 +153,75 @@ export class AdminController {
       companyId: params.id,
       oldValues: { verificationStatus: result.previousStatus },
       newValues: { verificationStatus: result.approved ? "VERIFIED" : "REJECTED" },
+      reason: body.reason,
+    });
+    return { ok: true };
+  }
+
+  // ── Company lifecycle (platform admin) ─────────────────────────────────────
+
+  /** Open obligations a deletion would strand — shown in the confirm dialog. */
+  @Get("companies/:id/obligations")
+  obligations(@Param(zodPipe(idParamSchema)) params: { id: string }) {
+    return this.adminService.companyObligations(params.id);
+  }
+
+  @HttpCode(200)
+  @Post("companies/:id/suspend")
+  async suspendCompany(
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(adminReasonSchema)) body: { reason: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const { previousStatus } = await this.adminService.suspendCompany(params.id);
+    setAudit(req, {
+      action: "admin.company-suspend",
+      entityType: "Company",
+      entityId: params.id,
+      companyId: params.id,
+      oldValues: { verificationStatus: previousStatus },
+      newValues: { verificationStatus: "SUSPENDED" },
+      reason: body.reason,
+    });
+    return { ok: true };
+  }
+
+  @HttpCode(200)
+  @Post("companies/:id/reactivate")
+  async reactivateCompany(
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(adminReasonSchema)) body: { reason: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const { nextStatus } = await this.adminService.reactivateCompany(params.id);
+    setAudit(req, {
+      action: "admin.company-reactivate",
+      entityType: "Company",
+      entityId: params.id,
+      companyId: params.id,
+      oldValues: { verificationStatus: "SUSPENDED" },
+      newValues: { verificationStatus: nextStatus },
+      reason: body.reason,
+    });
+    return { ok: true, status: nextStatus };
+  }
+
+  @HttpCode(200)
+  @Post("companies/:id/delete")
+  async deleteCompany(
+    @CurrentUser() user: AuthUser,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(adminCompanyDeleteSchema)) body: { reason: string; confirmName: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const { before } = await this.adminService.deleteCompany(user.id, params.id, body.confirmName);
+    setAudit(req, {
+      action: "admin.company-delete",
+      entityType: "Company",
+      entityId: params.id,
+      companyId: params.id,
+      oldValues: before,
+      newValues: { verificationStatus: "DELETED" },
       reason: body.reason,
     });
     return { ok: true };

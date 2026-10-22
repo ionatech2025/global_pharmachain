@@ -59,6 +59,8 @@ export const VERIFICATION_STATUSES = [
   "VERIFIED",
   "REJECTED",
   "EXPIRED_DOCUMENT",
+  "SUSPENDED",
+  "DELETED",
 ] as const;
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
@@ -67,7 +69,14 @@ export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
   VERIFIED: "Verified",
   REJECTED: "Rejected",
   EXPIRED_DOCUMENT: "Document expired",
+  SUSPENDED: "Suspended",
+  DELETED: "Deleted",
 };
+
+/** Statuses a platform admin puts a company in: its members cannot sign in or act. */
+export function companyAccessBlocked(status: VerificationStatus): boolean {
+  return status === "SUSPENDED" || status === "DELETED";
+}
 
 export const PROFILE_STATUSES = ["DRAFT", "PUBLISHED"] as const;
 export type ProfileStatus = (typeof PROFILE_STATUSES)[number];

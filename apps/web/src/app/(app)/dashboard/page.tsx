@@ -471,7 +471,7 @@ export default async function DashboardPage() {
           scopeNote={`Live · last ${window} days`}
           subtitle={
             <>
-              <span className="font-medium text-foreground">PharmaChain platform</span>
+              <span className="font-medium text-foreground">Global PharmaChain platform</span>
               <span aria-hidden="true">·</span>
               <span>network-wide counts across every company</span>
             </>
@@ -731,7 +731,7 @@ export default async function DashboardPage() {
       {showOnboarding && (
         <Panel>
           <PanelHeader
-            title="Getting started on PharmaChain"
+            title="Getting started on Global PharmaChain"
             description="Complete these steps to unlock full marketplace discovery and trading."
           />
           <PanelBody className="space-y-3">

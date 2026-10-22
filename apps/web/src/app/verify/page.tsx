@@ -8,7 +8,7 @@ import { VerifyForm } from "./verify-form";
 export const metadata: Metadata = {
   title: "Verify a shipment",
   description:
-    "Anti-counterfeit verification: check any PharmaChain trace hash against the tamper-evident supply-chain ledger.",
+    "Anti-counterfeit verification: check any Global PharmaChain trace hash against the tamper-evident supply-chain ledger.",
 };
 
 /**
@@ -30,15 +30,15 @@ export default async function VerifyPage({
     <ThemeOnlyProviders nonce={nonce}>
       <main className="flex min-h-screen flex-col bg-background">
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-10">
-          <Link href="/" aria-label="PharmaChain home" className="mb-8">
+          <Link href="/" aria-label="Global PharmaChain home" className="mb-8">
             <Logo markClassName="size-8" wordClassName="text-lg" />
           </Link>
           <p className="eyebrow text-primary">Anti-counterfeit check</p>
           <h1 className="text-display mt-3 text-3xl sm:text-4xl">Verify a shipment event</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Every supply-chain event on PharmaChain is sealed into a hash-chained ledger. Enter the
-            order reference and the trace hash from the shipment paperwork — if the ledger is intact
-            and the hash belongs to it, the event is authentic.
+            Every supply-chain event on Global PharmaChain is sealed into a hash-chained ledger.
+            Enter the order reference and the trace hash from the shipment paperwork — if the ledger
+            is intact and the hash belongs to it, the event is authentic.
           </p>
           <VerifyForm
             initialOrderNo={params.orderNo ?? ""}

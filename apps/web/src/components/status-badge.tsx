@@ -68,6 +68,8 @@ const VERIFICATION_VARIANTS: Record<VerificationStatus, Variant> = {
   VERIFIED: "success",
   REJECTED: "destructive",
   EXPIRED_DOCUMENT: "destructive",
+  SUSPENDED: "destructive",
+  DELETED: "secondary",
 };
 
 export function RfqStatusBadge({ status }: { status: RfqStatus }) {

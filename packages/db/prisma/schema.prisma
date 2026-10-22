@@ -38,6 +38,11 @@ enum VerificationStatus {
   VERIFIED
   REJECTED
   EXPIRED_DOCUMENT
+  // Platform-admin lifecycle. SUSPENDED is reversible: no member can sign in and
+  // nothing the company published is visible. DELETED is the archived end state:
+  // members' personal data erased, trading records retained (EU GDP: >= 5 years).
+  SUSPENDED
+  DELETED
 }
 
 enum ProfileStatus {

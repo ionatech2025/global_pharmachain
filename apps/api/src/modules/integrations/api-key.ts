@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { ApiScope } from "@pharmachain/core";
+import { type ApiScope, companyAccessBlocked } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import type { FastifyRequest } from "fastify";
 import { ApiException } from "../../common/errors";
@@ -40,9 +40,17 @@ export async function authenticateApiKey(
       "Provide an API key: Authorization: Bearer pck_…",
     );
   }
-  const key = await prisma.apiKey.findUnique({ where: { hashedKey: hashApiKey(token) } });
+  const key = await prisma.apiKey.findUnique({
+    where: { hashedKey: hashApiKey(token) },
+    include: { company: { select: { verificationStatus: true } } },
+  });
   if (!key || key.revokedAt) {
     throw new ApiException(401, "API_KEY_INVALID", "Unknown or revoked API key");
+  }
+  // A suspended or deleted company's keys stop working at once, unrevoked, so
+  // reactivation brings its integrations back without re-issuing secrets.
+  if (companyAccessBlocked(key.company.verificationStatus)) {
+    throw new ApiException(403, "COMPANY_SUSPENDED", "This company's access has been suspended");
   }
   if (!key.scopes.includes(requiredScope)) {
     throw new ApiException(403, "API_SCOPE_MISSING", `This key lacks the ${requiredScope} scope`);

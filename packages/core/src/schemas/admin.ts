@@ -75,6 +75,15 @@ export const adminRoleReassignSchema = adminReasonSchema.extend({
   role: z.enum(COMPANY_ROLES),
 });
 
+/**
+ * Deleting a company is irreversible, so the admin must type the company's
+ * name back — the same guard GitHub and Stripe put on destructive actions.
+ * The API compares it to the stored name; this only checks it was supplied.
+ */
+export const adminCompanyDeleteSchema = adminReasonSchema.extend({
+  confirmName: z.string().min(1).max(200),
+});
+
 export const exchangeRateUpsertSchema = z
   .object({
     base: currencySchema,

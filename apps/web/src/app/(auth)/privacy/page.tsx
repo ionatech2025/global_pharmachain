@@ -12,9 +12,9 @@ export default function PrivacyPage() {
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-muted-foreground">
         <p>
-          PharmaChain processes company and user data solely to operate this B2B sourcing platform:
-          registration and verification, catalogue listings, RFQs and quotations, orders and
-          shipment visibility, documents, and messaging between trading parties.
+          Global PharmaChain processes company and user data solely to operate this B2B sourcing
+          platform: registration and verification, catalogue listings, RFQs and quotations, orders
+          and shipment visibility, documents, and messaging between trading parties.
         </p>
         <p>
           <strong className="text-foreground">What we store.</strong> Account details (name, work

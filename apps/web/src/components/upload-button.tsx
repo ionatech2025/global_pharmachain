@@ -4,6 +4,7 @@ import type { DocumentKind } from "@pharmachain/core";
 import {
   ALLOWED_MIMES,
   describeAllowedTypes,
+  expiryAccepted,
   expiryRequired,
   MAX_FILE_SIZE_LABEL,
   validateUpload,
@@ -53,6 +54,7 @@ export function UploadButton({
   // and the user can always switch it back to "All files".
   const [rejected, setRejected] = useState<string | null>(null);
   const needsExpiry = expiryRequired(kind);
+  const offersExpiry = expiryAccepted(kind);
   const accept = ALLOWED_MIMES[kind].join(",");
 
   function pick(picked: File | null) {
@@ -96,7 +98,11 @@ export function UploadButton({
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>
             {describeAllowedTypes(kind)}, max {MAX_FILE_SIZE_LABEL}.{" "}
-            {needsExpiry ? "Licence documents require an expiry date." : ""}
+            {needsExpiry
+              ? "Licence documents require an expiry date."
+              : offersExpiry
+                ? "Add an expiry date if the document has one — we alert you before it lapses."
+                : ""}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
@@ -117,9 +123,11 @@ export function UploadButton({
               </p>
             )}
           </div>
-          {(needsExpiry || kind === "GMP_CERTIFICATE") && (
+          {offersExpiry && (
             <div className="grid gap-2">
-              <Label htmlFor={`expiry-${kind}`}>Expiry date</Label>
+              <Label htmlFor={`expiry-${kind}`}>
+                Expiry date{needsExpiry ? "" : " (optional)"}
+              </Label>
               <Input
                 id={`expiry-${kind}`}
                 type="date"

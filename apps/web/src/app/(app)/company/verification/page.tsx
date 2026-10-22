@@ -98,7 +98,8 @@ export default async function VerificationPage() {
         <CardHeader>
           <CardTitle className="text-sm">Required documents</CardTitle>
           <CardDescription>
-            PDF, JPG or PNG, max {MAX_FILE_SIZE_LABEL}. Licences require an expiry date.
+            PDF, JPG or PNG, max {MAX_FILE_SIZE_LABEL}. Licences require an expiry date; add one to
+            any other document that expires.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -3,6 +3,7 @@ import {
   type BulkClientOnboardInput,
   generateRefNo,
   requiredVerificationKinds,
+  VERIFICATION_DOCUMENT_KINDS,
   type VerificationDecision,
 } from "@pharmachain/core";
 import type { CompanyRole } from "@pharmachain/db";
@@ -50,17 +51,7 @@ export class AdminService {
         ownerCompanyId: companyId,
         status: { in: ["ACTIVE", "SUPERSEDED"] },
         uploadCompletedAt: { not: null },
-        kind: {
-          in: [
-            "CERTIFICATE_OF_INCORPORATION",
-            "TRADING_LICENCE",
-            "TAX_ID",
-            "IMPORT_EXPORT_LICENCE",
-            "MANUFACTURING_LICENCE",
-            "GMP_CERTIFICATE",
-            "OTHER_COMPLIANCE",
-          ],
-        },
+        kind: { in: [...VERIFICATION_DOCUMENT_KINDS] },
       },
       orderBy: [{ kind: "asc" }, { version: "desc" }],
       include: { uploadedBy: { select: { name: true } } },
@@ -198,24 +189,36 @@ export class AdminService {
     return updated;
   }
 
+  /**
+   * Break-glass only. Who is Operations or Finance staff is the company's own
+   * decision, made by its Company Admin — a platform admin has no business
+   * assigning day-to-day roles inside someone else's company (client review,
+   * 2026-10-22). The one case that needs the platform is a company left with no
+   * active Company Admin and nobody able to appoint one (US-203): then a
+   * member can be promoted, and nothing else.
+   */
   async adminReassignRole(userId: string, role: CompanyRole) {
+    if (role !== "COMPANY_ADMIN") {
+      throw badRequest(
+        "Platform administrators can only appoint a Company Admin, and only to a company that has none. Other roles are managed by the company's own admins.",
+      );
+    }
     const user = await this.loadUser(userId);
     if (!user.membership) throw conflict("This user has no company membership");
     const oldRole = user.membership.role;
     const membership = user.membership;
     const updated = await prisma.$transaction(async (tx) => {
-      if (membership.role === "COMPANY_ADMIN" && role !== "COMPANY_ADMIN") {
-        const otherAdmins = await tx.companyUserRole.count({
-          where: {
-            companyId: membership.companyId,
-            role: "COMPANY_ADMIN",
-            userId: { not: userId },
-            user: { status: "ACTIVE" },
-          },
-        });
-        if (otherAdmins === 0) {
-          throw forbidden("A company must keep at least one active Company Admin");
-        }
+      const activeAdmins = await tx.companyUserRole.count({
+        where: {
+          companyId: membership.companyId,
+          role: "COMPANY_ADMIN",
+          user: { status: "ACTIVE" },
+        },
+      });
+      if (activeAdmins > 0) {
+        throw conflict(
+          "This company already has an active Company Admin — roles are managed by its admins",
+        );
       }
       return tx.companyUserRole.update({ where: { userId }, data: { role } });
     }, SERIALIZABLE);
@@ -226,11 +229,53 @@ export class AdminService {
       body: `Your role is now ${role}.`,
       href: "/account",
       emailContent: genericEventEmail({
-        title: "Your PharmaChain role changed",
+        title: "Your Global PharmaChain role changed",
         body: `A platform administrator changed your role to ${role}.`,
       }),
     });
     return { oldRole, updated };
+  }
+
+  /** The personal-data half of GDPR anonymization, shared by the single-user
+   *  override and by company deletion so the two can never erase differently. */
+  private async tombstoneUser(
+    tx: Prisma.TransactionClient,
+    adminId: string,
+    user: { id: string; email: string },
+  ) {
+    const anonymized = await tx.user.update({
+      where: { id: user.id },
+      data: {
+        email: `deleted-${user.id}@anonymized.invalid`,
+        name: "Deleted User",
+        passwordHash: null,
+        whatsappNumber: null,
+        whatsappVerifiedAt: null,
+        status: "DEACTIVATED",
+        deactivatedAt: new Date(),
+        anonymizedAt: new Date(),
+        sessionVersion: { increment: 1 },
+      },
+    });
+    await tx.dataDeletionRequest.updateMany({
+      where: { userId: user.id, status: "PENDING" },
+      data: { status: "COMPLETED", completedById: adminId, completedAt: new Date() },
+    });
+    // Strip PII from historical login records; keep the rows for audit counts.
+    await tx.loginActivity.updateMany({
+      where: { userId: user.id },
+      data: { email: "anonymized", ip: null, userAgent: null },
+    });
+    // Invitations addressed to this email also carry PII.
+    await tx.invite.updateMany({
+      where: { email: user.email },
+      data: { email: `deleted-${user.id}@anonymized.invalid` },
+    });
+    // Deliberately retained: AuditLog.actorEmail (legal-basis audit trail,
+    // US-903) and Company.primaryContact* (company business record, owned
+    // by the company rather than the user) — unless the company itself is
+    // being deleted, which tombstones those too.
+    return anonymized;
   }
 
   /** GDPR anonymization (US-1003): personal data tombstoned; business records
@@ -253,40 +298,163 @@ export class AdminService {
           throw conflict("Reassign another Company Admin before anonymizing this user");
         }
       }
-      const anonymized = await tx.user.update({
-        where: { id: userId },
-        data: {
-          email: `deleted-${userId}@anonymized.invalid`,
-          name: "Deleted User",
-          passwordHash: null,
-          whatsappNumber: null,
-          whatsappVerifiedAt: null,
-          status: "DEACTIVATED",
-          deactivatedAt: new Date(),
-          anonymizedAt: new Date(),
-          sessionVersion: { increment: 1 },
-        },
-      });
-      await tx.dataDeletionRequest.updateMany({
-        where: { userId, status: "PENDING" },
-        data: { status: "COMPLETED", completedById: adminId, completedAt: new Date() },
-      });
-      // Strip PII from historical login records; keep the rows for audit counts.
-      await tx.loginActivity.updateMany({
-        where: { userId },
-        data: { email: "anonymized", ip: null, userAgent: null },
-      });
-      // Invitations addressed to this email also carry PII.
-      await tx.invite.updateMany({
-        where: { email: user.email },
-        data: { email: `deleted-${userId}@anonymized.invalid` },
-      });
-      // Deliberately retained: AuditLog.actorEmail (legal-basis audit trail,
-      // US-903) and Company.primaryContact* (company business record, owned
-      // by the company rather than the user).
-      return anonymized;
+      return this.tombstoneUser(tx, adminId, user);
     }, SERIALIZABLE);
     return { before: { email: user.email }, anonymized };
+  }
+
+  // ── Company lifecycle: suspend / reactivate / delete ───────────────────────
+
+  private async loadCompanyForLifecycle(companyId: string) {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: { members: { include: { user: true } } },
+    });
+    if (!company) throw notFound("Company not found");
+    return company;
+  }
+
+  /**
+   * What a company still owes the platform: orders not yet confirmed delivered,
+   * disputes still open, payments still pending. Deleting a company out from
+   * under these would strand a counterparty mid-trade, so it is refused.
+   */
+  async companyObligations(companyId: string) {
+    const parties = [{ buyerCompanyId: companyId }, { sellerCompanyId: companyId }];
+    const [openOrders, openDisputes, pendingPayments] = await Promise.all([
+      prisma.order.count({ where: { OR: parties, status: { not: "DELIVERY_CONFIRMED" } } }),
+      prisma.dispute.count({
+        where: { order: { OR: parties }, status: { in: ["OPEN", "ESCALATED"] } },
+      }),
+      prisma.payment.count({ where: { payerCompanyId: companyId, status: "PENDING" } }),
+    ]);
+    return { openOrders, openDisputes, pendingPayments };
+  }
+
+  private mailMembers(
+    company: Awaited<ReturnType<AdminService["loadCompanyForLifecycle"]>>,
+    title: string,
+    body: string,
+  ) {
+    const recipients = new Set(
+      company.members.filter((m) => m.user.status === "ACTIVE").map((m) => m.user.email),
+    );
+    defer(
+      Promise.allSettled(
+        [...recipients].map((to) => sendEmailTo(to, genericEventEmail({ title, body }))),
+      ),
+    );
+  }
+
+  /** Reversible. Members are signed out at once and cannot sign back in; the
+   *  company stops appearing anywhere (listings, directory, RFQ reach). */
+  async suspendCompany(companyId: string) {
+    const company = await this.loadCompanyForLifecycle(companyId);
+    if (company.verificationStatus === "SUSPENDED") throw conflict("Company is already suspended");
+    if (company.verificationStatus === "DELETED") throw conflict("Company has been deleted");
+    await prisma.$transaction([
+      prisma.company.update({
+        where: { id: companyId },
+        data: { verificationStatus: "SUSPENDED" },
+      }),
+      // Every member's session version moves on, so open sessions die on their next request.
+      prisma.user.updateMany({
+        where: { membership: { companyId } },
+        data: { sessionVersion: { increment: 1 } },
+      }),
+    ]);
+    this.mailMembers(
+      company,
+      "Your company's access has been suspended",
+      `A platform administrator has suspended ${company.name}. Members cannot sign in until it is reactivated. Contact support if this is unexpected.`,
+    );
+    return { previousStatus: company.verificationStatus, companyName: company.name };
+  }
+
+  /** Back to VERIFIED only when it was verified before and its documents still
+   *  pass; otherwise into the verification queue — never silently trusted. */
+  async reactivateCompany(companyId: string) {
+    const company = await this.loadCompanyForLifecycle(companyId);
+    if (company.verificationStatus !== "SUSPENDED") {
+      throw conflict("Only a suspended company can be reactivated");
+    }
+    const checklist = await buildVerificationChecklist(companyId);
+    const next = company.verifiedAt && checklist.complete ? "VERIFIED" : "PENDING_VERIFICATION";
+    await prisma.company.update({ where: { id: companyId }, data: { verificationStatus: next } });
+    this.mailMembers(
+      company,
+      "Your company's access has been restored",
+      next === "VERIFIED"
+        ? `${company.name} has been reactivated and is verified again. You can sign in.`
+        : `${company.name} has been reactivated. It is back in the verification queue — marketplace actions unlock once it is verified again.`,
+    );
+    return { nextStatus: next, companyName: company.name };
+  }
+
+  /**
+   * Irreversible, so deliberately hard to reach: the company must already be
+   * suspended, the admin must type its name, and nothing may be in flight.
+   * Rows are NOT removed — EU GDP requires transaction records to be kept for
+   * at least five years, and every order, document and audit entry hangs off
+   * the company. What goes is everything personal: members are anonymised,
+   * the primary contact tombstoned, keys and invitations revoked, listings
+   * withdrawn.
+   */
+  async deleteCompany(adminId: string, companyId: string, confirmName: string) {
+    const company = await this.loadCompanyForLifecycle(companyId);
+    if (company.verificationStatus === "DELETED") throw conflict("Company is already deleted");
+    if (company.verificationStatus !== "SUSPENDED") {
+      throw conflict("Suspend the company first — deletion is a second, deliberate step");
+    }
+    if (confirmName.trim().toLowerCase() !== company.name.trim().toLowerCase()) {
+      throw badRequest("The name you typed does not match this company — nothing was deleted");
+    }
+    const obligations = await this.companyObligations(companyId);
+    if (obligations.openOrders + obligations.openDisputes + obligations.pendingPayments > 0) {
+      throw conflict(
+        `Cannot delete: ${obligations.openOrders} order(s) not yet delivered, ${obligations.openDisputes} open dispute(s) and ${obligations.pendingPayments} pending payment(s). Let them finish, or keep the company suspended.`,
+      );
+    }
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.company.update({
+        where: { id: companyId },
+        data: {
+          verificationStatus: "DELETED",
+          profileStatus: "DRAFT",
+          primaryContactName: "Deleted contact",
+          primaryContactEmail: `deleted-${companyId}@anonymized.invalid`,
+          primaryContactPhone: null,
+        },
+      });
+      for (const { user } of company.members) {
+        // Platform staff never hold a company membership; if one somehow does,
+        // leave the account (it is not the company's to erase).
+        if (!user.isSuperAdmin) await this.tombstoneUser(tx, adminId, user);
+      }
+      await tx.invite.updateMany({
+        where: { companyId, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.apiKey.updateMany({
+        where: { companyId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.webhook.updateMany({ where: { companyId, active: true }, data: { active: false } });
+      await tx.listing.updateMany({
+        where: { companyId, status: "PUBLISHED" },
+        data: { status: "DEACTIVATED" },
+      });
+    }, SERIALIZABLE);
+    return {
+      before: {
+        name: company.name,
+        type: company.type,
+        country: company.country,
+        registrationNumber: company.registrationNumber,
+        memberCount: company.members.length,
+      },
+    };
   }
 
   /**
@@ -440,8 +608,8 @@ export class AdminService {
             sendEmailTo(
               item.contactEmail,
               genericEventEmail({
-                title: `Welcome to PharmaChain — ${item.companyName} is ready`,
-                body: `Your company "${item.companyName}" has been set up on PharmaChain.\n\nUse the button below to choose your password (or sign in anytime using a one-time email code at ${env.APP_URL}/login).`,
+                title: `Welcome to Global PharmaChain — ${item.companyName} is ready`,
+                body: `Your company "${item.companyName}" has been set up on Global PharmaChain.\n\nUse the button below to choose your password (or sign in anytime using a one-time email code at ${env.APP_URL}/login).`,
                 url: item.setupUrl,
                 cta: "Set password & sign in",
               }),
