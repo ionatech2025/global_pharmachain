@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import type { RegisterInput } from "@pharmachain/core";
+import { companyAccessBlocked, type RegisterInput } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail, otpEmail, passwordResetEmail, welcomeEmail } from "@pharmachain/email";
 import { notificationProviders, notify } from "@pharmachain/notifications";
@@ -15,6 +15,7 @@ import { generateTotpSecret, matchTotp, otpauthUri, verifyTotp } from "../../lib
 import { sendEmailTo } from "../shared/mailer";
 import { INVITE_REJECTION_MESSAGES, inviteRejection } from "./invite-tokens";
 import { issueOtp, verifyOtp } from "./otp";
+import { FORGOT_PASSWORD_MESSAGE, resetCoolingDown } from "./reset-link";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 60 minutes (US-206)
 
@@ -77,31 +78,32 @@ export class AuthService {
     if (existingCompany) throw conflict("A company with this registration number already exists");
 
     const passwordHash = await hashPassword(input.admin.password);
-    const company = await prisma.$transaction(async (tx) => {
-      const company = await tx.company.create({
-        data: {
-          name: input.company.name,
-          type: input.company.type,
-          country: input.company.country,
-          address: input.company.address,
-          registrationNumber: input.company.registrationNumber,
-          primaryContactName: input.admin.name,
-          primaryContactEmail: email,
-          primaryContactPhone: input.company.contactPhone,
+    // One nested create: atomic like the interactive transaction it replaces,
+    // but without its BEGIN/COMMIT round trips or a follow-up read for the new
+    // user's id — onboarding is the first thing a new client waits on.
+    const company = await prisma.company.create({
+      data: {
+        name: input.company.name,
+        type: input.company.type,
+        country: input.company.country,
+        address: input.company.address,
+        registrationNumber: input.company.registrationNumber,
+        primaryContactName: input.admin.name,
+        primaryContactEmail: email,
+        primaryContactPhone: input.company.contactPhone,
+        members: {
+          create: {
+            role: "COMPANY_ADMIN",
+            user: { create: { email, name: input.admin.name, passwordHash, status: "ACTIVE" } },
+          },
         },
-      });
-      const user = await tx.user.create({
-        data: { email, name: input.admin.name, passwordHash, status: "ACTIVE" },
-      });
-      await tx.companyUserRole.create({
-        data: { userId: user.id, companyId: company.id, role: "COMPANY_ADMIN" },
-      });
-      return company;
+      },
+      include: { members: { select: { userId: true } } },
     });
-
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email } });
+    const adminId = company.members[0]?.userId;
+    if (!adminId) throw new Error("registration created a company without its admin");
     await recordAudit(
-      { id: admin.id, email },
+      { id: adminId, email },
       {
         action: "company.register",
         entityType: "Company",
@@ -180,7 +182,10 @@ export class AuthService {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { membership: { select: { company: { select: { verificationStatus: true } } } } },
+    });
 
     let success = false;
     if (user && user.status === "ACTIVE") {
@@ -216,6 +221,22 @@ export class AuthService {
       }
     }
 
+    // A suspended or deleted company's members are refused — but only after the
+    // credentials proved right, so the answer never confirms an account to a
+    // stranger. Thrown before the activity insert, like the TOTP challenge: it
+    // is not a failed attempt and must not feed the lockout counter.
+    if (
+      success &&
+      user?.membership &&
+      companyAccessBlocked(user.membership.company.verificationStatus)
+    ) {
+      throw new ApiException(
+        403,
+        "COMPANY_SUSPENDED",
+        "Your company's access has been suspended by a platform administrator. Contact support.",
+      );
+    }
+
     await prisma.loginActivity.create({
       data: {
         userId: user?.id,
@@ -249,14 +270,28 @@ export class AuthService {
 
   // ─── Password reset (US-206) ───────────────────────────────────────────────
 
-  async forgotPassword(email: string): Promise<{ sent: boolean; message: string }> {
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (user?.status !== "ACTIVE" || !user.passwordHash) {
-      return {
-        sent: false,
-        message: "No active account found for that email address.",
-      };
-    }
+  /**
+   * Request a reset link. The answer is identical — in body AND in timing —
+   * whether or not the address belongs to an account (OWASP Forgot Password
+   * cheat sheet: consistent message, uniform response time). All the work,
+   * including the lookup, runs after the response; an unknown or inactive
+   * address simply issues nothing, so no link is ever sent to an address
+   * without an active account.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    defer(this.issueResetLink(email.toLowerCase()));
+    return { message: FORGOT_PASSWORD_MESSAGE };
+  }
+
+  private async issueResetLink(email: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user?.status !== "ACTIVE") return;
+    const latest = await prisma.passwordResetToken.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    if (resetCoolingDown(latest?.createdAt ?? null, new Date())) return;
     const token = randomToken();
     await prisma.passwordResetToken.create({
       data: {
@@ -265,16 +300,10 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
       },
     });
-    defer(
-      sendEmailTo(
-        user.email,
-        passwordResetEmail({ url: `${env.APP_URL}/reset-password?token=${token}` }),
-      ),
+    await sendEmailTo(
+      user.email,
+      passwordResetEmail({ url: `${env.APP_URL}/reset-password?token=${token}` }),
     );
-    return {
-      sent: true,
-      message: "A password reset link (valid for 60 minutes) has been sent to your email address.",
-    };
   }
 
   async resetPassword(token: string, password: string): Promise<void> {

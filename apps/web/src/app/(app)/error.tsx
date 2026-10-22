@@ -27,7 +27,7 @@ export default function AppError({
       <div>
         <p className="font-medium">Something went wrong loading this page</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          The rest of PharmaChain is unaffected. Retry, or head back to your dashboard.
+          The rest of Global PharmaChain is unaffected. Retry, or head back to your dashboard.
           {error.digest && (
             <span className="mt-1 block font-mono text-xs">Reference: {error.digest}</span>
           )}

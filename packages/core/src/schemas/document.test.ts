@@ -71,3 +71,34 @@ describe("other order documents are unchanged", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// US-104: the expiry cycle must reach every verification document, not only the
+// licences — but a date, when given, has to be a future one.
+describe("expiry dates on verification documents", () => {
+  const future = new Date(Date.now() + 400 * 86_400_000).toISOString().slice(0, 10);
+  const past = "2020-01-01";
+  const tin = { ...base, kind: "TAX_ID" as const };
+
+  test("a TIN may omit the date (most jurisdictions never expire it)", () => {
+    expect(documentRequestUploadSchema.safeParse(tin).success).toBe(true);
+  });
+
+  test("a TIN may carry a future date so an alert can be raised", () => {
+    expect(documentRequestUploadSchema.safeParse({ ...tin, expiresAt: future }).success).toBe(true);
+  });
+
+  test("an already-lapsed date is refused even where the date is optional", () => {
+    expect(documentRequestUploadSchema.safeParse({ ...tin, expiresAt: past }).success).toBe(false);
+  });
+
+  test("a licence still requires a date", () => {
+    const licence = { ...base, kind: "TRADING_LICENCE" as const };
+    expect(documentRequestUploadSchema.safeParse(licence).success).toBe(false);
+    expect(documentRequestUploadSchema.safeParse({ ...licence, expiresAt: future }).success).toBe(
+      true,
+    );
+    expect(documentRequestUploadSchema.safeParse({ ...licence, expiresAt: past }).success).toBe(
+      false,
+    );
+  });
+});

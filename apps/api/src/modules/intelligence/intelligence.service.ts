@@ -322,7 +322,7 @@ export class IntelligenceService {
 
   marketReportTable(report: Awaited<ReturnType<IntelligenceService["marketReport"]>>): PdfTable {
     return {
-      title: "PharmaChain market intelligence",
+      title: "Global PharmaChain market intelligence",
       subtitle: `Generated ${report.generatedAt} · ${report.anonymisation}`,
       columns: ["Category", "RFQs (90d)", "Demand volume", "Avg quoted price", "Quotes (90d)"],
       rows: report.categories.map((c) => [

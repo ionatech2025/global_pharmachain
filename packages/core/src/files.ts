@@ -199,6 +199,13 @@ export const EXPIRY_REQUIRED_KINDS = [
   "GMP_CERTIFICATE",
 ] as const satisfies readonly DocumentKind[];
 
+// Kinds whose lapse puts a VERIFIED company back under review (US-104): every
+// verification document except the free-form "other". Alerts, by contrast, go
+// out for ANY document that carries an expiry date.
+export const EXPIRY_ENFORCED_KINDS = VERIFICATION_DOCUMENT_KINDS.filter(
+  (kind) => kind !== "OTHER_COMPLIANCE",
+);
+
 // Order-scoped procurement + logistics documents (US-501, Phase 2 §2).
 export const ORDER_DOCUMENT_KINDS = [
   "PROFORMA_INVOICE",
@@ -242,4 +249,14 @@ export function isVerificationKind(kind: DocumentKind): kind is VerificationDocu
 
 export function expiryRequired(kind: DocumentKind): boolean {
   return (EXPIRY_REQUIRED_KINDS as readonly DocumentKind[]).includes(kind);
+}
+
+/**
+ * Whether the upload form offers an expiry date at all (US-104). Required for
+ * licences; optional for every other verification document, because some
+ * jurisdictions renew a TIN or incorporation certificate and a document that
+ * cannot carry a date can never raise an expiry alert.
+ */
+export function expiryAccepted(kind: DocumentKind): boolean {
+  return expiryRequired(kind) || isVerificationKind(kind);
 }

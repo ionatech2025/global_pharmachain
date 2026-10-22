@@ -18,7 +18,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-2">
         <div className="relative flex min-h-screen flex-col px-5 py-5 sm:px-8">
           <div className="flex items-center justify-between">
-            <Link href="/" aria-label="Back to PharmaChain home">
+            <Link href="/" aria-label="Back to Global PharmaChain home">
               <Logo markClassName="size-8" wordClassName="text-lg" />
             </Link>
             <ThemeToggle />
@@ -31,7 +31,11 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
-            Global pharmaceutical sourcing ·{" "}
+            Global PharmaChain · independent B2B matching directory ·{" "}
+            <Link href="/disclaimer" className="underline underline-offset-2 hover:text-foreground">
+              Legal disclaimer
+            </Link>
+            {" · "}
             <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
               Privacy policy
             </Link>

@@ -251,3 +251,54 @@ export function detectUserCountry(): string | null {
   }
   return null;
 }
+
+/**
+ * ISO 3166-1 display names that differ from the spelling in COUNTRIES. Only
+ * sovereign states matter — territories are not in the list and resolve to null.
+ */
+const ISO_ALIASES: Record<string, string> = {
+  AG: "Antigua and Barbuda",
+  BA: "Bosnia and Herzegovina",
+  CD: "Congo (Kinshasa)",
+  CG: "Congo (Brazzaville)",
+  CI: "Ivory Coast",
+  CV: "Cabo Verde",
+  CZ: "Czech Republic",
+  KN: "Saint Kitts and Nevis",
+  LC: "Saint Lucia",
+  MM: "Myanmar",
+  PS: "Palestine",
+  ST: "Sao Tome and Principe",
+  SZ: "Eswatini",
+  TL: "East Timor",
+  TR: "Turkey",
+  TT: "Trinidad and Tobago",
+  VC: "Saint Vincent and the Grenadines",
+};
+
+/**
+ * Maps an ISO 3166-1 alpha-2 code (what the CDN's IP-geolocation header
+ * carries, e.g. Vercel's `x-vercel-ip-country`) to the exact spelling used in
+ * COUNTRIES, or null when it cannot be matched. Null is the right answer to
+ * "not sure": the form then asks the applicant to choose, instead of guessing
+ * a country onto a regulatory registration.
+ */
+export function countryFromIsoCode(code: string | null | undefined): string | null {
+  if (!code || !/^[A-Za-z]{2}$/.test(code)) return null;
+  const upper = code.toUpperCase();
+  const aliased = ISO_ALIASES[upper];
+  if (aliased && (COUNTRIES as readonly string[]).includes(aliased)) return aliased;
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "region" }).of(upper);
+    if (!name) return null;
+    return (
+      (COUNTRIES as readonly string[]).find((c) => c.toLowerCase() === name.toLowerCase()) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function isKnownCountry(value: string): boolean {
+  return (COUNTRIES as readonly string[]).includes(value);
+}

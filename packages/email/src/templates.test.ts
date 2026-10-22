@@ -32,7 +32,7 @@ describe("genericEventEmail", () => {
 
   test("titles cannot smuggle newlines into the subject header", () => {
     const { subject } = genericEventEmail({ title: "Hi\r\nBcc: victim", body: "b" });
-    expect(subject).toBe("PharmaChain — Hi Bcc: victim");
+    expect(subject).toBe("Global PharmaChain — Hi Bcc: victim");
   });
 
   test("escapes the title in the HTML layout", () => {

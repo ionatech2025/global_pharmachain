@@ -418,7 +418,7 @@ export async function runScheduledReportsJob(now = new Date()): Promise<void> {
         body: `${entries.length} ledger entrie(s) in the period. Full report on the Finance page.`,
         href: "/finance",
         emailContent: genericEventEmail({
-          title: `PharmaChain ${schedule.frequency.toLowerCase()} finance report`,
+          title: `Global PharmaChain ${schedule.frequency.toLowerCase()} finance report`,
           body: `Ledger activity since ${since.toDateString()}:\n\n${lines}`,
           url: `${env.APP_URL}/finance`,
           cta: "Open finance workspace",

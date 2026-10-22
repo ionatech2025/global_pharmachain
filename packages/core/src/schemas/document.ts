@@ -71,20 +71,21 @@ export const documentRequestUploadSchema = z
     ) {
       ctx.addIssue({ code: "custom", path: ["orderId"], message: "Must link to an order" });
     }
-    if (expiryRequired(val.kind)) {
-      if (!val.expiresAt) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["expiresAt"],
-          message: "Expiry date is required for licence documents",
-        });
-      } else if (new Date(val.expiresAt).getTime() <= Date.now()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["expiresAt"],
-          message: "Expiry date must be in the future",
-        });
-      }
+    if (expiryRequired(val.kind) && !val.expiresAt) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expiresAt"],
+        message: "Expiry date is required for licence documents",
+      });
+    }
+    // Any date offered must be in the future — a document that has already
+    // lapsed cannot support verification, whether the date was required or not.
+    if (val.expiresAt && new Date(val.expiresAt).getTime() <= Date.now()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expiresAt"],
+        message: "Expiry date must be in the future",
+      });
     }
   });
 export type DocumentRequestUpload = z.infer<typeof documentRequestUploadSchema>;

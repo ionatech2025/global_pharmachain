@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   contentMatchesType,
   describeAllowedTypes,
+  EXPIRY_ENFORCED_KINDS,
+  expiryAccepted,
   expiryRequired,
   formatFileSize,
   isAllowedMime,
@@ -32,6 +34,24 @@ describe("file rules", () => {
     expect(expiryRequired("TRADING_LICENCE")).toBe(true);
     expect(expiryRequired("GMP_CERTIFICATE")).toBe(true);
     expect(expiryRequired("CERTIFICATE_OF_INCORPORATION")).toBe(false);
+  });
+
+  test("every verification document can carry an expiry, licences must (US-104)", () => {
+    // The TIN, incorporation certificate and "other" had no date field, so they
+    // could never raise an expiry alert.
+    for (const kind of ["TAX_ID", "CERTIFICATE_OF_INCORPORATION", "OTHER_COMPLIANCE"] as const) {
+      expect(expiryAccepted(kind)).toBe(true);
+      expect(expiryRequired(kind)).toBe(false);
+    }
+    expect(expiryAccepted("TRADING_LICENCE")).toBe(true);
+    // Order paperwork is not on the verification cycle.
+    expect(expiryAccepted("BILL_OF_LADING")).toBe(false);
+  });
+
+  test("lapse of a core verification document re-opens review; 'other' does not", () => {
+    expect(EXPIRY_ENFORCED_KINDS).toContain("TAX_ID");
+    expect(EXPIRY_ENFORCED_KINDS).toContain("GMP_CERTIFICATE");
+    expect(EXPIRY_ENFORCED_KINDS).not.toContain("OTHER_COMPLIANCE");
   });
 
   test("manufacturers need manufacturing licence + GMP in the checklist", () => {

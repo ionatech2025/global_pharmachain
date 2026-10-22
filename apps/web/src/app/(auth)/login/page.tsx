@@ -76,10 +76,18 @@ function LoginForm() {
           );
           return;
         }
+        if (result.code === "company_suspended") {
+          toast.error(
+            "Your company's access has been suspended by a platform administrator. Contact support to have it reviewed.",
+          );
+          return;
+        }
         if (result.code === "unavailable") {
           // Not the user's fault, and not their password: saying "invalid
           // password" here sent people to reset passwords that were fine.
-          toast.error("We couldn't reach PharmaChain to check your sign-in — try again shortly.");
+          toast.error(
+            "We couldn't reach Global PharmaChain to check your sign-in — try again shortly.",
+          );
           return;
         }
         toast.error(totpNeeded ? "Invalid verification code" : "Invalid email or password");

@@ -24,6 +24,9 @@ export const IDLE_WARNING_AFTER_SECONDS = 25 * 60;
 const CLIENT_SAFE_CODES: Record<string, string> = {
   TOTP_REQUIRED: "totp_required",
   RATE_LIMITED: "rate_limited",
+  // Only ever returned after the credentials were right, so it confirms nothing
+  // to someone guessing at accounts.
+  COMPANY_SUSPENDED: "company_suspended",
 };
 
 /**

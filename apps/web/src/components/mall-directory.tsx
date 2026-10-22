@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { LANE_LINKS } from "@/lib/lane-links";
 
 interface TradingLane {
   id: "upstream" | "midstream" | "downstream";
@@ -65,7 +66,7 @@ const TRADING_LANES: TradingLane[] = [
     },
     primaryCta: {
       label: "Source Upstream Inputs",
-      href: "/register?type=RAW_MATERIAL_MANUFACTURER&action=source_raw",
+      href: LANE_LINKS.source,
     },
     storefronts: [
       {
@@ -119,7 +120,7 @@ const TRADING_LANES: TradingLane[] = [
     },
     primaryCta: {
       label: "List Manufacturing Capacity",
-      href: "/register?type=FINISHED_PRODUCT_MANUFACTURER&action=list_capacity",
+      href: LANE_LINKS.list,
     },
     storefronts: [
       {
@@ -173,7 +174,7 @@ const TRADING_LANES: TradingLane[] = [
     },
     primaryCta: {
       label: "Procure Bulk Inventory",
-      href: "/register?type=FINISHED_PRODUCT_DISTRIBUTOR&action=procure_bulk",
+      href: LANE_LINKS.procure,
     },
     storefronts: [
       {

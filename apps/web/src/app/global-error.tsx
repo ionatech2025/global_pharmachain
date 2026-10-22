@@ -23,7 +23,9 @@ export default function GlobalError({
         }}
       >
         <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600 }}>PharmaChain hit an unexpected error</h1>
+          <h1 style={{ fontSize: 18, fontWeight: 600 }}>
+            Global PharmaChain hit an unexpected error
+          </h1>
           <p style={{ marginTop: 8, fontSize: 14, color: "#5c6660" }}>
             Reloading usually fixes this.
             {error.digest ? ` Reference: ${error.digest}` : ""}

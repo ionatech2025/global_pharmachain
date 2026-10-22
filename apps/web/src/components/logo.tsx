@@ -21,7 +21,7 @@ export function LogoMark({ className }: { className?: string }) {
     <svg
       viewBox="0 0 32 32"
       role="img"
-      aria-label="PharmaChain"
+      aria-label="Global PharmaChain"
       className={cn(
         "size-9 shrink-0 origin-center transition-transform duration-300 ease-out",
         "group-hover/logo:scale-110 group-hover/logo:-rotate-6",

@@ -29,6 +29,8 @@ const STATUS_FILTERS: ReadonlyArray<readonly [string, string]> = [
   ["PENDING_VERIFICATION", "Pending"],
   ["EXPIRED_DOCUMENT", "Expired docs"],
   ["REJECTED", "Rejected"],
+  ["SUSPENDED", "Deactivated"],
+  ["DELETED", "Deleted"],
 ];
 
 export default async function AdminCompaniesPage({

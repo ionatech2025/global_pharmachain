@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isKnownCountry } from "../countries";
 import { COMPANY_ROLES, COMPANY_TYPES } from "../enums";
 
 // Misspellings of the mail domains our users actually type. A plain format
@@ -83,7 +84,12 @@ export const registerSchema = z.object({
   company: z.object({
     name: z.string().min(2).max(120),
     type: z.enum(COMPANY_TYPES),
-    country: z.string().min(2).max(56),
+    // The dropdown only guards the browser; the API must refuse a free-text
+    // country too, and say so in words rather than a raw length error.
+    country: z
+      .string()
+      .min(1, "Select your country")
+      .refine(isKnownCountry, "Select a country from the list"),
     registrationNumber: z.string().min(2).max(64),
     address: z.string().min(4).max(240),
     // US-101 lists Phone among the captured registration fields.

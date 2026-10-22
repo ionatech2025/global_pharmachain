@@ -252,7 +252,7 @@ export function AppShell({
 
           <Link
             href="/dashboard"
-            aria-label="PharmaChain dashboard"
+            aria-label="Global PharmaChain dashboard"
             className="group/logo lg:hidden"
           >
             <LogoMark className="size-8" />
@@ -335,6 +335,22 @@ export function AppShell({
           )}
           {children}
         </main>
+        {/* Standing regulatory notice: the disclaimer must be reachable from where
+            trading happens, not only the marketing page. */}
+        <footer className="mx-auto w-full max-w-[110rem] border-t px-4 py-3 text-[11px] leading-relaxed text-muted-foreground lg:px-6">
+          Global PharmaChain is an independent B2B matching directory and secure open-ledger
+          information layer. It does not manufacture, formulate, dispense, store, transport, market,
+          distribute or prescribe medicines, APIs or medical consumables, and does not independently
+          verify the purity, bio-equivalence or regulatory validity of any listing. Buyers must
+          carry out their own laboratory testing and due diligence.{" "}
+          <Link href="/disclaimer" className="font-medium text-foreground underline">
+            Legal disclaimer
+          </Link>
+          {" · "}
+          <Link href="/privacy" className="underline hover:text-foreground">
+            Privacy policy
+          </Link>
+        </footer>
       </div>
       <IdleSession />
     </div>

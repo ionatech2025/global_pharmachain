@@ -25,6 +25,8 @@ import { RouteMarquee } from "@/components/route-marquee";
 import { ThemeOnlyProviders } from "@/components/theme-only-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { API_URL } from "@/env";
+import { CONTACT_EMAIL, CONTACT_PHONES, telHref } from "@/lib/contact";
+import { LANE_LINKS } from "@/lib/lane-links";
 
 const SHARE_DESCRIPTION =
   "The Unified End-to-End B2B Pharma Ecosystem for Pharmaceutical Procurement. Interlinking Manufacturers of Raw Materials and supplier verification across Upstream Inputs, Midstream Manufacturing Assets, and Downstream Wholesale Distribution.";
@@ -116,6 +118,30 @@ const STEPS = [
   },
 ];
 
+const HERO_ACTIONS = [
+  {
+    href: LANE_LINKS.source,
+    label: "Source Raw Materials & Consumables",
+    audience: "For Manufacturers buying inputs",
+    aria: "Source Raw Materials & Consumables - for manufacturers buying inputs",
+    className: "bg-sky-600 hover:bg-sky-700",
+  },
+  {
+    href: LANE_LINKS.list,
+    label: "List Finished Formulations / Capacity",
+    audience: "For Manufacturers selling products or contract services",
+    aria: "List Finished Formulations and Capacity - for manufacturers and CDMOs selling products or contract services",
+    className: "bg-indigo-600 hover:bg-indigo-700",
+  },
+  {
+    href: LANE_LINKS.procure,
+    label: "Procure Bulk Finished Medications",
+    audience: "For Wholesale Traders, Distributors & Institutional Buyers",
+    aria: "Procure Bulk Finished Medications - for wholesale traders, distributors and institutional buyers",
+    className: "bg-teal-600 hover:bg-teal-700",
+  },
+] as const;
+
 const FOOTER_GROUPS = [
   {
     heading: "Platform",
@@ -130,15 +156,15 @@ const FOOTER_GROUPS = [
     heading: "Trading Lanes",
     links: [
       {
-        href: "/register?type=RAW_MATERIAL_MANUFACTURER&action=source_raw",
+        href: LANE_LINKS.source,
         label: "Upstream (APIs & Inputs)",
       },
       {
-        href: "/register?type=FINISHED_PRODUCT_MANUFACTURER&action=list_capacity",
+        href: LANE_LINKS.list,
         label: "Midstream (Manufacturing Hub)",
       },
       {
-        href: "/register?type=FINISHED_PRODUCT_DISTRIBUTOR&action=procure_bulk",
+        href: LANE_LINKS.procure,
         label: "Downstream (Wholesale Distribution)",
       },
     ],
@@ -146,8 +172,8 @@ const FOOTER_GROUPS = [
   {
     heading: "Contact & Legal",
     links: [
-      { href: "mailto:contact@globalpharmachain.com", label: "contact@globalpharmachain.com" },
-      { href: "tel:+256700000000", label: "+256 700 000 000" },
+      { href: `mailto:${CONTACT_EMAIL}`, label: CONTACT_EMAIL },
+      ...CONTACT_PHONES.slice(0, 1).map((phone) => ({ href: telHref(phone), label: phone })),
       { href: "/disclaimer", label: "Regulatory Disclaimer" },
       { href: "/privacy", label: "Privacy Policy" },
     ],
@@ -261,57 +287,27 @@ export default async function LandingPage() {
                     <strong>Downstream Wholesale Distribution</strong>.
                   </p>
 
-                  {/* The 3-Button Action Matrix (Hero Section) */}
-                  <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
-                    <Button
-                      asChild
-                      size="lg"
-                      className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-sky-600 hover:bg-sky-700 text-white shadow-md transition-all hover:scale-[1.02]"
-                    >
-                      <Link
-                        href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=source_raw"
-                        aria-label="Source Raw Materials & Consumables - for manufacturers buying inputs"
+                  {/* The 3-Button Action Matrix (Hero Section). Labels wrap instead of
+                      clipping (Button is nowrap by default) and every tile shares one
+                      height, so the three read as a matched row at any width. */}
+                  <div className="mt-8 grid max-w-3xl grid-cols-1 items-stretch gap-3 sm:grid-cols-3">
+                    {HERO_ACTIONS.map((action) => (
+                      <Button
+                        key={action.href}
+                        asChild
+                        size="lg"
+                        className={`h-auto min-h-[4.5rem] w-full flex-col items-start justify-center gap-1 rounded-2xl px-4 py-3 text-left whitespace-normal text-white shadow-md transition-all hover:scale-[1.02] ${action.className}`}
                       >
-                        <span className="font-semibold text-sm">
-                          Source Raw Materials & Consumables
-                        </span>
-                        <span className="text-[11px] opacity-90 font-normal mt-0.5">
-                          For Manufacturers buying inputs
-                        </span>
-                      </Link>
-                    </Button>
-
-                    <Button
-                      asChild
-                      size="lg"
-                      className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all hover:scale-[1.02]"
-                    >
-                      <Link
-                        href="/register?type=FINISHED_PRODUCT_MANUFACTURER&action=list_capacity"
-                        aria-label="List Formulations & Capacity - for manufacturers and CDMOs"
-                      >
-                        <span className="font-semibold text-sm">List Formulations & Capacity</span>
-                        <span className="text-[11px] opacity-90 font-normal mt-0.5">
-                          For Manufacturers & CDMOs
-                        </span>
-                      </Link>
-                    </Button>
-
-                    <Button
-                      asChild
-                      size="lg"
-                      className="h-auto py-3 px-4 flex flex-col items-start text-left rounded-2xl bg-teal-600 hover:bg-teal-700 text-white shadow-md transition-all hover:scale-[1.02]"
-                    >
-                      <Link
-                        href="/register?type=FINISHED_PRODUCT_DISTRIBUTOR&action=procure_bulk"
-                        aria-label="Procure Bulk Medications - for wholesale traders, distributors, and institutions"
-                      >
-                        <span className="font-semibold text-sm">Procure Bulk Medications</span>
-                        <span className="text-[11px] opacity-90 font-normal mt-0.5">
-                          For Wholesale & Institutions
-                        </span>
-                      </Link>
-                    </Button>
+                        <Link href={action.href} aria-label={action.aria}>
+                          <span className="text-sm leading-snug font-semibold text-balance">
+                            {action.label}
+                          </span>
+                          <span className="text-[11px] leading-snug font-normal opacity-90">
+                            {action.audience}
+                          </span>
+                        </Link>
+                      </Button>
+                    ))}
                   </div>
 
                   {/* Re-Architected Narrative: Utility, Not Tokens */}
@@ -457,7 +453,7 @@ export default async function LandingPage() {
 
                 <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
                   <p className="font-medium text-foreground">
-                    Legal Disclaimer: Global Pharmachain operates strictly as an independent B2B
+                    Legal Disclaimer: Global PharmaChain operates strictly as an independent B2B
                     matching directory and secure open-ledger information infrastructure layer. This
                     platform does not directly manufacture, formulate, dispense, store, transport,
                     market, distribute, or prescribe therapeutic medications, active pharmaceutical
@@ -478,7 +474,7 @@ export default async function LandingPage() {
                     <strong>Regulatory Compliance & Liability Limitation:</strong> The information,
                     dossiers, and product listings displayed within this marketplace are provided
                     solely for corporate procurement discovery and logistical coordination. Global
-                    Pharmachain does not independently verify the bio-equivalence, purity, chemical
+                    PharmaChain does not independently verify the bio-equivalence, purity, chemical
                     stability, or regulatory validity of listed compounds or finished products.
                   </p>
 
@@ -486,7 +482,7 @@ export default async function LandingPage() {
                     It is the sole, non-delegable duty of the purchasing manufacturer or downstream
                     distributor to perform full laboratory analytical testing, batch verification,
                     and comprehensive due diligence prior to product release or human
-                    administration. Global Pharmachain expressly disclaims all liability for supply
+                    administration. Global PharmaChain expressly disclaims all liability for supply
                     chain disruptions, regulatory enforcement actions, or adverse therapeutic events
                     arising from transactions initiated on the platform.
                   </div>
@@ -556,23 +552,29 @@ export default async function LandingPage() {
                 delivered, fully audit-trailed.
               </p>
 
-              {/* Direct Email & Contact (Page 7) */}
+              {/* Direct email & contact */}
               <div className="mt-5 space-y-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Mail className="size-3.5 text-primary shrink-0" />
-                  <a
-                    href="mailto:contact@globalpharmachain.com"
-                    className="hover:text-foreground underline"
-                  >
-                    contact@globalpharmachain.com
+                  <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-foreground underline">
+                    {CONTACT_EMAIL}
                   </a>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="size-3.5 text-primary shrink-0" />
-                  <a href="tel:+256700000000" className="hover:text-foreground">
-                    +256 700 000 000 / +254 700 000 000
-                  </a>
-                </div>
+                {CONTACT_PHONES.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="size-3.5 text-primary shrink-0" />
+                    <span>
+                      {CONTACT_PHONES.map((phone, i) => (
+                        <span key={phone}>
+                          {i > 0 && " / "}
+                          <a href={telHref(phone)} className="hover:text-foreground">
+                            {phone}
+                          </a>
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

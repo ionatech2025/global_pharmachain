@@ -409,7 +409,7 @@ function TotpCard({ initiallyEnabled }: { initiallyEnabled: boolean }) {
         {!enabled && setup && (
           <form onSubmit={enable} className="grid gap-3">
             <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-              <p className="font-medium">1. Add PharmaChain to your authenticator app</p>
+              <p className="font-medium">1. Add Global PharmaChain to your authenticator app</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Enter this key manually (Google Authenticator, 1Password, Authy…):
               </p>

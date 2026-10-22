@@ -1,3 +1,5 @@
+import "./zod-messages";
+
 export * from "./billing";
 export * from "./countries";
 export * from "./enums";

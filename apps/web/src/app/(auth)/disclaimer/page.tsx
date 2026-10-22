@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { AlertCircle, Scale } from "lucide-react";
+import { CONTACT_EMAIL } from "@/lib/contact";
 
 export const metadata = {
   title: "Legal Disclaimer & Regulatory Compliance · Global PharmaChain",
@@ -21,7 +22,7 @@ export default function LegalDisclaimerPage() {
       </CardHeader>
       <CardContent className="space-y-5 text-sm text-muted-foreground leading-relaxed">
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-foreground text-sm font-medium">
-          Legal Disclaimer: Global Pharmachain operates strictly as an independent B2B matching
+          Legal Disclaimer: Global PharmaChain operates strictly as an independent B2B matching
           directory and secure open-ledger information infrastructure layer. This platform does not
           directly manufacture, formulate, dispense, store, transport, market, distribute, or
           prescribe therapeutic medications, active pharmaceutical ingredients (APIs), or medical
@@ -49,7 +50,7 @@ export default function LegalDisclaimerPage() {
           <p>
             The information, dossiers, and product listings displayed within this marketplace are
             provided solely for corporate procurement discovery and logistical coordination. Global
-            Pharmachain does not independently verify the bio-equivalence, purity, chemical
+            PharmaChain does not independently verify the bio-equivalence, purity, chemical
             stability, or regulatory validity of listed compounds or finished products.
           </p>
         </div>
@@ -61,7 +62,7 @@ export default function LegalDisclaimerPage() {
               It is the sole, non-delegable duty of the purchasing manufacturer or downstream
               distributor to perform full laboratory analytical testing, batch verification, and
               comprehensive due diligence prior to product release or human administration. Global
-              Pharmachain expressly disclaims all liability for supply chain disruptions, regulatory
+              PharmaChain expressly disclaims all liability for supply chain disruptions, regulatory
               enforcement actions, or adverse therapeutic events arising from transactions initiated
               on the platform.
             </p>
@@ -72,10 +73,10 @@ export default function LegalDisclaimerPage() {
           <p>
             For regulatory or compliance inquiries, contact the platform legal department at{" "}
             <a
-              href="mailto:contact@globalpharmachain.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="text-primary underline hover:text-foreground"
             >
-              contact@globalpharmachain.com
+              {CONTACT_EMAIL}
             </a>
             .
           </p>
