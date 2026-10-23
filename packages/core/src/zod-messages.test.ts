@@ -10,7 +10,7 @@ const valid = {
     address: "Plot 1, Kampala",
     contactPhone: "+256700000000",
   },
-  admin: { name: "Jane Doe", email: "jane@apex-pharma.com", password: "Passw0rdOK" },
+  admin: { name: "Jane Doe", email: "jane@apex-pharma.com", password: "purple tractor sings" },
 } as const;
 
 const messages = (input: unknown) => {
@@ -37,7 +37,7 @@ describe("form messages are words, not zod internals", () => {
 
   test("explicit messages written into a schema are left alone", () => {
     const msgs = messages({ ...valid, admin: { ...valid.admin, password: "short" } });
-    expect(msgs).toContain("At least 8 characters");
+    expect(msgs.join(" ")).toMatch(/at least 15 characters/i);
   });
 
   test("a valid registration still parses", () => {

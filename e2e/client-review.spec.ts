@@ -21,7 +21,7 @@ import {
 const SUPER_ADMIN = "admin@pharmachain.local";
 const NILE_ADMIN = "admin@nilepharma.demo";
 const NILE_OPS = "ops@nilepharma.demo";
-const PASSWORD = "Review-Pass-1";
+const PASSWORD = "review-lifecycle-passphrase-qa";
 const IS_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(
   process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
 );
@@ -539,5 +539,50 @@ test.describe("platform admin company controls (page 12)", () => {
       expect((await back.json()).status).toBe("VERIFIED");
     }
     await admin.context().close();
+  });
+});
+
+// ── Password policy: NIST SP 800-63B-4 (applied 2026-10-23) ──────────────────
+
+test.describe("password policy", () => {
+  const registrationWith = (password: string) => {
+    const tag = uniq();
+    return {
+      company: {
+        name: `Policy Probe ${tag} Ltd`,
+        type: "SUPPLIER",
+        country: "Uganda",
+        registrationNumber: `PP-${tag}`,
+        address: "Plot 3, Policy Road",
+        contactPhone: "+256700000003",
+      },
+      admin: { name: "Policy Probe", email: `policy-${tag.toLowerCase()}@example.com`, password },
+    };
+  };
+
+  test("the form states the rule the API enforces", async ({ page }) => {
+    await page.goto("/register", { waitUntil: "networkidle" });
+    await expect(page.getByText(/At least 15 characters/)).toBeVisible();
+    await expect(page.getByText(/letter and a number/i)).toHaveCount(0);
+  });
+
+  test("a password under 15 characters is refused, and told why", async ({ page }) => {
+    const res = await registerCompany(page, registrationWith("Passw0rd!x12"));
+    expect(res.status()).toBe(400);
+    expect(await res.text()).toMatch(/at least 15 characters/i);
+  });
+
+  test("a commonly used password is refused, with the reason, even though it is long enough", async ({
+    page,
+  }) => {
+    const res = await registerCompany(page, registrationWith("passwordpassword"));
+    expect(res.status()).toBe(400);
+    expect(await res.text()).toMatch(/commonly used/i);
+  });
+
+  test("a straight run of characters is refused", async ({ page }) => {
+    const res = await registerCompany(page, registrationWith("abcdefghijklmnopqrstuvwxyz"));
+    expect(res.status()).toBe(400);
+    expect(await res.text()).toMatch(/straight run/i);
   });
 });

@@ -12,7 +12,7 @@ import { ADMIN_PASSWORD, API_PATH, registerCompany, signIn } from "./helpers";
 const SUPER_ADMIN = "admin@pharmachain.local";
 const BUYER_ADMIN = "admin@nilepharma.demo";
 const SUPPLIER_ADMIN = "admin@kampalafinechem.demo";
-const PASSWORD = "Harden-Pass-1";
+const PASSWORD = "hardening-race-passphrase-qa";
 const IS_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(
   process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
 );

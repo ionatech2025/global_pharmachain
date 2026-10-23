@@ -7,6 +7,12 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().default(3001),
   CORS_ORIGINS: z.string().default("http://localhost:3000"),
   APP_URL: z.url().default("http://localhost:3000"),
+  // WebAuthn. A passkey is bound to the RP ID it was created for, so changing the site's
+  // domain orphans every passkey. Pin WEBAUTHN_RP_ID to the registrable parent domain
+  // (e.g. "globalpharmachain.com") BEFORE moving to a custom domain; by default the host
+  // of APP_URL is used. WEBAUTHN_ORIGINS is a comma-separated allow-list of origins.
+  WEBAUTHN_RP_ID: z.string().min(1).optional(),
+  WEBAUTHN_ORIGINS: z.string().optional(),
   JOBS_IN_PROCESS: z
     .string()
     .default("true")

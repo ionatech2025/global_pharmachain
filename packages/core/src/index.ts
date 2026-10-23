@@ -8,6 +8,7 @@ export * from "./forecast";
 export * from "./fx";
 export * from "./pagination";
 export * from "./params";
+export * from "./password-policy";
 export * from "./pdf";
 export * from "./rbac";
 export * from "./refno";

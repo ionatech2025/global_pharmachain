@@ -23,6 +23,7 @@
     "@pharmachain/db": "workspace:*",
     "@pharmachain/email": "workspace:*",
     "@pharmachain/notifications": "workspace:*",
+    "@simplewebauthn/server": "^14.0.3",
     "@vercel/functions": "^3.7.5",
     "aws4fetch": "^1.0.20",
     "fastify": "^5.12.7",

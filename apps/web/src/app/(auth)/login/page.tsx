@@ -11,6 +11,7 @@ import {
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
 import { PasswordInput } from "@pharmachain/ui/components/password-input";
+import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -19,6 +20,18 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import { safeCallbackUrl } from "@/lib/callback-url";
+
+/**
+ * Asks the server for a challenge (naming no account) and has the browser sign it. The
+ * WebAuthn client is imported here, not at the top, so it is downloaded only by people who
+ * actually have a passkey.
+ */
+async function getPasskeyAssertion(): Promise<string> {
+  const optionsJSON =
+    await api.post<PublicKeyCredentialRequestOptionsJSON>("/auth/passkey/options");
+  const { startAuthentication } = await import("@simplewebauthn/browser");
+  return JSON.stringify(await startAuthentication({ optionsJSON }));
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -33,6 +46,8 @@ function LoginForm() {
   const [totpNeeded, setTotpNeeded] = useState(false);
   const [totpCode, setTotpCode] = useState("");
   const [busy, setBusy] = useState(false);
+  // Shown after a passkey prompt fails, in case the account also has an authenticator app.
+  const [passkeyFallback, setPasskeyFallback] = useState(false);
 
   async function requestOtp() {
     setBusy(true);
@@ -51,21 +66,35 @@ function LoginForm() {
     e.preventDefault();
     setBusy(true);
     try {
-      const result =
+      const attempt = (extra: { totpCode?: string; passkey?: string }) =>
         mode === "password"
-          ? await signIn("credentials", {
-              email,
-              password,
-              ...(totpNeeded ? { totpCode } : {}),
-              redirect: false,
-            })
-          : await signIn("otp", { email, otp, redirect: false });
+          ? signIn("credentials", { email, password, ...extra, redirect: false })
+          : signIn("otp", { email, otp, ...extra, redirect: false });
+      let result = await attempt(totpNeeded ? { totpCode } : {});
+      if (result?.error && result.code === "passkey_required") {
+        // The password (or code) was right and this account must also present a passkey:
+        // ask the browser for one, then finish signing in with it.
+        toast.info("Use your passkey to finish signing in");
+        let assertion: string;
+        try {
+          assertion = await getPasskeyAssertion();
+        } catch {
+          setPasskeyFallback(true);
+          toast.error("Passkey sign-in was cancelled or is not available on this device.");
+          return;
+        }
+        result = await attempt({ passkey: assertion });
+      }
       if (result?.error) {
         // The provider forwards the API's reason as `code`, so a refusal that
         // is not about the password can say so plainly.
         if (result.code === "totp_required") {
           setTotpNeeded(true);
           toast.info("Enter the 6-digit code from your authenticator app");
+          return;
+        }
+        if (result.code === "passkey_invalid") {
+          toast.error("That passkey could not be verified. Try again, or use a different passkey.");
           return;
         }
         if (result.code === "rate_limited") {
@@ -171,6 +200,19 @@ function LoginForm() {
                     onChange={(e) => setTotpCode(e.target.value)}
                   />
                 </div>
+              )}
+              {passkeyFallback && !totpNeeded && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Passkey not available?{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => setTotpNeeded(true)}
+                  >
+                    Use an authenticator app code instead
+                  </button>{" "}
+                  (only if your account has one set up).
+                </p>
               )}
             </div>
           ) : (

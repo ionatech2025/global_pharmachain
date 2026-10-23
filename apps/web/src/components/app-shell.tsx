@@ -27,6 +27,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { PasskeyNudge } from "@/components/passkey-nudge";
 import { setViewerFormat } from "@/lib/format";
 import { AnnouncementBanner } from "./announcement-banner";
 import { CommandMenu } from "./command-menu";
@@ -320,6 +321,7 @@ export function AppShell({
         </header>
 
         <main id="main" className="mx-auto w-full max-w-[110rem] flex-1 space-y-4 p-4 lg:p-6">
+          {me.isSuperAdmin && <PasskeyNudge />}
           <AnnouncementBanner announcements={announcements} />
           {unverified && membership && (
             <Alert variant="warning">

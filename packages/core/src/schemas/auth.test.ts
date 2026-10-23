@@ -10,7 +10,7 @@ const company = {
   contactPhone: "+256700000000",
 };
 
-const admin = { name: "John Mutebi", password: "Passw0rd!" };
+const admin = { name: "John Mutebi", password: "purple tractor sings" };
 
 const register = (email: string) =>
   registerSchema.safeParse({ company, admin: { ...admin, email } });
