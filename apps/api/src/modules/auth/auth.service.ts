@@ -367,6 +367,16 @@ export class AuthService {
     if (!invite || rejection) {
       throw forbidden(INVITE_REJECTION_MESSAGES[rejection ?? "unknown"]);
     }
+    // Accepting builds a session without passing through login(), so a
+    // suspended company must be refused here too — otherwise someone invited
+    // before the suspension joins it afterwards.
+    if (companyAccessBlocked(invite.company.verificationStatus)) {
+      throw new ApiException(
+        403,
+        "COMPANY_SUSPENDED",
+        "This company's access is suspended, so invitations cannot be accepted right now.",
+      );
+    }
     const email = invite.email.toLowerCase();
     const existing = await prisma.user.findUnique({
       where: { email },

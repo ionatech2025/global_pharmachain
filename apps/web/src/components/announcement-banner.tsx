@@ -49,7 +49,7 @@ export function AnnouncementBanner({ announcements }: { announcements: Announcem
         <Alert key={a.id} variant="info" className="relative pr-10 border-sky-500/30 bg-sky-500/10">
           <Megaphone className="size-4 text-sky-600 dark:text-sky-400" />
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-md bg-sky-600/15 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300 uppercase tracking-wider">
+            <span className="inline-flex items-center rounded-md bg-sky-600/15 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
               System Announcement
             </span>
             <AlertTitle className="font-semibold text-foreground">{a.title}</AlertTitle>

@@ -84,7 +84,13 @@ export async function emitWebhookEvent(
 ): Promise<void> {
   try {
     const hooks = await prisma.webhook.findMany({
-      where: { companyId: { in: companyIds }, active: true, events: { has: event } },
+      where: {
+        companyId: { in: companyIds },
+        active: true,
+        events: { has: event },
+        // Suspension cuts off data egress too, not just sign-in.
+        company: { verificationStatus: { notIn: ["SUSPENDED", "DELETED"] } },
+      },
       select: { id: true },
     });
     if (hooks.length === 0) return;
@@ -137,7 +143,11 @@ export async function runWebhookDeliveryPass(
       deliveredAt: null,
       nextAttemptAt: { lte: now },
       attempts: { lt: MAX_ATTEMPTS },
-      webhook: { active: true },
+      // Deliveries queued before a suspension stay queued, not sent.
+      webhook: {
+        active: true,
+        company: { verificationStatus: { notIn: ["SUSPENDED", "DELETED"] } },
+      },
       ...(opts.webhookId ? { webhookId: opts.webhookId } : {}),
     },
     include: { webhook: true },

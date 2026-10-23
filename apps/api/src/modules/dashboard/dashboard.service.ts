@@ -24,7 +24,7 @@ export async function platformStats() {
     jobsAttention,
   ] = await Promise.all([
     prisma.$transaction([
-      prisma.company.count(),
+      prisma.company.count({ where: { verificationStatus: { not: "DELETED" } } }),
       prisma.company.count({ where: { verificationStatus: "VERIFIED" } }),
       prisma.company.count({ where: { verificationStatus: "PENDING_VERIFICATION" } }),
       prisma.user.count(),

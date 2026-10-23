@@ -545,12 +545,24 @@ export class RfqService {
   async acceptQuotation(user: AuthUser, membership: Membership, quotationId: string) {
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
-      include: { rfq: true, supplierCompany: { select: { id: true, name: true } } },
+      include: {
+        rfq: true,
+        supplierCompany: { select: { id: true, name: true, verificationStatus: true } },
+      },
     });
     if (!quotation || quotation.rfq.buyerCompanyId !== membership.companyId) {
       throw notFound("Quotation not found");
     }
     if (quotation.status !== "ACTIVE") throw conflict("Only active quotations can be accepted");
+    // A quotation outlives the standing of the company that wrote it. Quoting
+    // already requires VERIFIED; so must being awarded, or a supplier that was
+    // suspended (or whose licence lapsed) after quoting could still be handed an
+    // order.
+    if (quotation.supplierCompany.verificationStatus !== "VERIFIED") {
+      throw conflict(
+        "This supplier is not currently verified on the platform, so its quotation cannot be accepted",
+      );
+    }
     if (quotation.validUntil <= new Date()) throw conflict("This quotation has expired");
     if (!canTransitionRfq(quotation.rfq.status, "AWARDED")) {
       throw conflict(`An RFQ in status ${quotation.rfq.status} cannot be awarded`);

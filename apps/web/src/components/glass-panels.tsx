@@ -31,7 +31,7 @@ const AVATARS = [
   { initials: "NL", bg: "oklch(0.55 0.13 250)" },
   { initials: "KP", bg: "oklch(0.5 0.11 205)" },
   { initials: "AM", bg: "oklch(0.44 0.14 262)" },
-  { initials: "SD", bg: "oklch(0.6 0.1 232)" },
+  { initials: "SD", bg: "oklch(0.5 0.1 232)" },
 ];
 
 function AvatarCluster({ className }: { className?: string }) {

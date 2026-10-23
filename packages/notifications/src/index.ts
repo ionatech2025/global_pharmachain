@@ -77,6 +77,9 @@ async function fanout(input: NotifyInput): Promise<void> {
         companyId: input.companyId,
         ...(input.roles ? { role: { in: input.roles } } : {}),
         user: { status: "ACTIVE" },
+        // Members of a suspended company cannot act on what they would be told,
+        // and the message (order numbers, counterparties) should not leave.
+        company: { verificationStatus: { notIn: ["SUSPENDED", "DELETED"] } },
       },
       select: { userId: true },
     });

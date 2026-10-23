@@ -267,7 +267,7 @@ export function AppShell({
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Report an issue"
+                  aria-label="Report issue"
                   className="gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <LifeBuoy className="size-4 shrink-0" />

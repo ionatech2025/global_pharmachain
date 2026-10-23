@@ -159,6 +159,60 @@ production e2e run, because both need `SEED_DEMO_PASSWORD` and
 Note the new spec's lifecycle case registers and then archives one company
 (`Review Lifecycle … Ltd`), and its last case is skipped on deployed targets.
 
+## Audit follow-up (2026-10-23)
+
+A second pass, aimed at the release itself rather than the client's list: read the
+changed code for failure modes, run it against a real database, measure, and check it
+against current standards. It found real defects — one of them live in production.
+
+| # | Finding | Evidence | Fix |
+| --- | --- | --- | --- |
+| 1 | **A buyer could award an order to a suspended supplier.** `acceptQuotation` never looked at the supplier's status, so a quotation outlived its author's standing. | Reproduced on the *released* code: accept returned `201`, not `409`. | Award requires the supplier to be `VERIFIED` (the same rule already applied to quoting). The new test fails on the old code. |
+| 2 | Suspension cut sign-in but **not data egress**: webhooks kept queueing and being delivered, and notifications kept going to the suspended company's members. | DB probe: 0 deliveries / 0 notifications while suspended, 1 / 1 when verified. | Both paths now exclude `SUSPENDED`/`DELETED` companies, including already-queued deliveries. |
+| 3 | An invitation to a suspended company could still be **accepted** (it builds a session without passing through `login()`). | DB probe: `403` while suspended, `200` once reinstated. | Refused for blocked companies. |
+| 4 | Deleting a company read its members and checked its obligations *outside* the transaction; transitions were unconditional. A late joiner or a concurrent reactivate could leave a half-erased company. | Reading the code; see "limits" below. | Member list, obligations and the status change now happen in one serializable transaction with compare-and-set updates. Obligations also count open invoices and appointed logistics partners (a deleted forwarder would have stranded a shipment). |
+| 5 | Dashboard / analytics "Companies" totals counted deleted companies. | Code. | Excluded. |
+| 6 | **57 dependency advisories (5 critical, 30 high).** Next.js 16.2.10 was inside the range of all five critical RCEs; the API served with a nested Fastify 5.11.3 (auth/validation bypass advisories). | `bun audit` | Next 16.4.2, Fastify 5.12.7 (forced through `overrides`: `@nestjs/platform-fastify` carries its own nested copy), `@nestjs/*` 11.2.7, nodemailer 10.2.1, fast-uri, nanoid, postcss, source-map-js. **57 → 2**, both build-time only (the Prisma CLI's `deepmerge-ts`, and `baseline-browser-mapping`). Exposure was probably low (no `next/og`, no `"use cache"`, no image config, Linux host) but "probably" is not a standard. |
+| 7 | **WCAG 2.2 AA failures** (axe-core, light + dark + 390px): hero tiles 3.3–4.0:1; announcement badge 4.09:1; dark destructive badge 4.38:1; light warning badge 4.01:1; avatar initials 3.9:1; and *Label in Name* (Level A) failing on the logo (no space between "Global" and "PharmaChain"), the hero links, the search / report-issue / notifications buttons. | axe-core 4.14.0 with `wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa` | All fixed; colours chosen by computed ratio, not by eye. Also `autocomplete` on three fields (1.3.5). |
+| 8 | My own new specs registered so many companies they exhausted the 10/hour registration throttle and broke the *existing* register test. | 429s in the suite. | Shared `registerCompany` helper pinning a client IP, as `regression.spec.ts` does. |
+
+**Checked and fine:** security headers on the landing page, a dynamic page and the API
+(HSTS preload, nonce CSP, `nosniff`, COOP, Permissions-Policy); `security.txt` is valid
+(`Expires` 2027-10-11, RFC 9116); credential fields carry the right `autocomplete` and do
+not block paste (WCAG 3.3.8); unique-constraint and serialization races map to a clean
+`409`; `Company.verificationStatus` is already indexed.
+
+**Page weight** (cold cache, production build, gzip): landing 156 KB JS, login 208 KB,
+forgot-password 204 KB, register 276 KB (the form library, resolver and select widget);
+CSS 21 KB and fonts 63 KB everywhere. Nothing needs splitting; `register` is the one to
+watch. Server time is 4–23 ms (see Performance above); what users feel is distance.
+
+**Verification after the changes:** unit 116 + 75 + 30; typecheck 9/9; lint clean; full
+local suite **80 passed**, the same two cases failing as before for local-environment
+reasons only (no object store, no mail relay); axe clean at WCAG 2.2 AA on every public
+page and every page the release touched.
+
+**Limits of what was proven.** The two concurrency tests also pass against the old code
+on this machine: queries here take ~1 ms, so the read-then-write window never opens. The
+compare-and-set is correct by construction and the tests guard the invariant, but only the
+award test (finding 1) was seen to fail before the fix. The OS-painted dropdown popup,
+and everything behind sign-in in production, remain unverified from here.
+
+**Not changed — decisions for the owner:**
+* **Password policy** (`US-206`: ≥ 8 characters, a letter and a number). NIST SP 800-63B-4
+  moves away from composition rules and towards length (secondary sources say ≥ 15 when
+  a password is the only factor, and ≥ 64 accepted); the API already hashes with Argon2id
+  so it could allow it. This is the client's written requirement, so it is theirs to change.
+* **Next.js 16 deprecates `middleware` for `proxy`**, which defaults to the Node.js
+  runtime. Migrating would move the landing-page redirect from the edge into a function
+  pinned to `sin1` — slower for every visit to `/`. Keep `middleware` until that is
+  measured.
+* **Phishing-resistant MFA.** TOTP exists; for a platform that can suspend and delete
+  companies, passkeys/WebAuthn for platform admins are the next step.
+* **Rollback caveat.** Rolling production back to a build from before 2026-10-22 is only
+  safe while no company is `SUSPENDED` or `DELETED`: the older Prisma client cannot read
+  those enum values and will fail on the row. After that, fix forward.
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,
@@ -195,3 +249,11 @@ Note the new spec's lifecycle case registers and then archives one company
   <https://cms.mhra.gov.uk/index.php/print/pdf/node/92816>
 * MDN / Chrome, customizable `<select>` (`appearance: base-select`) — Chromium
   only, hence not used: <https://developer.chrome.com/blog/a-customizable-select>
+* NIST SP 800-63B-4 (Aug 2025) — secondary summary: <https://www.enzoic.com/blog/nist-sp-800-63b-rev4/>;
+  read the publication itself before changing policy.
+* WCAG 2.2 — 2.5.3 Label in Name, 2.5.8 Target Size, 3.3.8 Accessible Authentication:
+  <https://www.w3.org/TR/WCAG22/>
+* web.dev Core Web Vitals thresholds (LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 at p75):
+  <https://web.dev/articles/defining-core-web-vitals-thresholds>
+* Next.js 16 `middleware` → `proxy`: <https://nextjs.org/docs/app/api-reference/functions/middleware>
+* RFC 9116 (`security.txt`): <https://www.rfc-editor.org/rfc/rfc9116>

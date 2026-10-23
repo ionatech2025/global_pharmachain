@@ -316,19 +316,39 @@ export class AdminService {
 
   /**
    * What a company still owes the platform: orders not yet confirmed delivered,
-   * disputes still open, payments still pending. Deleting a company out from
-   * under these would strand a counterparty mid-trade, so it is refused.
+   * disputes still open, payments or invoices unsettled, and shipments it is
+   * appointed to carry or clear. Deleting a company out from under any of these
+   * would strand a counterparty mid-trade, so it is refused. Takes the client so
+   * the delete can run it inside its own transaction — a check made beforehand
+   * would let an order slip in between the check and the delete.
    */
-  async companyObligations(companyId: string) {
+  async companyObligations(
+    companyId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma,
+  ) {
     const parties = [{ buyerCompanyId: companyId }, { sellerCompanyId: companyId }];
-    const [openOrders, openDisputes, pendingPayments] = await Promise.all([
-      prisma.order.count({ where: { OR: parties, status: { not: "DELIVERY_CONFIRMED" } } }),
-      prisma.dispute.count({
-        where: { order: { OR: parties }, status: { in: ["OPEN", "ESCALATED"] } },
-      }),
-      prisma.payment.count({ where: { payerCompanyId: companyId, status: "PENDING" } }),
-    ]);
-    return { openOrders, openDisputes, pendingPayments };
+    const [openOrders, openDisputes, pendingPayments, openInvoices, activeAppointments] =
+      await Promise.all([
+        db.order.count({ where: { OR: parties, status: { not: "DELIVERY_CONFIRMED" } } }),
+        db.dispute.count({
+          where: { order: { OR: parties }, status: { in: ["OPEN", "ESCALATED"] } },
+        }),
+        db.payment.count({ where: { payerCompanyId: companyId, status: "PENDING" } }),
+        db.invoice.count({
+          where: {
+            OR: [{ issuerCompanyId: companyId }, { recipientCompanyId: companyId }],
+            status: "ISSUED",
+          },
+        }),
+        db.shipmentAppointment.count({
+          where: {
+            companyId,
+            status: "ACTIVE",
+            order: { status: { not: "DELIVERY_CONFIRMED" } },
+          },
+        }),
+      ]);
+    return { openOrders, openDisputes, pendingPayments, openInvoices, activeAppointments };
   }
 
   private mailMembers(
@@ -352,17 +372,20 @@ export class AdminService {
     const company = await this.loadCompanyForLifecycle(companyId);
     if (company.verificationStatus === "SUSPENDED") throw conflict("Company is already suspended");
     if (company.verificationStatus === "DELETED") throw conflict("Company has been deleted");
-    await prisma.$transaction([
-      prisma.company.update({
-        where: { id: companyId },
+    await prisma.$transaction(async (tx) => {
+      // Conditional, so two admins acting at once cannot both "succeed".
+      const moved = await tx.company.updateMany({
+        where: { id: companyId, verificationStatus: { notIn: ["SUSPENDED", "DELETED"] } },
         data: { verificationStatus: "SUSPENDED" },
-      }),
+      });
+      if (moved.count === 0)
+        throw conflict("Company was just suspended or deleted by someone else");
       // Every member's session version moves on, so open sessions die on their next request.
-      prisma.user.updateMany({
+      await tx.user.updateMany({
         where: { membership: { companyId } },
         data: { sessionVersion: { increment: 1 } },
-      }),
-    ]);
+      });
+    });
     this.mailMembers(
       company,
       "Your company's access has been suspended",
@@ -380,7 +403,11 @@ export class AdminService {
     }
     const checklist = await buildVerificationChecklist(companyId);
     const next = company.verifiedAt && checklist.complete ? "VERIFIED" : "PENDING_VERIFICATION";
-    await prisma.company.update({ where: { id: companyId }, data: { verificationStatus: next } });
+    const moved = await prisma.company.updateMany({
+      where: { id: companyId, verificationStatus: "SUSPENDED" },
+      data: { verificationStatus: next },
+    });
+    if (moved.count === 0) throw conflict("Company is no longer suspended");
     this.mailMembers(
       company,
       "Your company's access has been restored",
@@ -409,16 +436,18 @@ export class AdminService {
     if (confirmName.trim().toLowerCase() !== company.name.trim().toLowerCase()) {
       throw badRequest("The name you typed does not match this company — nothing was deleted");
     }
-    const obligations = await this.companyObligations(companyId);
-    if (obligations.openOrders + obligations.openDisputes + obligations.pendingPayments > 0) {
-      throw conflict(
-        `Cannot delete: ${obligations.openOrders} order(s) not yet delivered, ${obligations.openDisputes} open dispute(s) and ${obligations.pendingPayments} pending payment(s). Let them finish, or keep the company suspended.`,
-      );
-    }
     const now = new Date();
     await prisma.$transaction(async (tx) => {
-      await tx.company.update({
-        where: { id: companyId },
+      // Inside the serializable transaction: an order accepted a moment ago is
+      // seen here, and one accepted a moment from now makes this one retry.
+      const owed = await this.companyObligations(companyId, tx);
+      if (Object.values(owed).some((n) => n > 0)) {
+        throw conflict(
+          `Cannot delete: ${owed.openOrders} order(s) not yet delivered, ${owed.openDisputes} open dispute(s), ${owed.pendingPayments} pending payment(s), ${owed.openInvoices} unsettled invoice(s) and ${owed.activeAppointments} active shipment appointment(s). Let them finish, or keep the company suspended.`,
+        );
+      }
+      const moved = await tx.company.updateMany({
+        where: { id: companyId, verificationStatus: "SUSPENDED" },
         data: {
           verificationStatus: "DELETED",
           profileStatus: "DRAFT",
@@ -427,15 +456,22 @@ export class AdminService {
           primaryContactPhone: null,
         },
       });
-      for (const { user } of company.members) {
-        // Platform staff never hold a company membership; if one somehow does,
-        // leave the account (it is not the company's to erase).
-        if (!user.isSuperAdmin) await this.tombstoneUser(tx, adminId, user);
-      }
+      if (moved.count === 0) throw conflict("Company is no longer suspended");
+      // Invitations first, then the member list — both inside the transaction,
+      // so nobody can join between "who are the members" and "erase them".
       await tx.invite.updateMany({
         where: { companyId, acceptedAt: null, revokedAt: null },
         data: { revokedAt: now },
       });
+      const members = await tx.companyUserRole.findMany({
+        where: { companyId },
+        include: { user: true },
+      });
+      for (const { user } of members) {
+        // Platform staff never hold a company membership; if one somehow does,
+        // leave the account (it is not the company's to erase).
+        if (!user.isSuperAdmin) await this.tombstoneUser(tx, adminId, user);
+      }
       await tx.apiKey.updateMany({
         where: { companyId, revokedAt: null },
         data: { revokedAt: now },

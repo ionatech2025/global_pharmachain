@@ -55,7 +55,9 @@
   --ring: oklch(0.55 0.13 250);
   /* Status — AA on their tinted (12–15%) surfaces at badge sizes */
   --success: oklch(0.48 0.12 155);
-  --warning: oklch(0.54 0.13 75);
+  /* 0.48, not 0.54: amber text on its own 12% tint measured 4.01:1 (axe,
+     2026-10-23); this is ~5.1:1. */
+  --warning: oklch(0.48 0.13 75);
   --info: oklch(0.5 0.1 200);
   /* Hero globe wireframe — a branded azure line legible on the light hero */
   --globe-line: oklch(0.5 0.09 250 / 0.55);
@@ -109,7 +111,9 @@
   --muted-foreground: oklch(0.64 0.01 250);
   --accent: oklch(0.22 0.01 250);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.6 0.2 25);
+  /* L 0.57, not 0.6: white badge/button text on the solid measured 4.38:1
+     (axe, 2026-10-23); this is 4.93:1 and still unmistakably red. */
+  --destructive: oklch(0.57 0.2 25);
   /* The solid gives white button labels their contrast but is 4.39:1 as
      text on the card; this lighter step reads at 6.2:1 (5.7:1 on its tint). */
   --destructive-accent: oklch(0.68 0.17 25);

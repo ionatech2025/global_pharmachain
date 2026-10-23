@@ -1,6 +1,13 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { type Browser, expect, type Page, test } from "@playwright/test";
-import { ADMIN_PASSWORD, API_PATH, apiOrigin, signIn, signInFresh } from "./helpers";
+import {
+  ADMIN_PASSWORD,
+  API_PATH,
+  apiOrigin,
+  registerCompany,
+  signIn,
+  signInFresh,
+} from "./helpers";
 
 /**
  * Client review of 2026-10-20/22 (COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.pdf).
@@ -375,18 +382,16 @@ test.describe("platform admin company controls (page 12)", () => {
     const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
 
     // A fresh, never-traded company to act on.
-    const reg = await admin.request.post(`${API_PATH}/auth/register`, {
-      data: {
-        company: {
-          name,
-          type: "SUPPLIER",
-          country: "Uganda",
-          registrationNumber: `LC-${tag}`,
-          address: "Plot 1, Lifecycle Road",
-          contactPhone: "+256700000001",
-        },
-        admin: { name: "Lifecycle Admin", email, password: PASSWORD },
+    const reg = await registerCompany(admin, {
+      company: {
+        name,
+        type: "SUPPLIER",
+        country: "Uganda",
+        registrationNumber: `LC-${tag}`,
+        address: "Plot 1, Lifecycle Road",
+        contactPhone: "+256700000001",
       },
+      admin: { name: "Lifecycle Admin", email, password: PASSWORD },
     });
     expect(reg.status(), await reg.text()).toBeLessThan(300);
     const found = await (
@@ -476,18 +481,16 @@ test.describe("platform admin company controls (page 12)", () => {
     await gone.context().close();
 
     // The address is free again (the member was anonymised, not just disabled).
-    const reuse = await admin.request.post(`${API_PATH}/auth/register`, {
-      data: {
-        company: {
-          name: `${name} Reborn`,
-          type: "SUPPLIER",
-          country: "Uganda",
-          registrationNumber: `LC2-${tag}`,
-          address: "Plot 2, Lifecycle Road",
-          contactPhone: "+256700000002",
-        },
-        admin: { name: "Lifecycle Admin", email, password: PASSWORD },
+    const reuse = await registerCompany(admin, {
+      company: {
+        name: `${name} Reborn`,
+        type: "SUPPLIER",
+        country: "Uganda",
+        registrationNumber: `LC2-${tag}`,
+        address: "Plot 2, Lifecycle Road",
+        contactPhone: "+256700000002",
       },
+      admin: { name: "Lifecycle Admin", email, password: PASSWORD },
     });
     expect(reuse.status(), await reuse.text()).toBeLessThan(300);
     await admin.context().close();

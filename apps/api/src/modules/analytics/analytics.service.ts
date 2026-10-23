@@ -236,7 +236,7 @@ export class AnalyticsService {
 
   private async platformKpis(_user: AuthUser): Promise<KpiValue[]> {
     const [companies, verified, orders, delivered, disputes, ratings] = await Promise.all([
-      prisma.company.count(),
+      prisma.company.count({ where: { verificationStatus: { not: "DELETED" } } }),
       prisma.company.count({ where: { verificationStatus: "VERIFIED" } }),
       prisma.order.count(),
       prisma.order.count({ where: { status: { in: ["DELIVERED", "DELIVERY_CONFIRMED"] } } }),
