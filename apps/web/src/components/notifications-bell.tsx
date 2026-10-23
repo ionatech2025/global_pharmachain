@@ -47,17 +47,19 @@ export function NotificationsBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Notifications (${count} unread)`}
-          className="relative"
-        >
-          <Bell className="size-4" />
+        {/* The accessible name is built from the visible content ("Notifications 9+
+            unread"), not an aria-label: a label that merely resembles the badge fails
+            WCAG 2.5.3 Label in Name for voice-control users. */}
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="size-4" aria-hidden="true" />
+          <span className="sr-only">Notifications</span>
           {count > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-              {count > 9 ? "9+" : count}
-            </span>
+            <>
+              <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                {count > 9 ? "9+" : count}
+              </span>
+              <span className="sr-only"> unread</span>
+            </>
           )}
         </Button>
       </DropdownMenuTrigger>

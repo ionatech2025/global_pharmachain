@@ -123,22 +123,19 @@ const HERO_ACTIONS = [
     href: LANE_LINKS.source,
     label: "Source Raw Materials & Consumables",
     audience: "For Manufacturers buying inputs",
-    aria: "Source Raw Materials & Consumables - for manufacturers buying inputs",
-    className: "bg-sky-600 hover:bg-sky-700",
+    className: "bg-sky-700 hover:bg-sky-800",
   },
   {
     href: LANE_LINKS.list,
     label: "List Finished Formulations / Capacity",
     audience: "For Manufacturers selling products or contract services",
-    aria: "List Finished Formulations and Capacity - for manufacturers and CDMOs selling products or contract services",
     className: "bg-indigo-600 hover:bg-indigo-700",
   },
   {
     href: LANE_LINKS.procure,
     label: "Procure Bulk Finished Medications",
     audience: "For Wholesale Traders, Distributors & Institutional Buyers",
-    aria: "Procure Bulk Finished Medications - for wholesale traders, distributors and institutional buyers",
-    className: "bg-teal-600 hover:bg-teal-700",
+    className: "bg-teal-700 hover:bg-teal-800",
   },
 ] as const;
 
@@ -298,11 +295,11 @@ export default async function LandingPage() {
                         size="lg"
                         className={`h-auto min-h-[4.5rem] w-full flex-col items-start justify-center gap-1 rounded-2xl px-4 py-3 text-left whitespace-normal text-white shadow-md transition-all hover:scale-[1.02] ${action.className}`}
                       >
-                        <Link href={action.href} aria-label={action.aria}>
+                        <Link href={action.href}>
                           <span className="text-sm leading-snug font-semibold text-balance">
                             {action.label}
                           </span>
-                          <span className="text-[11px] leading-snug font-normal opacity-90">
+                          <span className="text-[11px] leading-snug font-normal">
                             {action.audience}
                           </span>
                         </Link>
@@ -420,12 +417,13 @@ export default async function LandingPage() {
                 />
                 {STEPS.map((step, index) => (
                   <li key={step.title} className="relative">
+                    {/* Decorative watermark drawn with CSS so it is not text a contrast
+                        check (or a screen reader) has to judge. */}
                     <span
                       aria-hidden
-                      className="text-display pointer-events-none absolute -top-7 right-0 text-8xl text-primary/[0.08] select-none dark:text-primary/[0.16]"
-                    >
-                      0{index + 1}
-                    </span>
+                      data-step={`0${index + 1}`}
+                      className="text-display pointer-events-none absolute -top-7 right-0 text-8xl text-primary/[0.08] select-none before:content-[attr(data-step)] dark:text-primary/[0.16]"
+                    />
                     <span className="relative inline-flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-background">
                       {index + 1}
                     </span>

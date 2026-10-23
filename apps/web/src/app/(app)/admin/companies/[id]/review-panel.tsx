@@ -317,6 +317,8 @@ interface Obligations {
   openOrders: number;
   openDisputes: number;
   pendingPayments: number;
+  openInvoices: number;
+  activeAppointments: number;
 }
 
 const LIFECYCLE_COPY: Record<LifecycleAction, { title: string; body: string; button: string }> = {
@@ -380,9 +382,7 @@ export function CompanyAccessControls({
     );
   }
 
-  const blockers = obligations
-    ? obligations.openOrders + obligations.openDisputes + obligations.pendingPayments
-    : null;
+  const blockers = obligations ? Object.values(obligations).reduce((a, b) => a + b, 0) : null;
   const nameMatches = confirmName.trim().toLowerCase() === companyName.trim().toLowerCase();
   const canSubmit =
     !busy && reason.trim().length >= 5 && (action !== "delete" || (nameMatches && blockers === 0));
@@ -456,7 +456,8 @@ export function CompanyAccessControls({
                 <p role="alert" className="text-destructive">
                   Cannot delete yet: {obligations.openOrders} order(s) not delivered,{" "}
                   {obligations.openDisputes} open dispute(s), {obligations.pendingPayments} pending
-                  payment(s).
+                  payment(s), {obligations.openInvoices} unsettled invoice(s),{" "}
+                  {obligations.activeAppointments} active shipment appointment(s).
                 </p>
               )}
               <div className="grid gap-1.5">

@@ -80,7 +80,13 @@ export function Logo({
           wordClassName,
         )}
       >
-        {showGlobal && <span className="font-normal text-muted-foreground mr-1">Global</span>}
+        {/* A real space, not margin: the link's accessible name is its text, and
+            "GlobalPharmaChain" is not contained in "Global PharmaChain home" (WCAG 2.5.3). */}
+        {showGlobal && (
+          <>
+            <span className="font-normal text-muted-foreground">Global</span>{" "}
+          </>
+        )}
         Pharma<span className="text-primary">Chain</span>
       </span>
     </span>

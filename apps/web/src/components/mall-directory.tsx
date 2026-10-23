@@ -62,7 +62,7 @@ const TRADING_LANES: TradingLane[] = [
       badgeBg: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30",
       iconBg: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
       iconText: "text-sky-600 dark:text-sky-400",
-      button: "bg-sky-600 hover:bg-sky-700 text-white",
+      button: "bg-sky-700 hover:bg-sky-800 text-white",
     },
     primaryCta: {
       label: "Source Upstream Inputs",
@@ -170,7 +170,7 @@ const TRADING_LANES: TradingLane[] = [
       badgeBg: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30",
       iconBg: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
       iconText: "text-teal-600 dark:text-teal-400",
-      button: "bg-teal-600 hover:bg-teal-700 text-white",
+      button: "bg-teal-700 hover:bg-teal-800 text-white",
     },
     primaryCta: {
       label: "Procure Bulk Inventory",

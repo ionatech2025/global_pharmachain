@@ -114,7 +114,11 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
                 <FormItem>
                   <FormLabel>Company name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Apex Pharma International" {...field} />
+                    <Input
+                      autoComplete="organization"
+                      placeholder="e.g. Apex Pharma International"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -219,7 +223,7 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
                     <FormItem>
                       <FormLabel>Full name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Dr. Jane Doe" {...field} />
+                        <Input autoComplete="name" placeholder="e.g. Dr. Jane Doe" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
