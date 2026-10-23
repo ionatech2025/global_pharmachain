@@ -564,7 +564,7 @@ export default async function DashboardPage() {
               />
               <Provenance>
                 Counts are live at page load. Verification decisions are audited — see{" "}
-                <Link href="/admin/audit" className="text-primary hover:underline">
+                <Link href="/admin/audit" className="text-primary underline underline-offset-2">
                   audit logs
                 </Link>
                 .
