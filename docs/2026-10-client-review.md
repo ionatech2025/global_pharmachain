@@ -229,20 +229,62 @@ deployed counterpart.
 controls, the in-app disclaimer, the expiry field, the award guard end to end) and the
 production e2e run — they need `SEED_DEMO_PASSWORD` and `SEED_SUPER_ADMIN_PASSWORD`.
 
-**Not changed — decisions for the owner:**
-* **Password policy** (`US-206`: ≥ 8 characters, a letter and a number). NIST SP 800-63B-4
-  moves away from composition rules and towards length (secondary sources say ≥ 15 when
-  a password is the only factor, and ≥ 64 accepted); the API already hashes with Argon2id
-  so it could allow it. This is the client's written requirement, so it is theirs to change.
-* **Next.js 16 deprecates `middleware` for `proxy`**, which defaults to the Node.js
-  runtime. Migrating would move the landing-page redirect from the edge into a function
-  pinned to `sin1` — slower for every visit to `/`. Keep `middleware` until that is
-  measured.
-* **Phishing-resistant MFA.** TOTP exists; for a platform that can suspend and delete
-  companies, passkeys/WebAuthn for platform admins are the next step.
-* **Rollback caveat.** Rolling production back to a build from before 2026-10-22 is only
-  safe while no company is `SUSPENDED` or `DELETED`: the older Prisma client cannot read
-  those enum values and will fail on the row. After that, fix forward.
+### Decisions applied (2026-10-23)
+
+The owner asked for the four open decisions to be applied. In order:
+
+**1. Password policy → NIST SP 800-63B-4.** Read from the standard itself
+(<https://pages.nist.gov/800-63-4/sp800-63b.html>, §3.1.1.2), not from summaries of it —
+which also corrected two things I had from memory (normalisation is NFC, not NFKC; the
+blocklist is compared against the *whole* password, never substrings).
+
+| Rule | Before | Now |
+| --- | --- | --- |
+| Minimum length | 8 | **15** (the floor for a password that may be the only factor) |
+| Maximum accepted | 72 | **128** (the standard asks for ≥ 64; Argon2id has no 72-byte limit) |
+| Composition | a letter *and* a number | **none** — the standard forbids composition rules |
+| Counting | UTF-16 units | **Unicode code points** (an emoji is one character) |
+| Normalisation | none | **NFC** before hashing; a hash made from the raw string still verifies |
+| Blocklist | none | 16,060 breach-derived entries ≥ 15 characters (SecLists, MIT) + obvious structure (repeats, straight runs), with the **reason** shown; plus a Pwned Passwords range lookup (k-anonymity: only 5 hex characters leave the server) that **fails open** and runs beside the Argon2 hash, so registration does not get slower |
+| Rotation | none | none (forbidden by the standard) |
+| Paste / managers | allowed | allowed (required) |
+
+Applies when a password is next *set* (registration, invitation, reset, change);
+nobody's existing password is invalidated and nobody is signed out. The static list does
+not contain the famous xkcd passphrase — the Pwned Passwords lookup does, which is the
+point of having both. `PWNED_PASSWORDS_CHECK=false` turns the lookup off.
+
+**2. Passkeys (WebAuthn) for platform admins.** New table `WebAuthnCredential`
+(migration `20261023000000_webauthn_credentials`, additive). Enrol under **Account →
+Passkeys**; a platform admin who has one **must** present it after their password (or
+emailed code) — a TOTP code is not accepted in its place, because it can be phished.
+Ordinary users with a passkey may use it or TOTP. Nothing is forced on an account that has
+not enrolled, so the release locks nobody out; platform admins see a banner until they
+have one. Credentials are discoverable and require user verification, so the sign-in
+challenge names no account and reveals nothing about who has a passkey. The passkey must
+belong to the user the password identified; challenges are single-use and stored durably
+(any serverless instance can verify). Removing one re-asks for the password and emails the
+owner; erasing a user deletes their passkeys.
+*Proven, not assumed:* five browser tests drive Chromium's virtual authenticator through
+real WebAuthn ceremonies, and each of the three protections was **broken on purpose** to
+confirm a test catches it (second factor never required; passkey not bound to the user;
+challenge never spent). The first version of the challenge test did *not* catch the third —
+the signature counter hid it — so it was rewritten to present two different, validly signed
+assertions for one challenge.
+
+**3. `middleware` → `proxy`: decided to hold.** Recorded with its trigger in
+`docs/runbook-release-and-rollback.md`.
+
+**4. Rollback caveat → runbook.** `docs/runbook-release-and-rollback.md` states the order
+(migrate, deploy, verify), how to prove a release is live, and exactly when rolling back is
+and is not safe (not once a company is suspended or deleted), with the check an admin can
+do in the UI. It also covers passkey operations: the RP ID is bound to the domain (set
+`WEBAUTHN_RP_ID` *before* a custom-domain move), register two passkeys, and the recovery
+SQL if an admin loses every one.
+
+**Found while doing it:** the dashboard's "audit logs" link was underlined only on hover
+(WCAG 1.4.1) — fixed. 27 other `text-primary hover:underline` links exist; most are
+standalone, but a sweep of every page for in-sentence ones is worth doing.
 
 ## Needs the client / the operator
 

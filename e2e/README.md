@@ -24,6 +24,12 @@ Five browser suites run against a running stack (local or deployed — set
 - **`routes.spec.ts`** — every major frontend route renders its
   schema-backed content and never falls through to the error boundary.
 
+- **`passkeys.spec.ts`** — the platform admin's passkey second factor, driven through
+  Chromium's virtual authenticator. **Local stack only, and on `http://localhost`** — WebAuthn
+  rejects IP addresses as a relying-party ID — so run the web app and set `AUTH_URL`,
+  `APP_URL`, `CORS_ORIGINS` and `E2E_BASE_URL` to `http://localhost:<port>`. It briefly makes
+  the super admin require a passkey; if a run is killed, see the recovery SQL in the spec.
+
 `helpers.ts` holds the shared plumbing: sign-in, navigation assertions, and
 the API base resolution described below.
 
