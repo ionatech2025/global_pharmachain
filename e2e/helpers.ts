@@ -1,6 +1,13 @@
+import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
+import {
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+  expect,
+  type Page,
+} from "@playwright/test";
 
 /**
  * Shared e2e plumbing.
@@ -191,4 +198,32 @@ export async function firstId(page: Page, path: string, key = "id"): Promise<str
   const body = await res.json();
   const arr = Array.isArray(body) ? body : (body.items ?? []);
   return arr[0]?.[key];
+}
+
+const PROXY_SECRET = process.env.E2E_PROXY_SECRET
+  ? createHmac("sha256", process.env.E2E_PROXY_SECRET)
+      .update("pharmachain/proxy-identity/v1")
+      .digest("hex")
+  : "";
+let registerCalls = 0;
+
+/**
+ * Registers a company through the public endpoint without spending the shared
+ * budget. Registration is throttled to 10 per hour per client IP, and every
+ * spec that registers from the same machine shares one IP — a few runs in an
+ * hour starved the *other* specs' registration case with a 429. When the
+ * deployment's AUTH_SECRET is available (E2E_PROXY_SECRET) each call pins its
+ * own client IP, exactly as regression.spec.ts does; without it the call goes
+ * out as-is and the budget is what it is.
+ */
+export async function registerCompany(page: Page, data: unknown): Promise<APIResponse> {
+  const base = process.env.E2E_API_ORIGIN ?? `${process.env.E2E_BASE_URL ?? ""}${API_PATH}`;
+  registerCalls += 1;
+  const octet = ((Date.now() + registerCalls * 7) % 250) + 1;
+  return page.request.post(`${base}/auth/register`, {
+    data,
+    headers: PROXY_SECRET
+      ? { "x-client-ip": `198.51.100.${octet}`, "x-proxy-secret": PROXY_SECRET }
+      : {},
+  });
 }
