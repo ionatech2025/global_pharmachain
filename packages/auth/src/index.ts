@@ -23,6 +23,8 @@ export const IDLE_WARNING_AFTER_SECONDS = 25 * 60;
  */
 const CLIENT_SAFE_CODES: Record<string, string> = {
   TOTP_REQUIRED: "totp_required",
+  PASSKEY_REQUIRED: "passkey_required",
+  PASSKEY_INVALID: "passkey_invalid",
   RATE_LIMITED: "rate_limited",
   // Only ever returned after the credentials were right, so it confirms nothing
   // to someone guessing at accounts.
@@ -95,17 +97,23 @@ export function createAuthConfig(opts: { apiUrl: string }): NextAuthConfig {
       Credentials({
         id: "credentials",
         name: "Email and password",
-        credentials: { email: {}, password: {}, totpCode: {} },
+        credentials: { email: {}, password: {}, totpCode: {}, passkey: {} },
         authorize: async (credentials, request) => {
-          const { email, password, totpCode } = credentials as {
+          const { email, password, totpCode, passkey } = credentials as {
             email?: string;
             password?: string;
             totpCode?: string;
+            passkey?: string;
           };
           if (!email || !password) return null;
           return verifyWithApi(
             opts.apiUrl,
-            totpCode ? { email, password, totpCode } : { email, password },
+            {
+              email,
+              password,
+              ...(totpCode ? { totpCode } : {}),
+              ...(passkey ? { passkey } : {}),
+            },
             request,
           );
         },
@@ -113,11 +121,25 @@ export function createAuthConfig(opts: { apiUrl: string }): NextAuthConfig {
       Credentials({
         id: "otp",
         name: "One-time code",
-        credentials: { email: {}, otp: {} },
+        credentials: { email: {}, otp: {}, totpCode: {}, passkey: {} },
         authorize: async (credentials, request) => {
-          const { email, otp } = credentials as { email?: string; otp?: string };
+          const { email, otp, totpCode, passkey } = credentials as {
+            email?: string;
+            otp?: string;
+            totpCode?: string;
+            passkey?: string;
+          };
           if (!email || !otp) return null;
-          return verifyWithApi(opts.apiUrl, { email, otp }, request);
+          return verifyWithApi(
+            opts.apiUrl,
+            {
+              email,
+              otp,
+              ...(totpCode ? { totpCode } : {}),
+              ...(passkey ? { passkey } : {}),
+            },
+            request,
+          );
         },
       }),
     ],

@@ -1,10 +1,12 @@
-import { Body, Controller, Get, HttpCode, Post, Put, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
   acceptInviteSchema,
   changePasswordSchema,
   forgotPasswordSchema,
+  idParamSchema,
   otpRequestSchema,
+  PASSWORD_MAX_LENGTH,
   type RegisterInput,
   registerSchema,
   resetPasswordSchema,
@@ -18,10 +20,11 @@ import { zodPipe } from "../../common/pipes/zod.pipe";
 import type { AuthUser } from "../../lib/context";
 import { clientIp } from "../../lib/context";
 import { AuthService } from "./auth.service";
+import { PasskeyService } from "./passkey.service";
 
 const loginBodySchema = z.object({
   email: z.email(),
-  password: z.string().min(1).max(72).optional(),
+  password: z.string().min(1).max(PASSWORD_MAX_LENGTH).optional(),
   otp: z
     .string()
     .regex(/^\d{6}$/)
@@ -30,12 +33,31 @@ const loginBodySchema = z.object({
     .string()
     .regex(/^\d{6}$/)
     .optional(),
+  // The browser's WebAuthn assertion, as JSON text.
+  passkey: z.string().max(16_384).optional(),
 });
 type LoginBody = z.infer<typeof loginBodySchema>;
 
+// The browser's WebAuthn response is checked cryptographically by the library; the schema
+// only bounds what is accepted and pins the shape the library reads.
+const passkeyRegisterBodySchema = z.object({
+  response: z.looseObject({
+    id: z.string().min(1).max(1024),
+    type: z.literal("public-key"),
+    response: z.looseObject({}),
+  }),
+  name: z.string().trim().max(60).default("Passkey"),
+});
+const passkeyRemoveBodySchema = z.object({
+  currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+});
+
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passkeys: PasskeyService,
+  ) {}
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60 * 60 * 1000 } })
@@ -61,6 +83,51 @@ export class AuthController {
         (req.headers["x-client-user-agent"] as string | undefined) ||
         (req.headers["user-agent"] as string | undefined),
     });
+  }
+
+  // ─── Passkeys (WebAuthn second factor) ─────────────────────────────────────
+
+  /** Public on purpose: it names no account, so it reveals nothing about any account. */
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 15 * 60 * 1000 } })
+  @HttpCode(200)
+  @Post("passkey/options")
+  passkeySignInOptions() {
+    return this.passkeys.authenticationOptions();
+  }
+
+  @Get("passkeys")
+  listPasskeys(@CurrentUser() user: AuthUser) {
+    return this.passkeys.list(user.id);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 15 * 60 * 1000 } })
+  @HttpCode(200)
+  @Post("passkeys/register/options")
+  passkeyRegistrationOptions(@CurrentUser() user: AuthUser) {
+    return this.passkeys.registrationOptions(user);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 15 * 60 * 1000 } })
+  @HttpCode(201)
+  @Post("passkeys/register/verify")
+  passkeyRegistrationVerify(
+    @CurrentUser() user: AuthUser,
+    @Body(zodPipe(passkeyRegisterBodySchema)) body: z.infer<typeof passkeyRegisterBodySchema>,
+  ) {
+    return this.passkeys.verifyRegistration(user, body.response as never, body.name);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 15 * 60 * 1000 } })
+  @HttpCode(200)
+  @Post("passkeys/:id/remove")
+  async removePasskey(
+    @CurrentUser() user: AuthUser,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(passkeyRemoveBodySchema)) body: z.infer<typeof passkeyRemoveBodySchema>,
+  ) {
+    await this.passkeys.remove(user, params.id, body.currentPassword);
+    return { ok: true };
   }
 
   @Public()
@@ -146,7 +213,7 @@ export class AuthController {
     @Body(
       zodPipe(
         z.object({
-          password: z.string().min(1).max(72),
+          password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
           code: z.string().regex(/^\d{6}$/),
         }),
       ),

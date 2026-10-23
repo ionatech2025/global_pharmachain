@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { isKnownCountry } from "../countries";
 import { COMPANY_ROLES, COMPANY_TYPES } from "../enums";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  passwordLength,
+  passwordStructureProblem,
+} from "../password-policy";
 
 // Misspellings of the mail domains our users actually type. A plain format
 // check cannot catch these — `user@gmai.com` is perfectly well-formed — but
@@ -72,13 +78,21 @@ export const newAccountEmailSchema = emailSchema.superRefine((value, ctx) => {
   }
 });
 
-// US-206: minimum 8 characters, at least one letter and one number.
+// US-206, revised 2026-10-23 to NIST SP 800-63B-4 (see ../password-policy.ts): at least
+// 15 characters, no character-type rules. The blocklist runs on the API, not here, so it
+// is never shipped to browsers.
 export const passwordSchema = z
   .string()
-  .min(8, "At least 8 characters")
-  .max(72)
-  .regex(/[A-Za-z]/, "Must contain a letter")
-  .regex(/\d/, "Must contain a number");
+  .refine((p) => passwordLength(p) >= PASSWORD_MIN_LENGTH, {
+    message: `Use at least ${PASSWORD_MIN_LENGTH} characters — a few unrelated words make a good passphrase`,
+  })
+  .refine((p) => passwordLength(p) <= PASSWORD_MAX_LENGTH, {
+    message: `Use at most ${PASSWORD_MAX_LENGTH} characters`,
+  })
+  .superRefine((p, ctx) => {
+    const problem = passwordStructureProblem(p);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
 
 export const registerSchema = z.object({
   company: z.object({
@@ -105,7 +119,7 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const loginPasswordSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1).max(72),
+  password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
 });
 
 export const loginOtpSchema = z.object({
@@ -129,7 +143,7 @@ export const acceptInviteSchema = z.object({
 });
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(72),
+  currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
   newPassword: passwordSchema,
 });
 

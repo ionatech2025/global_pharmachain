@@ -257,6 +257,8 @@ export class AdminService {
         sessionVersion: { increment: 1 },
       },
     });
+    // An erased person must not be able to sign in with a credential that is still on file.
+    await tx.webAuthnCredential.deleteMany({ where: { userId: user.id } });
     await tx.dataDeletionRequest.updateMany({
       where: { userId: user.id, status: "PENDING" },
       data: { status: "COMPLETED", completedById: adminId, completedAt: new Date() },

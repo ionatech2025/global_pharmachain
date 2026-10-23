@@ -342,63 +342,63 @@ model Company {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
-  members                CompanyUserRole[]
-  invites                Invite[]
-  documents              Document[]
-  listings               Listing[]
-  rfqs                   Rfq[]
-  quotations             Quotation[]
-  ordersAsBuyer          Order[]           @relation("OrderBuyer")
-  ordersAsSeller         Order[]           @relation("OrderSeller")
-  threadsAsBuyer         MessageThread[]   @relation("ThreadBuyer")
-  threadsAsSupplier      MessageThread[]   @relation("ThreadSupplier")
-  creditRequests         CreditRequest[]
-  announcementsTargeted  Announcement[]
-  shipmentAppointments   ShipmentAppointment[]
-  disputesRaised         Dispute[]
-  paymentsMade           Payment[]
-  invoicesIssued         Invoice[]         @relation("InvoiceIssuer")
-  invoicesReceived       Invoice[]         @relation("InvoiceRecipient")
-  ledgerEntries          LedgerEntry[]
-  ratingsGiven           Rating[]          @relation("RatingsGiven")
-  ratingsReceived        Rating[]          @relation("RatingsReceived")
-  webhooks               Webhook[]
-  apiKeys                ApiKey[]
-  supportIssues          SupportIssue[]
+  members               CompanyUserRole[]
+  invites               Invite[]
+  documents             Document[]
+  listings              Listing[]
+  rfqs                  Rfq[]
+  quotations            Quotation[]
+  ordersAsBuyer         Order[]               @relation("OrderBuyer")
+  ordersAsSeller        Order[]               @relation("OrderSeller")
+  threadsAsBuyer        MessageThread[]       @relation("ThreadBuyer")
+  threadsAsSupplier     MessageThread[]       @relation("ThreadSupplier")
+  creditRequests        CreditRequest[]
+  announcementsTargeted Announcement[]
+  shipmentAppointments  ShipmentAppointment[]
+  disputesRaised        Dispute[]
+  paymentsMade          Payment[]
+  invoicesIssued        Invoice[]             @relation("InvoiceIssuer")
+  invoicesReceived      Invoice[]             @relation("InvoiceRecipient")
+  ledgerEntries         LedgerEntry[]
+  ratingsGiven          Rating[]              @relation("RatingsGiven")
+  ratingsReceived       Rating[]              @relation("RatingsReceived")
+  webhooks              Webhook[]
+  apiKeys               ApiKey[]
+  supportIssues         SupportIssue[]
 
   @@index([verificationStatus])
   @@index([type, verificationStatus])
 }
 
 model User {
-  id                 String     @id @default(uuid(7)) @db.Uuid
-  email              String     @unique
-  name               String
-  passwordHash       String?
-  status             UserStatus @default(ACTIVE)
-  isSuperAdmin       Boolean    @default(false)
+  id                      String     @id @default(uuid(7)) @db.Uuid
+  email                   String     @unique
+  name                    String
+  passwordHash            String?
+  status                  UserStatus @default(ACTIVE)
+  isSuperAdmin            Boolean    @default(false)
   // Bumped to invalidate all sessions (deactivation, password reset, override)
-  sessionVersion     Int        @default(1)
-  whatsappNumber     String?
-  whatsappVerifiedAt DateTime?
+  sessionVersion          Int        @default(1)
+  whatsappNumber          String?
+  whatsappVerifiedAt      DateTime?
   // Challenge-response number verification (US-604): code sent over the
   // WhatsApp channel itself, stored hashed like the email OTP.
   whatsappVerifyCodeHash  String?
   whatsappVerifyExpiresAt DateTime?
   // TOTP second factor (RFC 6238); secret stored base32, presence + enabledAt
   // gate the login challenge.
-  totpSecret         String?
-  totpEnabledAt      DateTime?
+  totpSecret              String?
+  totpEnabledAt           DateTime?
   // Phase 3 §3: preferred display currency (null = listing currency as-is)
-  preferredCurrency  String?
+  preferredCurrency       String?
   // Phase 4 §4: locale-aware formatting + time-zone handling
-  locale             String?
-  timeZone           String?
-  lastLoginAt        DateTime?
-  deactivatedAt      DateTime?
-  anonymizedAt       DateTime?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  locale                  String?
+  timeZone                String?
+  lastLoginAt             DateTime?
+  deactivatedAt           DateTime?
+  anonymizedAt            DateTime?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
 
   membership              CompanyUserRole?
   savedSearches           SavedSearch[]
@@ -428,9 +428,10 @@ model User {
   ratingsAuthored         Rating[]
   pushSubscriptions       PushSubscription[]
   dashboardPreference     DashboardPreference?
-  issuesReported          SupportIssue[]          @relation("IssueReporter")
-  issuesResolved          SupportIssue[]          @relation("IssueResolver")
+  issuesReported          SupportIssue[]           @relation("IssueReporter")
+  issuesResolved          SupportIssue[]           @relation("IssueResolver")
   issueMessages           SupportIssueMessage[]
+  webauthnCredentials     WebAuthnCredential[]
 }
 
 // One membership per user in Phase 1 (US-201: an email active in another
@@ -694,24 +695,24 @@ model Quotation {
 }
 
 model Order {
-  id             String      @id @default(uuid(7)) @db.Uuid
-  orderNo        String      @unique
-  rfqId          String      @unique @db.Uuid
-  quotationId    String      @unique @db.Uuid
-  buyerCompanyId String      @db.Uuid
-  sellerCompanyId String     @db.Uuid
-  createdById    String      @db.Uuid
+  id                  String       @id @default(uuid(7)) @db.Uuid
+  orderNo             String       @unique
+  rfqId               String       @unique @db.Uuid
+  quotationId         String       @unique @db.Uuid
+  buyerCompanyId      String       @db.Uuid
+  sellerCompanyId     String       @db.Uuid
+  createdById         String       @db.Uuid
   // Snapshot of the awarded terms (US-405)
-  title          String
-  quantity       Decimal     @db.Decimal(16, 4)
-  unit           String
-  unitPrice      Decimal     @db.Decimal(14, 4)
-  currency       String
-  totalAmount    Decimal     @db.Decimal(16, 2)
-  status         OrderStatus @default(ORDER_CONFIRMED)
-  eta            DateTime?
-  forwarderName  String?
-  forwarderEmail String?
+  title               String
+  quantity            Decimal      @db.Decimal(16, 4)
+  unit                String
+  unitPrice           Decimal      @db.Decimal(14, 4)
+  currency            String
+  totalAmount         Decimal      @db.Decimal(16, 2)
+  status              OrderStatus  @default(ORDER_CONFIRMED)
+  eta                 DateTime?
+  forwarderName       String?
+  forwarderEmail      String?
   // Phase 2 logistics metadata (managed by seller/appointed forwarder)
   freightMode         FreightMode?
   coldChain           Boolean      @default(false)
@@ -723,14 +724,14 @@ model Order {
   // Alert-engine dedupe markers (one delay/doc alert per day per order)
   lastDelayAlertAt    DateTime?
   lastDocAlertAt      DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  rfq           Rfq                @relation(fields: [rfqId], references: [id])
-  quotation     Quotation          @relation(fields: [quotationId], references: [id])
-  buyerCompany  Company            @relation("OrderBuyer", fields: [buyerCompanyId], references: [id])
-  sellerCompany Company            @relation("OrderSeller", fields: [sellerCompanyId], references: [id])
-  createdBy     User               @relation(fields: [createdById], references: [id])
+  rfq           Rfq                   @relation(fields: [rfqId], references: [id])
+  quotation     Quotation             @relation(fields: [quotationId], references: [id])
+  buyerCompany  Company               @relation("OrderBuyer", fields: [buyerCompanyId], references: [id])
+  sellerCompany Company               @relation("OrderSeller", fields: [sellerCompanyId], references: [id])
+  createdBy     User                  @relation(fields: [createdById], references: [id])
   statusEvents  OrderStatusEvent[]
   documents     Document[]
   thread        MessageThread?
@@ -906,17 +907,17 @@ model WebhookDelivery {
 // Partner/public API keys (Phase 5 §4): hashed at rest, scoped, per-key
 // rate-limited through the durable throttle storage.
 model ApiKey {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  companyId      String    @db.Uuid
-  name           String
-  prefix         String
-  hashedKey      String    @unique
-  scopes         String[]
-  rateLimitPerMin Int      @default(60)
-  lastUsedAt     DateTime?
-  revokedAt      DateTime?
-  createdById    String    @db.Uuid
-  createdAt      DateTime  @default(now())
+  id              String    @id @default(uuid(7)) @db.Uuid
+  companyId       String    @db.Uuid
+  name            String
+  prefix          String
+  hashedKey       String    @unique
+  scopes          String[]
+  rateLimitPerMin Int       @default(60)
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdById     String    @db.Uuid
+  createdAt       DateTime  @default(now())
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -943,10 +944,10 @@ model Rating {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  rater   Company @relation("RatingsGiven", fields: [raterCompanyId], references: [id])
-  target  Company @relation("RatingsReceived", fields: [targetCompanyId], references: [id])
-  author  User    @relation(fields: [createdById], references: [id])
+  order  Order   @relation(fields: [orderId], references: [id])
+  rater  Company @relation("RatingsGiven", fields: [raterCompanyId], references: [id])
+  target Company @relation("RatingsReceived", fields: [targetCompanyId], references: [id])
+  author User    @relation(fields: [createdById], references: [id])
 
   @@unique([orderId, raterCompanyId, targetCompanyId])
   @@index([targetCompanyId, status])
@@ -1080,17 +1081,17 @@ model LedgerEntry {
 // Admin-maintained duty/VAT rules keyed by HS-code prefix and lane
 // (Phase 3 §2). Longest matching hsPrefix wins; null origin matches any.
 model TaxRule {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  hsPrefix    String
+  id            String   @id @default(uuid(7)) @db.Uuid
+  hsPrefix      String
   originCountry String?
-  destCountry String
-  dutyRatePct Decimal  @db.Decimal(6, 3)
-  vatRatePct  Decimal  @db.Decimal(6, 3)
-  notes       String?
-  active      Boolean  @default(true)
-  updatedById String?  @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  destCountry   String
+  dutyRatePct   Decimal  @db.Decimal(6, 3)
+  vatRatePct    Decimal  @db.Decimal(6, 3)
+  notes         String?
+  active        Boolean  @default(true)
+  updatedById   String?  @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([destCountry, active])
 }
@@ -1331,18 +1332,18 @@ model SystemParameter {
 // Pay-per-use credit requests beyond the Freemium limit (US-907).
 // Confirmed credits count toward the month of `decidedAt`.
 model CreditRequest {
-  id            String       @id @default(uuid(7)) @db.Uuid
-  companyId     String       @db.Uuid
-  kind          CreditKind
-  count         Int
-  fee           Decimal      @db.Decimal(12, 2)
-  currency      String       @default("USD")
-  status        CreditStatus @default(PENDING_PAYMENT)
-  requestedById String       @db.Uuid
-  confirmedById String?      @db.Uuid
-  note          String?
-  decidedAt     DateTime?
-  createdAt     DateTime     @default(now())
+  id                  String         @id @default(uuid(7)) @db.Uuid
+  companyId           String         @db.Uuid
+  kind                CreditKind
+  count               Int
+  fee                 Decimal        @db.Decimal(12, 2)
+  currency            String         @default("USD")
+  status              CreditStatus   @default(PENDING_PAYMENT)
+  requestedById       String         @db.Uuid
+  confirmedById       String?        @db.Uuid
+  note                String?
+  decidedAt           DateTime?
+  createdAt           DateTime       @default(now())
   // In-platform settlement of the platform fee. Nullable throughout: a request
   // raised before checkout existed, or paid by arrangement, still settles
   // through the admin queue. Card/mobile-money requests are confirmed by the
@@ -1350,7 +1351,7 @@ model CreditRequest {
   // and is confirmed by the platform team.
   paymentMethod       PaymentMethod?
   paymentProvider     String?
-  paymentRef          String?    @unique
+  paymentRef          String?        @unique
   paymentInstructions String?
   paymentInitiatedAt  DateTime?
   webhookPayload      Json?
@@ -1455,4 +1456,25 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
   @@index([createdAt])
+}
+
+// A passkey / security key (WebAuthn). Platform admins who enrol one must present it at
+// sign-in after their password — a phishing-resistant second factor. The credential id is
+// public; only the public key is stored, never anything that could sign in as the user.
+model WebAuthnCredential {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @db.Uuid
+  credentialId String    @unique // base64url
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
+  deviceType   String // "singleDevice" | "multiDevice"
+  backedUp     Boolean   @default(false)
+  name         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }

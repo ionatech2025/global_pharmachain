@@ -1,5 +1,6 @@
 "use client";
 
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
+import { PasskeysCard } from "./passkeys-panel";
 
 function ChangePasswordCard() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -70,10 +72,11 @@ function ChangePasswordCard() {
                 fieldName="new password"
                 autoComplete="new-password"
                 required
-                minLength={12}
+                minLength={PASSWORD_MIN_LENGTH}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirm">Confirm new password</Label>
@@ -247,10 +250,17 @@ function DataPrivacyCard() {
   );
 }
 
-export function AccountPanels({ totpEnabled }: { totpEnabled: boolean }) {
+export function AccountPanels({
+  totpEnabled,
+  isPlatformAdmin,
+}: {
+  totpEnabled: boolean;
+  isPlatformAdmin: boolean;
+}) {
   return (
     <div className="space-y-4">
       <ChangePasswordCard />
+      <PasskeysCard isPlatformAdmin={isPlatformAdmin} />
       <TotpCard initiallyEnabled={totpEnabled} />
       <WhatsappCard />
       <LocaleCard />

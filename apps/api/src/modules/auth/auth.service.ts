@@ -10,12 +10,16 @@ import { env } from "../../env";
 import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
 import { defer } from "../../lib/defer";
 import { hashPassword, verifyPassword } from "../../lib/password";
+import { isBlockedPassword } from "../../lib/password-blocklist";
+import { isPwnedPassword, pwnedCheckEnabled } from "../../lib/pwned";
 import { isSealed, openSecret, sealSecret } from "../../lib/secret-box";
 import { generateTotpSecret, matchTotp, otpauthUri, verifyTotp } from "../../lib/totp";
 import { sendEmailTo } from "../shared/mailer";
 import { INVITE_REJECTION_MESSAGES, inviteRejection } from "./invite-tokens";
 import { issueOtp, verifyOtp } from "./otp";
+import { PasskeyService } from "./passkey.service";
 import { FORGOT_PASSWORD_MESSAGE, resetCoolingDown } from "./reset-link";
+import { secondFactorFor } from "./second-factor";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 60 minutes (US-206)
 
@@ -30,12 +34,40 @@ export interface LoginInput {
   password?: string;
   otp?: string;
   totpCode?: string;
+  /** JSON text of the WebAuthn assertion a browser produced (a passkey sign-in). */
+  passkey?: string;
   ip?: string;
   userAgent?: string;
 }
 
 @Injectable()
 export class AuthService {
+  constructor(private readonly passkeys: PasskeyService) {}
+
+  /**
+   * Hash a NEW password after the policy's server-side checks (the length and structure
+   * rules ran in the request schema). Used by every path that sets one — registration,
+   * invitation, reset, change — so none can be a way round it. The compromised-password
+   * lookup runs beside the Argon2 hash, so it adds time only if it is the slower of the two.
+   */
+  private async hashAcceptedPassword(password: string): Promise<string> {
+    if (isBlockedPassword(password)) {
+      throw badRequest(
+        "That password is on lists of commonly used passwords. Choose a different one — a few unrelated words work well.",
+      );
+    }
+    const [hash, pwned] = await Promise.all([
+      hashPassword(password),
+      pwnedCheckEnabled() ? isPwnedPassword(password) : Promise.resolve(false),
+    ]);
+    if (pwned) {
+      throw badRequest(
+        "That password has appeared in a data breach. Choose a different one that you have not used anywhere else.",
+      );
+    }
+    return hash;
+  }
+
   async buildAuthenticatedUser(userId: string): Promise<AuthenticatedUser> {
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -77,7 +109,7 @@ export class AuthService {
     if (existingUser) throw conflict("An account with this email already exists");
     if (existingCompany) throw conflict("A company with this registration number already exists");
 
-    const passwordHash = await hashPassword(input.admin.password);
+    const passwordHash = await this.hashAcceptedPassword(input.admin.password);
     // One nested create: atomic like the interactive transaction it replaces,
     // but without its BEGIN/COMMIT round trips or a follow-up read for the new
     // user's id — onboarding is the first thing a new client waits on.
@@ -196,28 +228,63 @@ export class AuthService {
       }
     }
 
-    // Second factor (deferred item: TOTP 2FA). The challenge response is not
-    // a failed attempt — the password was right — so it is thrown before the
-    // activity insert and never feeds the lockout counter. A WRONG code is a
-    // real failure and counts.
-    let totpFailed = false;
-    if (success && user?.totpEnabledAt && user.totpSecret) {
-      if (!input.totpCode) {
-        throw new ApiException(
-          401,
-          "TOTP_REQUIRED",
-          "Enter the 6-digit code from your authenticator app",
-        );
-      }
-      if (!(await this.acceptTotp(user.id, user.totpSecret, input.totpCode))) {
-        success = false;
-        totpFailed = true;
-      } else if (!isSealed(user.totpSecret)) {
-        // Seeds stored before encryption at rest are sealed on first use.
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { totpSecret: sealSecret(user.totpSecret) },
-        });
+    // Second factor. Which one is asked for is decided in one place (second-factor.ts).
+    // The challenge responses below are thrown before the activity insert and never feed
+    // the lockout counter (the password was right); a WRONG code or passkey is a real
+    // failure and does count.
+    let secondFactorFailed: "totp" | "passkey" | null = null;
+    if (success && user) {
+      const totpEnabled = Boolean(user.totpEnabledAt && user.totpSecret);
+      const plan = secondFactorFor({
+        isSuperAdmin: user.isSuperAdmin,
+        passkeyCount: await this.passkeys.count(user.id),
+        totpEnabled,
+      });
+      if (plan !== "none") {
+        const usePasskey = plan !== "totp" && Boolean(input.passkey);
+        const useTotp = !usePasskey && plan !== "passkey" && Boolean(input.totpCode);
+        if (!usePasskey && !useTotp) {
+          if (plan === "totp") {
+            throw new ApiException(
+              401,
+              "TOTP_REQUIRED",
+              "Enter the 6-digit code from your authenticator app",
+            );
+          }
+          throw new ApiException(
+            401,
+            "PASSKEY_REQUIRED",
+            "Confirm it is you with your passkey to finish signing in",
+          );
+        }
+        if (usePasskey) {
+          let assertion: unknown = null;
+          try {
+            assertion = JSON.parse(input.passkey as string);
+          } catch {
+            assertion = null;
+          }
+          const valid =
+            typeof assertion === "object" &&
+            assertion !== null &&
+            typeof (assertion as { id?: unknown }).id === "string" &&
+            (await this.passkeys.verifyAssertion(user.id, assertion as never));
+          if (!valid) {
+            success = false;
+            secondFactorFailed = "passkey";
+          }
+        } else if (user.totpSecret) {
+          if (!(await this.acceptTotp(user.id, user.totpSecret, input.totpCode as string))) {
+            success = false;
+            secondFactorFailed = "totp";
+          } else if (!isSealed(user.totpSecret)) {
+            // Seeds stored before encryption at rest are sealed on first use.
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { totpSecret: sealSecret(user.totpSecret) },
+            });
+          }
+        }
       }
     }
 
@@ -252,7 +319,14 @@ export class AuthService {
     // stage is only reachable with a correct password, so its message may be
     // specific.
     if (!success || !user) {
-      throw unauthorized(totpFailed ? "Invalid verification code" : "Invalid email or password");
+      // Only reachable for a second-factor failure AFTER a correct first factor, so naming
+      // the factor tells a stranger nothing about whether the account exists.
+      if (secondFactorFailed === "passkey") {
+        throw new ApiException(401, "PASSKEY_INVALID", "That passkey could not be verified");
+      }
+      throw unauthorized(
+        secondFactorFailed === "totp" ? "Invalid verification code" : "Invalid email or password",
+      );
     }
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -314,7 +388,7 @@ export class AuthService {
     if (!row || row.consumedAt || row.expiresAt < new Date()) {
       throw forbidden("This reset link is invalid or has expired — request a new one");
     }
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await this.hashAcceptedPassword(password);
     await prisma.$transaction([
       prisma.user.update({
         where: { id: row.userId },
@@ -346,7 +420,10 @@ export class AuthService {
     if (!ok) throw forbidden("Current password is incorrect");
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await hashPassword(newPassword), sessionVersion: { increment: 1 } },
+      data: {
+        passwordHash: await this.hashAcceptedPassword(newPassword),
+        sessionVersion: { increment: 1 },
+      },
     });
   }
 
@@ -386,7 +463,7 @@ export class AuthService {
       throw conflict("This email is already active in another company");
     }
 
-    const passwordHash = await hashPassword(args.password);
+    const passwordHash = await this.hashAcceptedPassword(args.password);
     const user = await prisma.$transaction(async (tx) => {
       const user = existing
         ? await tx.user.update({

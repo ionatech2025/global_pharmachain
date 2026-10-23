@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuthenticatedUser } from "@pharmachain/auth";
+import { PASSWORD_HINT } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
@@ -116,9 +117,7 @@ function InviteForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              At least 8 characters with a letter and a number.
-            </p>
+            <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
           </div>
           <Button type="submit" disabled={busy}>
             {busy ? "Joining…" : "Join company"}

@@ -7,6 +7,7 @@ import {
   COUNTRIES,
   type CompanyType,
   detectUserCountry,
+  PASSWORD_HINT,
   type RegisterInput,
   registerSchema,
 } from "@pharmachain/core";
@@ -21,6 +22,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -257,6 +259,7 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
                         <FormControl>
                           <PasswordInput autoComplete="new-password" {...field} />
                         </FormControl>
+                        <FormDescription>{PASSWORD_HINT}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

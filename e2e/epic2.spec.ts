@@ -30,7 +30,7 @@ const BUYER_ADMIN = "admin@nilepharma.demo";
 const SUPPLIER_ADMIN = "admin@kampalafinechem.demo";
 const SUPPLIER_OPS = "ops@kampalafinechem.demo";
 const SUPER_ADMIN = "admin@pharmachain.local";
-const NEW_PASSWORD = "Recruit-Pass-1";
+const NEW_PASSWORD = "recruit-epic2-passphrase-qa";
 
 /** Shared across the serial cases below. */
 const invited: {
