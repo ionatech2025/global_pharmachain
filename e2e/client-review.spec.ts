@@ -229,7 +229,11 @@ test.describe("reset password (Oct 20: 'if the account doesn't exist … shouldn
 // ── Registration: country ────────────────────────────────────────────────────
 
 test.describe("registration country (screenshot: raw 'Too small' error)", () => {
+  // Behind Vercel the visitor's IP (x-vercel-ip-country) decides the country and
+  // outranks the browser timezone, so these two describe the no-header case: a
+  // local stack. The deployed behaviour has its own case below.
   test("an unmapped timezone is not silently defaulted to Uganda", async ({ browser }) => {
+    test.skip(!IS_LOCAL, "a deployed stack resolves the country from the visitor's IP");
     const ctx = await browser.newContext({ timezoneId: "Pacific/Chatham" });
     const page = await ctx.newPage();
     await page.goto("/register", { waitUntil: "networkidle" });
@@ -242,11 +246,22 @@ test.describe("registration country (screenshot: raw 'Too small' error)", () => 
   });
 
   test("a mapped timezone preselects the applicant's country", async ({ browser }) => {
+    test.skip(!IS_LOCAL, "a deployed stack resolves the country from the visitor's IP");
     const ctx = await browser.newContext({ timezoneId: "Africa/Nairobi" });
     const page = await ctx.newPage();
     await page.goto("/register", { waitUntil: "networkidle" });
     await expect(page.getByRole("combobox", { name: /country/i })).toContainText("Kenya");
     await ctx.close();
+  });
+
+  test("a deployed stack preselects the visitor's country from their IP", async ({ page }) => {
+    test.skip(IS_LOCAL, "needs the CDN's x-vercel-ip-country header");
+    await page.goto("/register", { waitUntil: "networkidle" });
+    // Which country depends on where the test runs; that it is chosen at all, and
+    // is a real list entry rather than the placeholder, is the behaviour.
+    const trigger = page.getByRole("combobox", { name: /country/i });
+    await expect(trigger).not.toContainText(/select country/i);
+    await expect(trigger).not.toBeEmpty();
   });
 
   test("the API refuses a country that is not on the list, in words", async ({

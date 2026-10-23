@@ -198,6 +198,37 @@ compare-and-set is correct by construction and the tests guard the invariant, bu
 award test (finding 1) was seen to fail before the fix. The OS-painted dropdown popup,
 and everything behind sign-in in production, remain unverified from here.
 
+### Release of the audit fixes (2026-10-23)
+
+PR #21 (CI green) merged as `75011da`; no migration, no new environment variables.
+`scripts/deploy-vercel.sh` released first time (its fail-closed checks for `sin1`,
+`nodejs24.x` and streaming passed) as `ae0evccg4`, now the live alias. Rollback target:
+the previous deployment `5fmri7xsy` (see the rollback caveat above).
+
+Verified on the live site, without credentials:
+
+* functions in `sin1`; `/health/ready` ok; the reset-password answer is the new one with
+  no `sent` flag; a free-text country is refused with a `400` before any write;
+* served CSS carries the new tokens (dark destructive `#d42f34`, light warning `#825200`),
+  the logo has a real space, the hero links no longer carry a contradicting `aria-label`;
+* **axe-core against production: 15 / 15 page × theme × viewport combinations clean** at
+  WCAG 2.2 AA (`/`, `/register`, `/login`, `/forgot-password`, `/disclaimer`; light, dark,
+  390 px);
+* the public-only browser tests against production: hero fit at four widths, CTA targets,
+  the reset page, all nine company types, the API country refusal, and — new — that the
+  register form preselects the visitor's country from the CDN's IP header (it showed
+  Uganda from Kampala);
+* runtime logs for the first 25 minutes: 50 entries, all on the new deployment, 48 × 200
+  and 2 × 400 (the deliberate bad-country probes), **0 errors, 0 warnings**.
+
+Two tests assumed no IP header and failed on production for that reason (the product was
+right: the CDN's IP outranks the browser timezone). They are now local-only, with a
+deployed counterpart.
+
+**Still not verified in production:** everything behind sign-in (the admin company
+controls, the in-app disclaimer, the expiry field, the award guard end to end) and the
+production e2e run — they need `SEED_DEMO_PASSWORD` and `SEED_SUPER_ADMIN_PASSWORD`.
+
 **Not changed — decisions for the owner:**
 * **Password policy** (`US-206`: ≥ 8 characters, a letter and a number). NIST SP 800-63B-4
   moves away from composition rules and towards length (secondary sources say ≥ 15 when
