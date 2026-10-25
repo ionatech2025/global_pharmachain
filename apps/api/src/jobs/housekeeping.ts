@@ -437,7 +437,7 @@ export async function runScheduledReportsJob(now = new Date()): Promise<void> {
 /**
  * Phase 4 §3 trust system: the Trusted Supplier badge is earned, not bought —
  * granted nightly to VERIFIED companies with ≥3 published ratings averaging
- * ≥4.5★, revoked when the average slips. Paid featured placement expires here
+ * ≥4.5/5, revoked when the average slips. Paid featured placement expires here
  * too (tier reverts to FREEMIUM when featuredUntil passes).
  */
 export async function runTrustBadgeJob(now = new Date()): Promise<void> {
@@ -470,8 +470,8 @@ export async function runTrustBadgeJob(now = new Date()): Promise<void> {
         companyId,
         roles: ["COMPANY_ADMIN"],
         type: "ACCOUNT_UPDATE",
-        title: "Trusted Supplier badge earned 🏅",
-        body: "Your verified ratings now average 4.5★ or better across 3+ engagements.",
+        title: "Trusted Supplier badge earned",
+        body: "Your verified ratings now average 4.5/5 or better across 3+ engagements.",
         href: "/company",
       });
     }

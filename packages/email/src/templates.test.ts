@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { escapeHtml, genericEventEmail, inviteEmail } from "./templates";
+import { escapeHtml, genericEventEmail, inviteEmail, verificationDecisionEmail } from "./templates";
 
 describe("escapeHtml", () => {
   test("escapes every HTML-significant character", () => {
@@ -50,5 +50,16 @@ describe("inviteEmail", () => {
     });
     expect(html).not.toContain("<img");
     expect(html).toContain("&lt;img");
+  });
+
+  test("verificationDecisionEmail contains no decorative emojis", () => {
+    const approved = verificationDecisionEmail({
+      companyName: "Nile Pharma",
+      approved: true,
+      appUrl: "https://app.example",
+    });
+    expect(approved.html).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    expect(approved.text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    expect(approved.text).toContain("Your company is verified");
   });
 });

@@ -22,10 +22,13 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-16 text-center">
-      <TriangleAlert className="size-8 text-warning" />
+    <div
+      role="alert"
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-16 text-center"
+    >
+      <TriangleAlert className="size-8 text-warning" aria-hidden="true" />
       <div>
-        <p className="font-medium">Something went wrong loading this page</p>
+        <h1 className="font-medium">Something went wrong loading this page</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The rest of Global PharmaChain is unaffected. Retry, or head back to your dashboard.
           {error.digest && (

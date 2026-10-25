@@ -164,6 +164,7 @@ export function CreditRequestPanel({
               <Input
                 className="w-24"
                 type="number"
+                aria-label="Number of credits"
                 min={1}
                 max={100}
                 required

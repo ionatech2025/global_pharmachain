@@ -26,11 +26,8 @@ const STATE_TONE: Record<string, string> = {
 export function RouteMarquee() {
   const items = [...LANES, ...LANES];
   return (
-    <div
-      aria-hidden
-      className="relative flex overflow-hidden border-y bg-card/40 py-3 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]"
-    >
-      <div className="animate-marquee flex shrink-0 items-center gap-8 pr-8">
+    <div aria-hidden className="relative flex overflow-hidden border-y bg-card/40 py-3">
+      <div className="flex shrink-0 items-center gap-8 pr-8">
         {items.map((lane, i) => (
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: duplicated static strip

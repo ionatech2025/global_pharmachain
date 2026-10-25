@@ -5,6 +5,7 @@ import { Button } from "@pharmachain/ui/components/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -84,8 +85,13 @@ export function CompareButton({ item }: { item: CompareItem }) {
   }
 
   return (
-    <Button size="sm" variant={selected ? "secondary" : "ghost"} onClick={toggle}>
-      <Scale className="size-3.5" />
+    <Button
+      size="sm"
+      variant={selected ? "secondary" : "ghost"}
+      aria-pressed={selected}
+      onClick={toggle}
+    >
+      <Scale className="size-3.5" aria-hidden="true" />
       {selected ? "Selected" : "Compare"}
     </Button>
   );
@@ -96,8 +102,12 @@ export function CompareTray() {
   if (items.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
-      <div className="flex items-center gap-2 rounded-full border bg-card px-4 py-2 shadow-lg">
+    <div
+      role="region"
+      aria-label="Listing comparison tray"
+      className="fixed inset-x-3 bottom-4 z-40 mx-auto w-fit max-w-[calc(100vw-1.5rem)]"
+    >
+      <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border bg-card px-4 py-2 shadow-lg">
         <Badge>{items.length}</Badge>
         <span className="text-sm">selected for comparison</span>
         <Dialog>
@@ -107,6 +117,9 @@ export function CompareTray() {
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Compare listings</DialogTitle>
+              <DialogDescription>
+                Side-by-side comparison of your selected listings.
+              </DialogDescription>
             </DialogHeader>
             <Table>
               <TableHeader>
@@ -119,11 +132,11 @@ export function CompareTray() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-5"
+                          className="size-6"
                           aria-label={`Remove ${i.name} from comparison`}
                           onClick={() => save(load().filter((x) => x.id !== i.id))}
                         >
-                          <X className="size-3" />
+                          <X className="size-3" aria-hidden="true" />
                         </Button>
                       </span>
                     </TableHead>

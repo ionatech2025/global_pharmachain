@@ -37,19 +37,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pharmachain/ui/components/select";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 
-function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
+export function RegisterForm({
+  ipCountry,
+  queryType = null,
+}: {
+  ipCountry: string | null;
+  queryType?: string | null;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const queryType = searchParams.get("type") as CompanyType | null;
   const initialType: CompanyType =
-    queryType && COMPANY_TYPES.includes(queryType) ? queryType : "RAW_MATERIAL_MANUFACTURER";
+    queryType && COMPANY_TYPES.includes(queryType as CompanyType)
+      ? (queryType as CompanyType)
+      : "RAW_MATERIAL_MANUFACTURER";
 
   const form = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -58,7 +64,7 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
       company: {
         name: "",
         type: initialType,
-        country: "",
+        country: ipCountry ?? "",
         registrationNumber: "",
         address: "",
         contactPhone: "",
@@ -80,8 +86,8 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
 
   // If query param type changes, update form
   useEffect(() => {
-    if (queryType && COMPANY_TYPES.includes(queryType)) {
-      form.setValue("company.type", queryType);
+    if (queryType && COMPANY_TYPES.includes(queryType as CompanyType)) {
+      form.setValue("company.type", queryType as CompanyType);
     }
   }, [queryType, form]);
 
@@ -157,7 +163,11 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <Select
+                      key={field.value ? "selected" : "empty"}
+                      onValueChange={field.onChange}
+                      value={field.value || undefined}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select country…" />
@@ -274,15 +284,5 @@ function RegisterFormInner({ ipCountry }: { ipCountry: string | null }) {
         </Form>
       </CardContent>
     </Card>
-  );
-}
-
-export function RegisterForm({ ipCountry }: { ipCountry: string | null }) {
-  return (
-    <Suspense
-      fallback={<div className="p-8 text-center text-muted-foreground">Loading registration…</div>}
-    >
-      <RegisterFormInner ipCountry={ipCountry} />
-    </Suspense>
   );
 }

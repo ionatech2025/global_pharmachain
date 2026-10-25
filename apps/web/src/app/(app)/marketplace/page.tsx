@@ -100,7 +100,7 @@ export default async function MarketplacePage({
           aria-label="Country of origin"
           placeholder="Country of origin"
           defaultValue={params.country}
-          className="w-40"
+          className="w-full sm:w-40"
         />
         <select
           name="sort"

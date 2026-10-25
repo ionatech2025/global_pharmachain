@@ -11,6 +11,9 @@ import { z } from "zod";
  * package entry, so web forms and API error bodies both pick it up.
  */
 z.config({
+  // Strict CSP on dynamic routes forbids 'unsafe-eval', so Zod v4's `new Function("")`
+  // JIT probe always fails in the browser and logs a DevTools CSP kEvalViolation issue.
+  jitless: true,
   customError: (issue) => {
     if (issue.code === "too_small") {
       const min = Number(issue.minimum);

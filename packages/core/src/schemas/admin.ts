@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COUNTRIES, countryFromIsoCode, isKnownCountry } from "../countries";
 import {
   ANNOUNCEMENT_AUDIENCES,
   COMPANY_ROLES,
@@ -106,11 +107,28 @@ export const auditLogQuerySchema = paginationQuerySchema.extend({
   to: optionalFilter(z.iso.datetime()),
 });
 
+/** Normalises ISO-2 codes ("UG", "KE") and case variants ("uganda") to the canonical country name. */
+export function resolveCountry(raw: string | undefined): string {
+  const trimmed = raw?.trim();
+  if (!trimmed) return "Uganda";
+  if (trimmed.length === 2) {
+    const byIso = countryFromIsoCode(trimmed);
+    if (byIso) return byIso;
+  }
+  const byName = COUNTRIES.find((c) => c.toLowerCase() === trimmed.toLowerCase());
+  return byName ?? trimmed;
+}
+
 // Single or bulk client onboarding for trial cohorts (up to 200 clients per batch).
 export const clientOnboardRowSchema = z.object({
   companyName: z.string().trim().min(2, "Company name is required").max(120),
   companyType: z.enum(COMPANY_TYPES).default("SUPPLIER"),
-  country: z.string().trim().min(2).max(56).default("Uganda"),
+  country: z
+    .string()
+    .trim()
+    .transform((val) => resolveCountry(val))
+    .refine(isKnownCountry, "Select a country from the list")
+    .default("Uganda"),
   registrationNumber: z.string().trim().min(2).max(64).optional(),
   address: z.string().trim().min(2).max(240).optional(),
   contactName: z.string().trim().min(2, "Contact name is required").max(80),

@@ -53,14 +53,14 @@ export default async function CompanyPage() {
           <CardTitle className="text-sm">Registration details</CardTitle>
           <CardDescription>
             Fixed at registration —{" "}
-            <Link href="/issues" className="font-medium text-primary hover:underline">
+            <Link href="/issues" className="font-medium text-primary underline underline-offset-2">
               raise a support ticket
             </Link>{" "}
             if the platform team needs to correct them.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2 [&_dd]:min-w-0 [&_dd]:break-words">
             <dt className="text-muted-foreground">Registration number</dt>
             <dd>{company.registrationNumber}</dd>
             <dt className="text-muted-foreground">Address</dt>

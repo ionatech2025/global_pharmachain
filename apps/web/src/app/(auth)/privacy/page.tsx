@@ -8,7 +8,9 @@ export default function PrivacyPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Privacy policy</CardTitle>
+        <CardTitle>
+          <h1 className="text-lg font-semibold leading-none">Privacy policy</h1>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-muted-foreground">
         <p>

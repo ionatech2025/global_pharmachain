@@ -39,6 +39,7 @@ export function TimeZoneSync() {
     const zone = resolvedBrowserTimeZone();
     if (!zone || readCookie(TZ_COOKIE) === zone) return;
     // Lax so it also rides along on top-level navigations into the app.
+    // biome-ignore lint/suspicious/noDocumentCookie: synchronous write required before router.refresh()
     document.cookie = `${TZ_COOKIE}=${encodeURIComponent(zone)}; path=/; max-age=31536000; samesite=lax`;
     router.refresh();
   }, [router]);

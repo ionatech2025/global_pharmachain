@@ -106,7 +106,7 @@ export default async function AdminFinancePage() {
         />
       </StatGrid>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel>
           <PanelHeader
             title="Payment volumes"

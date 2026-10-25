@@ -261,7 +261,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </CardContent>
       </Card>
 
-      <div id="logistics" className="grid scroll-mt-24 gap-4 md:grid-cols-2">
+      <div id="logistics" className="grid scroll-mt-24 grid-cols-1 gap-4 md:grid-cols-2">
         {/* Logistics partners (Phase 2 §2) */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
@@ -340,7 +340,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {/* GPS tracking + POD (Phase 2 §3) */}
-      <div id="tracking" className="grid scroll-mt-24 gap-4 md:grid-cols-2">
+      <div id="tracking" className="grid scroll-mt-24 grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Route tracking</CardTitle>
@@ -392,13 +392,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Order summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&_dd]:min-w-0 [&_dd]:break-words">
               <dt className="text-muted-foreground">Quantity</dt>
               <dd>
                 {fmtNumber(order.quantity)} {order.unit}

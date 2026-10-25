@@ -103,10 +103,10 @@ export function SavedSearches({ current }: { current: SearchParamsShape }) {
           <button
             type="button"
             aria-label={`Delete saved search ${s.name}`}
-            className="text-muted-foreground transition-colors hover:text-destructive"
+            className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive"
             onClick={() => remove(s.id)}
           >
-            <X className="size-3" />
+            <X className="size-3" aria-hidden="true" />
           </button>
         </span>
       ))}

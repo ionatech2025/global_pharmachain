@@ -99,7 +99,7 @@ export function verificationDecisionEmail(args: {
   reason?: string;
   appUrl: string;
 }): EmailContent {
-  const title = args.approved ? "Your company is verified 🎉" : "Verification not approved";
+  const title = args.approved ? "Your company is verified" : "Verification not approved";
   const bodyText = args.approved
     ? `${args.companyName} has been verified. You now have full access to the Global PharmaChain marketplace.`
     : `${args.companyName} was not approved.\n\nReason: ${args.reason ?? "—"}\n\nYou can correct the issues and resubmit your documents.`;

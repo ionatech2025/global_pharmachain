@@ -54,7 +54,7 @@ export default async function UsagePage() {
         title="Usage & credits"
         description="Freemium monthly allowances reset each calendar month (UTC). Confirmed credits raise this month's limit."
       />
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <UsageCard title="RFQs created" usage={usage.rfq} />
         <UsageCard title="Quotations submitted" usage={usage.quotation} />
       </div>

@@ -93,4 +93,20 @@ describe("bulkClientOnboardSchema", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatch(/Did you mean @gmail\.com/i);
   });
+
+  test("parseClientOnboardCsv normalises ISO/case countries and rejects unknown countries", () => {
+    const csv = [
+      "companyName,companyType,country,contactName,contactEmail",
+      "Nairobi Meds,SUPPLIER,KE,Grace Wanjiku,grace@nairobimeds.co.ke",
+      "Kampala Chem,SUPPLIER,uganda,Peter Okello,peter@kampalachem.co.ug",
+      "Atlantis Labs,SUPPLIER,Atlantis,Poseidon Rex,rex@atlantislabs.com",
+    ].join("\n");
+
+    const { rows, errors } = parseClientOnboardCsv(csv);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.country).toBe("Kenya");
+    expect(rows[1]?.country).toBe("Uganda");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/Select a country from the list/i);
+  });
 });

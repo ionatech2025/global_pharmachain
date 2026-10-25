@@ -216,6 +216,20 @@ export function MallDirectoryGrid() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const query = searchQuery.trim().toLowerCase();
+  const matchingCount = TRADING_LANES.reduce(
+    (sum, lane) =>
+      sum +
+      lane.storefronts.filter((store) => {
+        const matchesTag = !selectedTag || store.tags.includes(selectedTag);
+        const matchesQuery =
+          !query ||
+          store.name.toLowerCase().includes(query) ||
+          store.desc.toLowerCase().includes(query) ||
+          store.tags.some((t) => t.toLowerCase().includes(query));
+        return matchesTag && matchesQuery;
+      }).length,
+    0,
+  );
 
   return (
     <section
@@ -258,12 +272,19 @@ export function MallDirectoryGrid() {
                 type="button"
                 onClick={() => setSearchQuery("")}
                 aria-label="Clear search input"
-                className="absolute right-3 text-muted-foreground hover:text-foreground p-1 rounded-full"
+                className="absolute right-2 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
               >
-                <X className="size-4" />
+                <X className="size-4" aria-hidden="true" />
               </button>
             )}
           </div>
+          {(selectedTag || query) && (
+            <p aria-live="polite" className="mt-2 text-xs text-muted-foreground">
+              Showing {matchingCount} matching storefront{matchingCount === 1 ? "" : "s"}
+              {selectedTag ? ` tagged "${selectedTag}"` : ""}
+              {query ? ` for "${searchQuery.trim()}"` : ""}.
+            </p>
+          )}
         </div>
 
         {/* 3-Column Interactive Grid */}
@@ -274,7 +295,7 @@ export function MallDirectoryGrid() {
             return (
               <div
                 key={lane.id}
-                className={`relative flex flex-col justify-between rounded-3xl border bg-card/90 backdrop-blur-sm p-6 sm:p-7 transition-all duration-300 shadow-sm hover:shadow-xl hover:ring-2 hover:ring-primary/25 ${lane.colorTheme.border}`}
+                className={`relative flex flex-col justify-between rounded-3xl border bg-card p-6 sm:p-7 transition-all duration-300 shadow-sm hover:shadow-xl hover:ring-2 hover:ring-primary/25 ${lane.colorTheme.border}`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-4">
@@ -314,7 +335,7 @@ export function MallDirectoryGrid() {
                             setSelectedTag(null);
                             setSearchQuery("");
                           }}
-                          className="text-[10px] text-primary hover:underline font-medium"
+                          className="inline-flex min-h-6 items-center px-1 text-[10px] font-medium text-primary underline underline-offset-2"
                         >
                           Clear filters
                         </button>
@@ -329,14 +350,11 @@ export function MallDirectoryGrid() {
                           store.desc.toLowerCase().includes(query) ||
                           store.tags.some((t) => t.toLowerCase().includes(query));
                         const isVisible = matchesTag && matchesQuery;
+                        if (!isVisible) return null;
                         return (
                           <div
                             key={store.name}
-                            className={`rounded-xl border p-3 transition-all ${
-                              isVisible
-                                ? "border-border/60 bg-background/80 hover:bg-background/95"
-                                : "border-border/30 bg-background/40 opacity-40 hover:opacity-80"
-                            }`}
+                            className="rounded-xl border border-border/60 bg-background/80 p-3 transition-colors hover:bg-background/95"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-medium text-foreground">
@@ -353,7 +371,7 @@ export function MallDirectoryGrid() {
                                   key={tag}
                                   aria-pressed={selectedTag === tag}
                                   onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                                  className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${
+                                  className={`inline-flex min-h-6 items-center rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
                                     selectedTag === tag
                                       ? "bg-primary text-primary-foreground border-primary"
                                       : "bg-muted/50 text-muted-foreground border-border/40 hover:bg-muted"
@@ -366,6 +384,19 @@ export function MallDirectoryGrid() {
                           </div>
                         );
                       })}
+                      {lane.storefronts.every((store) => {
+                        const matchesTag = !selectedTag || store.tags.includes(selectedTag);
+                        const matchesQuery =
+                          !query ||
+                          store.name.toLowerCase().includes(query) ||
+                          store.desc.toLowerCase().includes(query) ||
+                          store.tags.some((t) => t.toLowerCase().includes(query));
+                        return !(matchesTag && matchesQuery);
+                      }) && (
+                        <p className="rounded-xl border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+                          No storefronts in this lane match the current filter.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -388,7 +419,7 @@ export function MallDirectoryGrid() {
         </div>
 
         {/* Audit & Compliance Assurance Strip */}
-        <div className="mt-12 rounded-2xl border border-border/80 bg-background/70 p-4 sm:p-6 backdrop-blur-sm">
+        <div className="mt-12 rounded-2xl border border-border/80 bg-card p-4 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="size-5 text-success shrink-0" />

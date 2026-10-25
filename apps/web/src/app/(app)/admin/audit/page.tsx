@@ -63,17 +63,29 @@ export default async function AdminAuditPage({
           aria-label="Actor email"
           placeholder="Actor email"
           defaultValue={params.actorEmail}
-          className="w-52"
+          className="w-full sm:w-52"
         />
         <Input
           name="entityType"
           aria-label="Entity type"
           placeholder="Entity type (e.g. Company)"
           defaultValue={params.entityType}
-          className="w-52"
+          className="w-full sm:w-52"
         />
-        <Input name="from" type="date" defaultValue={params.from} className="w-40" />
-        <Input name="to" type="date" defaultValue={params.to} className="w-40" />
+        <Input
+          name="from"
+          type="date"
+          aria-label="From date"
+          defaultValue={params.from}
+          className="w-full sm:w-40"
+        />
+        <Input
+          name="to"
+          type="date"
+          aria-label="To date"
+          defaultValue={params.to}
+          className="w-full sm:w-40"
+        />
         <button
           type="submit"
           className="h-9 rounded-md border border-input px-3 text-sm hover:bg-accent"

@@ -145,11 +145,9 @@
 }
 
 @theme inline {
-  --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji";
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
-  --font-display: var(--font-anton), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -202,8 +200,18 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  /*
+   * WCAG 2.2 SC 2.4.11 Focus Not Obscured (Minimum), Technique C43:
+   * Both the marketing pill nav (top-3 + h-14) and the signed-in app header
+   * (sticky top-0 h-14) sit pinned at the top of the viewport. Scroll padding
+   * keeps keyboard-focused controls and hash targets clear of the sticky bar.
+   */
+  html {
+    scroll-padding-top: 4.5rem;
+  }
   body {
     @apply bg-background text-foreground;
+    line-height: 1.5;
   }
   /* Headings never orphan a single word */
   h1,
@@ -288,15 +296,27 @@
     background: color-mix(in oklch, var(--primary) 12%, transparent);
     color: var(--primary-accent);
   }
-  /* Columns of figures align; standalone display figures do not (tabular
-     digits make a big number look gappy). */
+  /* Columns of figures align and disambiguate 0 vs O in CAS, batch and order
+     references; standalone display figures stay proportional (tabular digits
+     make a big number look gappy). */
   .num-col {
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums slashed-zero;
   }
   .figure {
     font-variant-numeric: proportional-nums;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
     font-weight: 600;
+  }
+  /* Flush tables inside a PanelBody (px-0) align their outer columns to the
+     panel's 20px (1.25rem) header/footer grid line. */
+  .panel-table th:first-child,
+  .panel-table td:first-child {
+    padding-left: 1.25rem;
+  }
+  .panel-table th:last-child,
+  .panel-table td:last-child {
+    padding-right: 1.25rem;
   }
 
   /* ── Chart hover layer ───────────────────────────────────────────────
@@ -442,15 +462,14 @@
   }
 
   /* ── Marketing surfaces (landing + auth) ─────────────────────────────
-     Condensed display headline setting (Anton): uppercase, tight leading,
-     a whisper of tracking for legibility at poster sizes. Sizes are set at
-     the use site; this fixes everything else so headlines stay consistent. */
+     Hercules display headline setting: geometric sans (Geist), bold weight,
+     calm tight leading and negative tracking for high-trust B2B legibility
+     without an extra webfont payload or all-caps visual shouting. */
   .text-display {
     font-family: var(--font-display);
-    font-weight: 400;
-    text-transform: uppercase;
-    line-height: 0.96;
-    letter-spacing: 0.012em;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.028em;
   }
   /* Letter-spaced micro-label above display headlines. Colour is set at the
      use site (text-primary on light, white/70 on the azure panel). */
@@ -492,11 +511,10 @@
     background-size: 40px 40px;
     mask-image: radial-gradient(130% 110% at 50% 0%, black 35%, transparent 88%);
   }
-  /* Gentle vertical bob for floating vignette cards (stagger via inline
-     animation-delay). Neutralised by the reduced-motion kill switch. */
+  /* Resting cards stay still for clinical/enterprise calmness and to avoid
+     re-sampling backdrop-filter blurs on every compositor frame. */
   .animate-float {
-    will-change: transform;
-    animation: float-y 7s ease-in-out infinite;
+    transform: translateY(0);
   }
 }
 
@@ -585,12 +603,11 @@
  * stay legible regardless of the site theme.
  */
 .glass-card {
-  border: 1px solid oklch(1 0 0 / 0.55);
-  background: oklch(0.99 0 0 / 0.85);
+  border: 1px solid oklch(1 0 0 / 0.65);
+  background: oklch(0.99 0 0 / 0.94);
   box-shadow:
-    0 18px 44px -18px oklch(0.22 0.1 256 / 0.55),
-    inset 0 1px 0 oklch(1 0 0 / 0.75);
-  backdrop-filter: blur(14px);
+    0 18px 44px -18px oklch(0.22 0.1 256 / 0.45),
+    inset 0 1px 0 oklch(1 0 0 / 0.8);
   color: var(--foreground);
   --foreground: oklch(0.18 0.015 255);
   --muted-foreground: oklch(0.46 0.02 252);
@@ -608,11 +625,16 @@
  */
 .glass-nav {
   border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
-  background: color-mix(in oklch, var(--background) 78%, transparent);
-  backdrop-filter: blur(18px);
+  background: color-mix(in oklch, var(--background) 92%, transparent);
   box-shadow:
     0 10px 32px -18px oklch(0.25 0.06 255 / 0.4),
     inset 0 1px 0 oklch(1 0 0 / 0.45);
+}
+@media (min-width: 1024px) {
+  .glass-nav {
+    background: color-mix(in oklch, var(--background) 82%, transparent);
+    backdrop-filter: blur(10px);
+  }
 }
 .dark .glass-nav {
   box-shadow:
@@ -625,6 +647,28 @@
     backdrop-filter: none;
     background: var(--background);
     opacity: 1;
+  }
+  .glass-card {
+    backdrop-filter: none;
+    background: oklch(0.99 0 0);
+  }
+}
+
+/*
+ * High-contrast preference (WCAG 1.4.3 / 1.4.6 / 1.4.11 adaptability):
+ * strengthens surface boundaries, form controls and secondary text when the OS
+ * asks for increased contrast, without collapsing hues like forced-colors does.
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --muted-foreground: oklch(0.36 0.01 250);
+    --border: oklch(0.72 0.01 250);
+    --input: oklch(0.66 0.01 250);
+  }
+  .dark {
+    --muted-foreground: oklch(0.8 0.01 250);
+    --border: oklch(0.45 0.01 250);
+    --input: oklch(0.48 0.01 250);
   }
 }
 
@@ -752,5 +796,27 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Regulatory & audit print adaptability: hide app chrome, expand main canvas */
+@media print {
+  aside,
+  header,
+  [role="region"][aria-label="Listing comparison tray"] {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  .panel,
+  [data-slot="card"] {
+    box-shadow: none !important;
+    break-inside: avoid;
   }
 }

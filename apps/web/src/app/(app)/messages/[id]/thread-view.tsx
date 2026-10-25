@@ -286,9 +286,10 @@ export function ThreadView({
                 <button
                   type="button"
                   aria-label={`Remove ${file.name}`}
+                  className="inline-flex size-6 items-center justify-center rounded-full hover:text-destructive"
                   onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
                 >
-                  <X className="size-3" />
+                  <X className="size-3" aria-hidden="true" />
                 </button>
               </Badge>
             ))}
@@ -297,6 +298,7 @@ export function ThreadView({
         <div className="flex items-end gap-2">
           <Textarea
             rows={2}
+            aria-label="Message"
             placeholder={counterparty ? `Message ${counterparty.sender.name}…` : "Write a message…"}
             value={body}
             maxLength={5000}

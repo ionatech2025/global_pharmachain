@@ -247,7 +247,7 @@ export class IntelligenceService {
       const reasons: string[] = [];
       if (rating?._count)
         reasons.push(
-          `${(rating._avg?.stars ?? 0).toFixed(1)}★ across ${rating._count} verified rating(s)`,
+          `${(rating._avg?.stars ?? 0).toFixed(1)}/5 across ${rating._count} verified rating(s)`,
         );
       if (onTime !== null) reasons.push(`${Math.round(onTime * 100)}% on-time deliveries`);
       if (winRate !== null) reasons.push(`${Math.round(winRate * 100)}% quotation win rate`);

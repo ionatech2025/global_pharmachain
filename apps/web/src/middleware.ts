@@ -65,8 +65,8 @@ export const config = {
   matcher: [
     // The landing page, for the signed-in redirect only (no CSP — it is static).
     "/",
-    // Everything else except: Next internals/static assets, PWA + SEO files,
-    // icons and social images.
-    "/((?!_next/|api/|icons/|favicon\\.ico|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|\\.well-known/|apple-icon|opengraph-image|twitter-image|$).*)",
+    // Everything else except: Next/Vercel internals, static assets, PWA + SEO
+    // files, icons and social images.
+    "/((?!_next/|_vercel/|api/|icons/|favicon\\.ico|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|\\.well-known/|apple-icon|opengraph-image|twitter-image|$).*)",
   ],
 };

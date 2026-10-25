@@ -98,8 +98,8 @@ export function CreateApiKeyButton() {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Scopes</Label>
+            <fieldset className="grid gap-1.5">
+              <legend className="mb-1 text-sm font-medium leading-none">Scopes</legend>
               {API_SCOPES.map((scope) => (
                 <label key={scope} className="flex items-center gap-2 text-sm">
                   <input
@@ -116,7 +116,7 @@ export function CreateApiKeyButton() {
                   <span className="text-muted-foreground">{API_SCOPE_LABELS[scope]}</span>
                 </label>
               ))}
-            </div>
+            </fieldset>
             <DialogFooter>
               <Button type="submit" disabled={busy || scopes.length === 0}>
                 {busy ? "Creating…" : "Create key"}
@@ -230,8 +230,8 @@ export function CreateWebhookButton() {
                 onChange={(e) => setUrl(e.target.value)}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Events</Label>
+            <fieldset className="grid gap-1.5">
+              <legend className="mb-1 text-sm font-medium leading-none">Events</legend>
               {WEBHOOK_EVENTS.map((event) => (
                 <label key={event} className="flex items-center gap-2 text-sm">
                   <input
@@ -247,7 +247,7 @@ export function CreateWebhookButton() {
                   <span className="font-mono text-xs">{event}</span>
                 </label>
               ))}
-            </div>
+            </fieldset>
             <DialogFooter>
               <Button type="submit" disabled={busy || events.length === 0 || !url}>
                 {busy ? "Creating…" : "Add endpoint"}

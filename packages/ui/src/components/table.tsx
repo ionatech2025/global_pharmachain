@@ -6,8 +6,11 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table
         data-slot="table"
-        // tabular-nums: quantities, prices and dates align vertically
-        className={cn("w-full caption-bottom text-sm tabular-nums", className)}
+        // tabular-nums + slashed-zero: quantities, CAS/order refs, prices and dates align vertically
+        className={cn(
+          "w-full caption-bottom text-sm leading-[1.4] tabular-nums [font-variant-numeric:tabular-nums_slashed-zero]",
+          className,
+        )}
         {...props}
       />
     </div>
@@ -48,7 +51,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
       // Column labels are wayfinding, not content: one step down in size and
       // weight so the values are what the eye lands on first.
       className={cn(
-        "h-9 whitespace-nowrap px-2 text-left align-middle text-xs font-medium tracking-wide text-muted-foreground",
+        "h-10 whitespace-nowrap px-3 text-left align-middle text-xs font-medium tracking-wide text-muted-foreground",
         className,
       )}
       {...props}
@@ -60,7 +63,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("whitespace-nowrap p-2 align-middle", className)}
+      className={cn("whitespace-nowrap px-3 py-2.5 align-middle", className)}
       {...props}
     />
   );

@@ -198,7 +198,7 @@ export class AnalyticsService {
     kpis.push({
       key: "kpi-supplier-score",
       label: "Supplier performance score",
-      value: ratingsReceived._count ? `${(ratingsReceived._avg.stars ?? 0).toFixed(1)}★` : "—",
+      value: ratingsReceived._count ? `${(ratingsReceived._avg.stars ?? 0).toFixed(1)} / 5` : "—",
       detail: `${ratingsReceived._count} verified rating(s) received`,
     });
 
@@ -260,7 +260,7 @@ export class AnalyticsService {
       {
         key: "kpi-supplier-score",
         label: "Network rating average",
-        value: ratings._count ? `${(ratings._avg.stars ?? 0).toFixed(1)}★` : "—",
+        value: ratings._count ? `${(ratings._avg.stars ?? 0).toFixed(1)} / 5` : "—",
         detail: `${ratings._count} verified rating(s)`,
       },
       {

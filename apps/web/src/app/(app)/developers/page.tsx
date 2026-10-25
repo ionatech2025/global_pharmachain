@@ -80,7 +80,7 @@ export default async function DevelopersPage() {
             companies that would rather their own systems did it.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+        <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <div>
             <p className="font-medium">Stop re-keying orders</p>
             <p className="text-muted-foreground">

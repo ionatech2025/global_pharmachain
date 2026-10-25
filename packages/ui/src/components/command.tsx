@@ -27,12 +27,12 @@ function CommandDialog({
 }: React.ComponentProps<typeof Dialog> & { title?: string; description?: string }) {
   return (
     <Dialog {...props}>
-      <DialogTitle className="sr-only">{title}</DialogTitle>
-      <DialogDescription className="sr-only">{description}</DialogDescription>
       <DialogContent
         showCloseButton={false}
         className="top-[30%] max-w-xl translate-y-0 overflow-hidden p-0"
       >
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        <DialogDescription className="sr-only">{description}</DialogDescription>
         <Command className="**:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-2.5">
           {children}
         </Command>

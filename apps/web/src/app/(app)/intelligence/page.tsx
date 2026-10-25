@@ -1,6 +1,6 @@
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
-import { Download, PackageX, Sparkles, TrendingUp, Truck, Users } from "lucide-react";
+import { BadgeCheck, Download, PackageX, Sparkles, TrendingUp, Truck, Users } from "lucide-react";
 import Link from "next/link";
 import { ForecastChart } from "@/components/dashboard/charts";
 import { Panel, PanelBody, PanelHeader, Provenance } from "@/components/dashboard/panel";
@@ -136,7 +136,7 @@ export default async function IntelligencePage() {
         />
       </StatGrid>
 
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Panel>
           <PanelHeader
             title="Demand forecast"
@@ -169,7 +169,7 @@ export default async function IntelligencePage() {
         </Panel>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Panel>
           <PanelHeader
             title="Shipment delay risk"
@@ -244,7 +244,7 @@ export default async function IntelligencePage() {
         </Panel>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2">
           <PanelHeader
             title="Recommended suppliers"
@@ -268,10 +268,16 @@ export default async function IntelligencePage() {
                         >
                           {r.name}
                         </Link>
-                        {r.trustedBadgeAt && <Badge variant="success">Trusted</Badge>}
+                        {r.trustedBadgeAt && (
+                          <Badge variant="success">
+                            <BadgeCheck className="size-3" aria-hidden="true" /> Trusted
+                          </Badge>
+                        )}
                       </span>
                       <p className="truncate text-xs text-muted-foreground">
-                        {r.country} · {r.reasons.join(" · ") || "no signals yet"}
+                        {r.country} ·{" "}
+                        {r.reasons.map((reason) => reason.replace(/\u2605/g, "/5")).join(" · ") ||
+                          "no signals yet"}
                       </p>
                     </div>
                     {r.score !== null && (

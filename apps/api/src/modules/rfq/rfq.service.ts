@@ -639,7 +639,7 @@ export class RfqService {
     await notify({
       companyId: quotation.supplierCompanyId,
       type: "RFQ_STATUS_CHANGE",
-      title: "Quotation accepted 🎉",
+      title: "Quotation accepted",
       body: `Your quotation ${quotation.refNo} was accepted. Order ${order.orderNo} is confirmed.`,
       href: `/orders/${order.id}`,
       emailContent: genericEventEmail({

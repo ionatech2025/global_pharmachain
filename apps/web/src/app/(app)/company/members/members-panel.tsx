@@ -84,6 +84,7 @@ export function InvitePanel({ invites }: { invites: InviteRow[] }) {
             <Input
               type="email"
               required
+              aria-label="Colleague work email"
               placeholder="colleague@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

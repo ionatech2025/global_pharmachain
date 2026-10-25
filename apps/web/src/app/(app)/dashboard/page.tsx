@@ -344,7 +344,7 @@ export default async function DashboardPage() {
           />
         </StatGrid>
 
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel className="xl:col-span-2">
             <PanelHeader
               title="Appointment activity"
@@ -375,10 +375,10 @@ export default async function DashboardPage() {
           </Panel>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel className="xl:col-span-2">
             <PanelHeader title="Recent shipments" description="Newest appointments first." />
-            <PanelBody className="px-0">
+            <PanelBody className="panel-table px-0">
               <RecentShipments rows={shipments.items} />
             </PanelBody>
             {shipments.items.length > 0 && (
@@ -521,7 +521,7 @@ export default async function DashboardPage() {
           />
         </StatGrid>
 
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel className="xl:col-span-2">
             <PanelHeader
               title="Network growth"
@@ -547,7 +547,7 @@ export default async function DashboardPage() {
           </Panel>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel className="xl:col-span-2">
             <PanelHeader
               title="Verification coverage"
@@ -760,7 +760,10 @@ export default async function DashboardPage() {
             </ol>
             <Provenance>
               Need help setting up or spotted an issue?{" "}
-              <Link href="/issues" className="font-medium text-primary hover:underline">
+              <Link
+                href="/issues"
+                className="font-medium text-primary underline underline-offset-2"
+              >
                 Raise a support ticket for the development team →
               </Link>
             </Provenance>
@@ -830,7 +833,7 @@ export default async function DashboardPage() {
         />
       </StatGrid>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2">
           <PanelHeader
             title="Trading activity"
@@ -861,19 +864,19 @@ export default async function DashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2">
           <PanelHeader
             title="Recent orders"
             description="Newest first, across both sides of your trading."
           />
-          <PanelBody className="px-0">
+          <PanelBody className="panel-table px-0">
             <RecentOrders orders={recentOrders} companyId={me.membership?.companyId} />
           </PanelBody>
           {recentOrders.length > 0 && <PanelFooter href="/orders">See all orders</PanelFooter>}
         </Panel>
 
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-4">
           <Panel className="flex-1">
             <PanelHeader title="Needs attention" description="Only live exceptions appear here." />
             <PanelBody>

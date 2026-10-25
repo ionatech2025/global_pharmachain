@@ -80,7 +80,7 @@ export function RateEngagementButton({
         stars,
         comment: comment || undefined,
       });
-      toast.success(`Rated ${target.companyName} ${stars}★`);
+      toast.success(`Rated ${target.companyName} ${stars}/5`);
       setOpen(false);
       router.refresh();
     } catch (err) {
@@ -238,7 +238,16 @@ export function CompanyRatings({
           {data.byRole.map((r) => (
             <Badge key={r.role} variant="outline">
               {RATEABLE_ROLE_LABELS[r.role as RateableRole] ?? r.role}:{" "}
-              {r.average === null ? "—" : r.average.toFixed(1)}★ ({r.count})
+              {r.average === null ? (
+                "—"
+              ) : (
+                <span className="inline-flex items-center gap-0.5 tabular-nums">
+                  {r.average.toFixed(1)}
+                  <Star className="size-3 fill-warning text-warning" aria-hidden="true" />
+                  <span className="sr-only">/5</span>
+                </span>
+              )}{" "}
+              ({r.count})
             </Badge>
           ))}
         </div>

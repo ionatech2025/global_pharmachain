@@ -24,15 +24,19 @@ interface Attachment {
  * the RFQ/quotation on submit. Eligible counterparties can then download them.
  */
 export function AttachmentPicker({
+  id,
   kind,
   value,
   onChange,
   disabled,
+  "aria-label": ariaLabel,
 }: {
+  id?: string;
   kind: DocumentKind;
   value: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
+  "aria-label"?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Attachment[]>([]);
@@ -87,23 +91,24 @@ export function AttachmentPicker({
                 type="button"
                 variant="ghost"
                 size="sm"
+                aria-label={`Remove ${i.fileName}`}
                 onClick={() => remove(i.id)}
                 disabled={disabled}
               >
-                <X className="size-3.5" />
+                <X className="size-3.5" aria-hidden="true" />
               </Button>
             </li>
           ))}
           {uploading && (
             <li className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
               <span className="flex-1 truncate">{uploading}</span>
               <span className="text-xs">uploading…</span>
             </li>
           )}
           {failed && (
             <li className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="size-3.5" />
+              <AlertCircle className="size-3.5" aria-hidden="true" />
               <span className="flex-1 truncate">{failed}</span>
               <span className="text-xs">failed — pick it again to retry</span>
             </li>
@@ -111,6 +116,8 @@ export function AttachmentPicker({
         </ul>
       )}
       <Input
+        id={id ?? `attachments-${kind.toLowerCase()}`}
+        aria-label={ariaLabel ?? "Attachments (optional)"}
         ref={inputRef}
         type="file"
         accept={ALLOWED_MIMES[kind].join(",")}

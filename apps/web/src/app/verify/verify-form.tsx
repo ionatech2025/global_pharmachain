@@ -34,7 +34,7 @@ export function VerifyForm({
     setResult(null);
     try {
       const res = await fetch(
-        `/api/backend/trace/verify?orderNo=${encodeURIComponent(orderNo.trim())}&hash=${encodeURIComponent(hash.trim().toLowerCase())}`,
+        `/api/proxy/trace/verify?orderNo=${encodeURIComponent(orderNo.trim())}&hash=${encodeURIComponent(hash.trim().toLowerCase())}`,
       );
       setResult(
         res.ok
@@ -78,11 +78,13 @@ export function VerifyForm({
       </form>
       {result && (
         <div
+          role="status"
+          aria-live="polite"
           className={`rounded-xl border p-4 ${result.authentic ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5"}`}
         >
           {result.authentic ? (
             <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 size-5 text-success" />
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-success" aria-hidden="true" />
               <div className="text-sm">
                 <p className="font-semibold">Authentic — event verified on an intact ledger.</p>
                 <p className="mt-1 text-muted-foreground">
@@ -94,7 +96,7 @@ export function VerifyForm({
             </div>
           ) : (
             <div className="flex items-start gap-3">
-              <ShieldX className="mt-0.5 size-5 text-destructive" />
+              <ShieldX className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
               <div className="text-sm">
                 <p className="font-semibold">Not verified.</p>
                 <p className="mt-1 text-muted-foreground">

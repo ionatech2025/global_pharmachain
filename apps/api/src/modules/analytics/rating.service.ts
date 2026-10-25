@@ -66,7 +66,7 @@ export class RatingService {
       companyId: input.targetCompanyId,
       roles: ["COMPANY_ADMIN"],
       type: "ACCOUNT_UPDATE",
-      title: `New ${input.stars}★ rating received`,
+      title: `New ${input.stars}/5 rating received`,
       body: `${membership.company.name} rated your ${RATEABLE_ROLE_LABELS[input.targetRole].toLowerCase()} performance on order ${order.orderNo}.`,
       href: `/companies/${input.targetCompanyId}`,
     });

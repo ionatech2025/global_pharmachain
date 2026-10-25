@@ -25,10 +25,10 @@ export default function AuthError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <TriangleAlert className="size-8 text-warning" />
+    <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+      <TriangleAlert className="size-8 text-warning" aria-hidden="true" />
       <div>
-        <p className="font-medium">Something went wrong</p>
+        <h1 className="font-medium">Something went wrong</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Retry, or head back and start again.
           {error.digest && (

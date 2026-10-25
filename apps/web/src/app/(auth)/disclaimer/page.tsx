@@ -17,7 +17,7 @@ export default function LegalDisclaimerPage() {
           </span>
         </div>
         <CardTitle className="text-2xl font-bold">
-          Legal Disclaimer & Regulatory Compliance
+          <h1>Legal Disclaimer & Regulatory Compliance</h1>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 text-sm text-muted-foreground leading-relaxed">
@@ -30,9 +30,9 @@ export default function LegalDisclaimerPage() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-1">
+          <h2 className="text-sm font-semibold text-foreground mb-1">
             Independent Entity Responsibility
-          </h3>
+          </h2>
           <p>
             All transactions, negotiations, regulatory filings, and quality assurance protocols are
             executed strictly between the independent verified corporate entities (Suppliers,
@@ -44,9 +44,9 @@ export default function LegalDisclaimerPage() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-1">
+          <h2 className="text-sm font-semibold text-foreground mb-1">
             Regulatory Compliance & Liability Limitation
-          </h3>
+          </h2>
           <p>
             The information, dossiers, and product listings displayed within this marketplace are
             provided solely for corporate procurement discovery and logistical coordination. Global

@@ -81,7 +81,7 @@ export function QuickActions({
   className?: string;
 }) {
   return (
-    <div className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-4", className)}>
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4", className)}>
       {actions.map(({ href, label, hint, icon: Icon }) => (
         <Link key={href} href={href} className="panel panel-link flex items-center gap-3 p-4">
           <span className="tile-chip size-9 rounded-xl" aria-hidden="true">

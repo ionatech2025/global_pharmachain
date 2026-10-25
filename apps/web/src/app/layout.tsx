@@ -1,16 +1,21 @@
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
-import { Anton, Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorker } from "@/components/service-worker";
 import { SITE_URL } from "@/env";
 
 // Self-hosted via next/font: same-origin, preloaded, size-adjusted fallback —
 // no external font request and no layout shift.
+// Hercules design system: one humanist/geometric sans family across weights
+// 400–700 for UI and display headlines, paired with Geist Mono for codes,
+// hashes and tabular figures (preload:false so it never competes with the
+// primary UI face on first paint).
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
-const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
-// Condensed grotesque reserved for display headlines (marketing surfaces).
-const fontDisplay = Anton({ weight: "400", subsets: ["latin"], variable: "--font-anton" });
+const fontMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  preload: false,
+});
 
 export const metadata: Metadata = {
   // Absolute base so the file-convention opengraph-image / twitter-image and
@@ -49,14 +54,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fontSans.variable} ${fontMono.variable} ${fontDisplay.variable}`}
+      className={`${fontSans.variable} ${fontMono.variable}`}
     >
       <body className="min-h-screen font-sans antialiased">
         {children}
         <ServiceWorker />
-        {/* Injects its collector client-side, so CSP 'strict-dynamic' trusts
-            it without a nonce; vitals POST to /_vercel/* is same-origin. */}
-        <SpeedInsights />
       </body>
     </html>
   );

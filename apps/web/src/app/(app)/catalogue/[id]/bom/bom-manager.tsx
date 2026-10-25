@@ -109,6 +109,7 @@ export function BomManager({
               <div key={i} className="flex flex-wrap items-end gap-2">
                 <div className="min-w-48 flex-1">
                   <Input
+                    aria-label="Material name"
                     placeholder="Material name"
                     value={item.materialName}
                     onChange={(e) => setItem(i, { materialName: e.target.value })}
@@ -130,12 +131,14 @@ export function BomManager({
                 <Input
                   className="w-28"
                   inputMode="decimal"
+                  aria-label="Quantity per unit"
                   placeholder="Qty/unit"
                   value={item.quantityPerUnit}
                   onChange={(e) => setItem(i, { quantityPerUnit: e.target.value })}
                 />
                 <Input
                   className="w-20"
+                  aria-label="Unit"
                   placeholder="Unit"
                   value={item.unit}
                   onChange={(e) => setItem(i, { unit: e.target.value })}
@@ -166,6 +169,7 @@ export function BomManager({
               </Button>
             </div>
             <Input
+              aria-label="BOM notes"
               placeholder="Notes (e.g. per 1000 tablets)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

@@ -76,12 +76,17 @@ export function ParametersPanel({ parameters }: { parameters: SystemParameterRow
                   className="w-40"
                   inputMode={param.type === "currency" ? "text" : "numeric"}
                   aria-invalid={invalid || undefined}
+                  aria-describedby={invalid ? `param-err-${param.key}` : undefined}
                   aria-label={`Value for ${param.key}`}
                   value={draft ?? param.value}
                   onChange={(e) => setDrafts((prev) => ({ ...prev, [param.key]: e.target.value }))}
                 />
                 {invalid && (
-                  <p className="text-xs text-destructive">
+                  <p
+                    id={`param-err-${param.key}`}
+                    role="alert"
+                    className="text-xs text-destructive"
+                  >
                     {param.type === "currency"
                       ? "Three-letter ISO code, e.g. USD"
                       : param.type === "csv-int"
@@ -172,6 +177,7 @@ export function ExchangeRatesPanel({ rates }: { rates: ExchangeRateRow[] }) {
           <Input
             className="w-36"
             inputMode="decimal"
+            aria-label="Exchange rate"
             placeholder="Rate"
             required
             value={rate}

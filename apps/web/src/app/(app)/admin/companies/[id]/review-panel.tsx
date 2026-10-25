@@ -89,6 +89,7 @@ export function VerificationDecision({ companyId }: { companyId: string }) {
           </DialogHeader>
           <Textarea
             rows={3}
+            aria-label="Reason for rejection"
             placeholder="e.g. Trading licence is expired; please upload the current one."
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -289,6 +290,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
           </DialogHeader>
           <Textarea
             rows={3}
+            aria-label="Reason for override"
             placeholder="Reason for this override…"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

@@ -201,8 +201,14 @@ export default async function LandingPage() {
   return (
     <ThemeOnlyProviders>
       <div className="flex min-h-screen flex-col overflow-x-clip bg-background">
+        <a
+          href="#main"
+          className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Skip to content
+        </a>
         {/* Announcement topbar */}
-        <div className="border-b bg-muted/40">
+        <div role="region" aria-label="Platform announcement" className="border-b bg-muted/40">
           <div className="mx-auto flex h-9 w-full max-w-7xl items-center justify-center gap-4 px-4 text-xs text-muted-foreground sm:justify-between sm:px-6">
             <p className="flex items-center gap-2 truncate">
               <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
@@ -249,7 +255,7 @@ export default async function LandingPage() {
           </div>
         </header>
 
-        <main className="flex-1">
+        <main id="main" tabIndex={-1} className="flex-1 outline-none">
           {/* Hero — daylight-sky panel */}
           <section className="px-3 sm:px-5">
             <div className="sky-scope relative mx-auto -mt-[4.25rem] w-full max-w-[88rem] overflow-hidden rounded-[1.75rem] bg-panel-sky shadow-[0_48px_110px_-48px_oklch(0.32_0.11_250/0.6)] sm:rounded-[2.5rem]">
@@ -266,7 +272,7 @@ export default async function LandingPage() {
 
               <div className="relative grid gap-10 px-6 pt-28 pb-14 sm:px-10 sm:pt-32 lg:grid-cols-[1.15fr_0.85fr] lg:px-14 lg:pb-24">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary backdrop-blur-sm">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/75 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
                     <Sparkles className="size-3.5" />
                     Global B2B Pharmaceutical Network
                   </div>
@@ -382,7 +388,7 @@ export default async function LandingPage() {
                   {FEATURES.map((feature) => (
                     <div
                       key={feature.title}
-                      className="group rounded-2xl border bg-card/70 p-6 backdrop-blur-sm transition-colors duration-300 hover:border-primary/40 hover:bg-card"
+                      className="group rounded-2xl border bg-card/90 p-6 transition-colors duration-300 hover:border-primary/40 hover:bg-card"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -445,9 +451,9 @@ export default async function LandingPage() {
                     Corporate Compliance & Regulatory Notice
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-foreground mb-4">
+                <h2 className="text-2xl font-bold text-foreground mb-4">
                   Legal Disclaimer & Regulatory Compliance
-                </h3>
+                </h2>
 
                 <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
                   <p className="font-medium text-foreground">

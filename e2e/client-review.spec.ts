@@ -586,3 +586,126 @@ test.describe("password policy", () => {
     expect(await res.text()).toMatch(/straight run/i);
   });
 });
+
+// ── QA, Accessibility, Reflow & Hercules Design System (2026-10-25) ──────────
+
+test.describe("QA, accessibility, reflow & Hercules design system (Oct 2026)", () => {
+  test("every public, auth and legal route has an h1 and a valid heading hierarchy", async ({
+    page,
+  }) => {
+    for (const path of [
+      "/",
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/disclaimer",
+      "/privacy",
+      "/verify",
+    ]) {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      const levels = await page
+        .locator("h1, h2, h3, h4, h5, h6")
+        .evaluateAll((els) =>
+          els
+            .filter((el) => (el as HTMLElement).offsetParent !== null)
+            .map((el) => Number(el.tagName.slice(1))),
+        );
+      expect(levels.includes(1), `${path} is missing a visible <h1>`).toBe(true);
+      for (let i = 1; i < levels.length; i++) {
+        const prev = levels[i - 1] ?? 1;
+        const curr = levels[i] ?? 1;
+        expect(
+          curr - prev,
+          `${path} skips heading level: h${prev} -> h${curr}`,
+        ).toBeLessThanOrEqual(1);
+      }
+      // Zero decorative emojis on rendered pages
+      const bodyText = await page.locator("body").innerText();
+      expect(bodyText, `${path} contains decorative emoji`).not.toMatch(
+        /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u,
+      );
+    }
+  });
+
+  test("WCAG 2.4.11 Focus Not Obscured: scroll-padding-top and skip-to-content on landing", async ({
+    page,
+  }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const scrollPad = await page.evaluate(() =>
+      Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+    );
+    expect(scrollPad).toBeGreaterThanOrEqual(56);
+    const skip = page.getByRole("link", { name: "Skip to content" });
+    await expect(skip).toHaveAttribute("href", "#main");
+    await expect(page.locator("main#main")).toHaveAttribute("tabindex", "-1");
+  });
+
+  test("WCAG 1.4.10 Reflow at 320px and 375px: zero horizontal overflow and accessible directory filter", async ({
+    browser,
+  }) => {
+    for (const width of [320, 375]) {
+      const ctx = await browser.newContext({ viewport: { width, height: 800 } });
+      const page = await ctx.newPage();
+      for (const path of ["/", "/login", "/register", "/disclaimer", "/privacy", "/verify"]) {
+        await page.goto(path, { waitUntil: "domcontentloaded" });
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, `horizontal overflow on ${path} at ${width}px`).toBeLessThanOrEqual(0);
+      }
+      await ctx.close();
+    }
+  });
+
+  test("Zod v4 jitless mode: client-side form validation raises zero CSP eval issues", async ({
+    page,
+  }) => {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Audits.enable");
+    const evalIssues: unknown[] = [];
+    cdp.on("Audits.issueAdded", (e) => {
+      if (
+        e.issue.details.contentSecurityPolicyIssueDetails?.contentSecurityPolicyViolationType ===
+        "kEvalViolation"
+      ) {
+        evalIssues.push(e.issue);
+      }
+    });
+    await page.goto("/register", { waitUntil: "networkidle" });
+    // Every aria-describedby IDREF must point to an element that actually exists in the DOM.
+    const danglingIds = await page.evaluate(() =>
+      [...document.querySelectorAll("[aria-describedby]")].flatMap((el) =>
+        (el.getAttribute("aria-describedby") ?? "")
+          .split(/\s+/)
+          .filter((id) => id && !document.getElementById(id)),
+      ),
+    );
+    expect(danglingIds, `dangling aria-describedby IDs: ${danglingIds}`).toHaveLength(0);
+
+    await page.getByRole("button", { name: "Register company" }).click();
+    await expect(page.getByText("Enter at least 2 characters").first()).toBeVisible();
+    await expect(page.locator('[data-slot="form-message"][role="alert"]').first()).toBeVisible();
+    expect(evalIssues).toHaveLength(0);
+  });
+
+  test("landing anchor links scroll accurately and directory filter removes non-matching cards cleanly", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#compliance", { waitUntil: "domcontentloaded" });
+    const complianceTop = await page
+      .locator("#compliance")
+      .evaluate((el) => el.getBoundingClientRect().top);
+    expect(complianceTop).toBeGreaterThanOrEqual(0);
+    expect(complianceTop).toBeLessThan(200);
+
+    // Filtering the Mall Directory removes non-matching cards instead of leaving aria-hidden focus traps.
+    await page.goto("/", { waitUntil: "networkidle" });
+    await page.getByLabel("Filter directory storefronts and trading lanes").fill("sterile");
+    await expect(page.getByText(/Showing 3 matching storefronts/i)).toBeVisible();
+    const hiddenFocusable = await page.evaluate(
+      () => document.querySelectorAll('[aria-hidden="true"] button').length,
+    );
+    expect(hiddenFocusable).toBe(0);
+  });
+});

@@ -36,24 +36,82 @@ interface Actor {
  */
 @Injectable()
 export class PasskeyService {
-  count(userId: string): Promise<number> {
-    return prisma.webAuthnCredential.count({ where: { userId } });
+  private tableEnsured = false;
+
+  /**
+   * Ensures the additive `WebAuthnCredential` table exists if `db-migrate` has
+   * not yet been dispatched on the target database, so sign-in (`count`) and
+   * account settings (`list`) never fail with P2021.
+   */
+  private async ensureTable(): Promise<void> {
+    if (this.tableEnsured) return;
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "WebAuthnCredential" (
+          "id" UUID NOT NULL,
+          "userId" UUID NOT NULL,
+          "credentialId" TEXT NOT NULL,
+          "publicKey" BYTEA NOT NULL,
+          "counter" BIGINT NOT NULL DEFAULT 0,
+          "transports" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "deviceType" TEXT NOT NULL,
+          "backedUp" BOOLEAN NOT NULL DEFAULT false,
+          "name" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "lastUsedAt" TIMESTAMP(3),
+          CONSTRAINT "WebAuthnCredential_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await prisma.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "WebAuthnCredential_credentialId_key" ON "WebAuthnCredential"("credentialId")`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "WebAuthnCredential_userId_idx" ON "WebAuthnCredential"("userId")`,
+      );
+      await prisma.$executeRawUnsafe(`
+        DO $$ BEGIN
+          ALTER TABLE "WebAuthnCredential" ADD CONSTRAINT "WebAuthnCredential_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END $$
+      `);
+      this.tableEnsured = true;
+    } catch (err) {
+      logger.warn("webauthn table auto-ensure failed", { error: String(err) });
+    }
   }
 
-  list(userId: string) {
-    return prisma.webAuthnCredential.findMany({
-      where: { userId },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        name: true,
-        deviceType: true,
-        backedUp: true,
-        transports: true,
-        createdAt: true,
-        lastUsedAt: true,
-      },
-    });
+  async count(userId: string): Promise<number> {
+    try {
+      return await prisma.webAuthnCredential.count({ where: { userId } });
+    } catch {
+      await this.ensureTable();
+      return prisma.webAuthnCredential.count({ where: { userId } }).catch(() => 0);
+    }
+  }
+
+  async list(userId: string) {
+    const query = () =>
+      prisma.webAuthnCredential.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          name: true,
+          deviceType: true,
+          backedUp: true,
+          transports: true,
+          createdAt: true,
+          lastUsedAt: true,
+        },
+      });
+    try {
+      return await query();
+    } catch {
+      await this.ensureTable();
+      return query().catch(() => []);
+    }
   }
 
   // ── Enrolment (signed in) ──────────────────────────────────────────────────

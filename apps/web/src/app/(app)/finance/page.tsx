@@ -161,7 +161,7 @@ export default async function FinancePage() {
         />
       </StatGrid>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2">
           <PanelHeader
             title="Cash movement"

@@ -59,7 +59,6 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
   const uid = useId().replace(/:/g, "");
   const arcGrad = `arc-${uid}`;
   const meridGrad = `merid-${uid}`;
-  const glow = `glow-${uid}`;
   return (
     // `relative` is load-bearing, not decorative: the internal layers below
     // (aurora blobs, .globe-scene) are `absolute inset-0` and need this root
@@ -76,28 +75,14 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
       )}
 
       <div className="globe-scene absolute inset-0 grid place-items-center">
-        <div className="animate-globe-tilt relative aspect-square w-[88%]">
-          {/* Glass orb — frosted, rim-lit. Pulled back in Z so the wireframe
-              and rim visibly separate from it as the sphere tilts. */}
-          <div
-            className="absolute inset-0 rounded-full border border-white/25 bg-white/5 shadow-[0_40px_90px_-40px_oklch(0.4_0.1_250/0.55)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.035]"
-            style={{ transform: "translateZ(-16px)" }}
-          />
-          {/* Rotating specular sheen — the lit side turning */}
-          <div className="absolute inset-0 overflow-hidden rounded-full">
-            <div className="animate-globe-sheen absolute inset-[-25%] bg-[conic-gradient(from_0deg,transparent_0deg,var(--globe-halo)_55deg,transparent_130deg,transparent_360deg)]" />
-          </div>
-          {/* Fixed top-left specular highlight */}
+        <div className="relative aspect-square w-[88%]">
+          {/* Glass orb — rim-lit surface */}
+          <div className="absolute inset-0 rounded-full border border-white/25 bg-white/8 shadow-[0_40px_90px_-40px_oklch(0.4_0.1_250/0.55)] dark:border-white/10 dark:bg-white/[0.04]" />
+          {/* Top-left specular highlight */}
           <div className="absolute inset-0 rounded-full bg-[radial-gradient(55%_45%_at_34%_28%,oklch(1_0_0/0.45),transparent_58%)] dark:bg-[radial-gradient(55%_45%_at_34%_28%,oklch(1_0_0/0.16),transparent_58%)]" />
 
-          {/* Wireframe sphere + routes — brought forward in Z, ahead of the
-              glass backdrop, for the tilt's parallax. */}
-          <svg
-            viewBox="0 0 360 360"
-            className="relative size-full"
-            style={{ transform: "translateZ(14px)" }}
-            role="presentation"
-          >
+          {/* Wireframe sphere + routes */}
+          <svg viewBox="0 0 360 360" className="relative size-full" role="presentation">
             <defs>
               <linearGradient id={arcGrad} x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor="var(--color-primary)" stopOpacity="0" />
@@ -108,16 +93,9 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
                 <stop offset="0" stopColor="var(--globe-line)" />
                 <stop offset="1" stopColor="var(--globe-line-soft)" />
               </linearGradient>
-              <filter id={glow} x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="2.2" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
             </defs>
 
-            {/* Twinkling starfield */}
+            {/* Starfield */}
             {STARS.map(([x, y], i) => (
               <circle
                 // biome-ignore lint/suspicious/noArrayIndexKey: static decorative field
@@ -126,16 +104,12 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
                 cy={y}
                 r={i % 3 === 0 ? 1.6 : 1}
                 fill="var(--color-muted-foreground)"
-                className="animate-twinkle"
-                style={{ animationDelay: `${(i % 4) * 0.7}s` }}
+                opacity="0.55"
               />
             ))}
 
-            {/* Spinning orbit ring */}
-            <g
-              className="animate-orbit-slow"
-              style={{ transformBox: "fill-box", transformOrigin: "center" }}
-            >
+            {/* Orbit ring */}
+            <g>
               <ellipse
                 cx={CX}
                 cy={CY}
@@ -148,8 +122,7 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
               />
             </g>
 
-            {/* Static silhouette + latitude bands (a globe rotating on its
-                vertical axis: the parallels stay, the meridians sweep). */}
+            {/* Static silhouette + latitude bands */}
             <circle
               cx={CX}
               cy={CY}
@@ -172,11 +145,8 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
               />
             ))}
 
-            {/* Meridians spin around the globe centre → the sphere turns */}
-            <g
-              className="animate-globe-spin"
-              style={{ transformBox: "fill-box", transformOrigin: "center" }}
-            >
+            {/* Meridians */}
+            <g>
               {MERIDIANS.map((rx, i) => (
                 <ellipse
                   // biome-ignore lint/suspicious/noArrayIndexKey: fixed geometry list
@@ -192,8 +162,8 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
               ))}
             </g>
 
-            {/* Supply-route arcs (base + animated dash sweep) */}
-            <g filter={`url(#${glow})`}>
+            {/* Supply-route arcs */}
+            <g>
               {ARCS.map((arc, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: fixed route list
                 <g key={`a${i}`}>
@@ -204,27 +174,17 @@ export function HeroGlobe({ className, aurora = true }: { className?: string; au
                     stroke={`url(#${arcGrad})`}
                     strokeWidth="2.2"
                     strokeLinecap="round"
-                    strokeDasharray="60 340"
-                    className="animate-arc-dash"
-                    style={{ animationDelay: arc.delay }}
                   />
                 </g>
               ))}
             </g>
 
-            {/* Route nodes with a pulsing halo on the primary hubs */}
+            {/* Route nodes */}
             {NODES.map((n, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: fixed node list
               <g key={`n${i}`}>
                 {i % 2 === 0 && (
-                  <circle
-                    cx={n.cx}
-                    cy={n.cy}
-                    r="5"
-                    fill="var(--color-primary)"
-                    className="animate-node-ping"
-                    style={{ animationDelay: `${i * 0.5}s` }}
-                  />
+                  <circle cx={n.cx} cy={n.cy} r="6" fill="var(--color-primary)" opacity="0.22" />
                 )}
                 <circle cx={n.cx} cy={n.cy} r="3.2" fill="var(--color-primary)" />
                 <circle cx={n.cx} cy={n.cy} r="1.4" fill="var(--color-background)" />

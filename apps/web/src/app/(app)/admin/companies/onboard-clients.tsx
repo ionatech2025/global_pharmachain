@@ -337,7 +337,10 @@ export function OnboardClientsDialog() {
                 </p>
 
                 {parsed.errors.length > 0 && (
-                  <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive-accent">
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive-accent"
+                  >
                     {parsed.errors.slice(0, 4).map((err) => (
                       <p key={err}>{err}</p>
                     ))}
@@ -345,7 +348,10 @@ export function OnboardClientsDialog() {
                 )}
 
                 {parsed.rows.length > 0 && (
-                  <div className="space-y-2 rounded-lg border bg-muted/20 p-2.5 text-xs">
+                  <div
+                    aria-live="polite"
+                    className="space-y-2 rounded-lg border bg-muted/20 p-2.5 text-xs"
+                  >
                     <p className="font-medium text-foreground">
                       Ready to onboard {parsed.rows.length} client compan
                       {parsed.rows.length === 1 ? "y" : "ies"}

@@ -170,11 +170,13 @@ export function StatGrid({ children, className }: { children: ReactNode; classNa
   const count = Children.toArray(children).length;
   const cols =
     count === 5
-      ? "xl:grid-cols-5"
+      ? "lg:grid-cols-3 xl:grid-cols-5"
       : count === 3
-        ? "xl:grid-cols-3"
+        ? "lg:grid-cols-3"
         : count <= 2
           ? "sm:grid-cols-2"
           : "xl:grid-cols-4";
-  return <div className={cn("grid gap-3 sm:grid-cols-2", cols, className)}>{children}</div>;
+  return (
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", cols, className)}>{children}</div>
+  );
 }

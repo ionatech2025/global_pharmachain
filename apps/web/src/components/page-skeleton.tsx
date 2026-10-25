@@ -48,7 +48,7 @@ export function DetailSkeleton() {
         <Skeleton className="h-56 w-full rounded-2xl lg:col-span-2" />
         <Skeleton className="h-56 w-full rounded-2xl" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Skeleton className="h-40 w-full rounded-2xl" />
         <Skeleton className="h-40 w-full rounded-2xl" />
       </div>
@@ -75,17 +75,17 @@ export function DashboardSkeleton() {
           <Skeleton className="h-8 w-32 rounded-md" />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder list
           <Skeleton key={i} className="h-[6.5rem] w-full rounded-2xl" />
         ))}
       </div>
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Skeleton className="h-80 w-full rounded-2xl xl:col-span-2" />
         <Skeleton className="h-80 w-full rounded-2xl" />
       </div>
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Skeleton className="h-72 w-full rounded-2xl xl:col-span-2" />
         <Skeleton className="h-72 w-full rounded-2xl" />
       </div>

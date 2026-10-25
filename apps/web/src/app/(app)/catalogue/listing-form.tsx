@@ -517,8 +517,10 @@ export function ListingForm({
               name="standards"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Pharmacopoeia standards</FormLabel>
-                  <FormControl>
+                  <fieldset className="grid gap-2">
+                    <legend className="mb-2 text-sm font-medium leading-none">
+                      Pharmacopoeia standards
+                    </legend>
                     <div className="flex flex-wrap gap-3">
                       {PHARMACOPOEIA_STANDARDS.map((standard) => {
                         const selected = (field.value ?? []).includes(standard);
@@ -544,8 +546,8 @@ export function ListingForm({
                         );
                       })}
                     </div>
-                  </FormControl>
-                  <FormMessage />
+                    <FormMessage />
+                  </fieldset>
                 </FormItem>
               )}
             />

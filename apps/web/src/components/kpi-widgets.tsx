@@ -66,22 +66,27 @@ export function KpiGrid({ kpis, widgets }: { kpis: Kpi[]; widgets: string[] }) {
   if (visible.length === 0) return null;
   return (
     <StatGrid>
-      {visible.map((kpi) => (
-        <StatTile
-          key={kpi.key}
-          label={kpi.label}
-          value={kpi.value}
-          icon={KPI_ICONS[kpi.key]}
-          caption={kpi.detail}
-          href={kpi.href}
-          // A risk measure showing anything but "OK"/"0" is a live exception.
-          tone={
-            RISK_KPIS.has(kpi.key) && kpi.value !== "OK" && kpi.value !== "0"
-              ? "warning"
-              : "default"
-          }
-        />
-      ))}
+      {visible.map((kpi) => {
+        const cleanValue = kpi.value.endsWith("\u2605")
+          ? `${kpi.value.slice(0, -1)} / 5`
+          : kpi.value;
+        return (
+          <StatTile
+            key={kpi.key}
+            label={kpi.label}
+            value={cleanValue}
+            icon={KPI_ICONS[kpi.key]}
+            caption={kpi.detail}
+            href={kpi.href}
+            // A risk measure showing anything but "OK"/"0" is a live exception.
+            tone={
+              RISK_KPIS.has(kpi.key) && cleanValue !== "OK" && cleanValue !== "0"
+                ? "warning"
+                : "default"
+            }
+          />
+        );
+      })}
     </StatGrid>
   );
 }

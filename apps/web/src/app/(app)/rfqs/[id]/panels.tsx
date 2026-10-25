@@ -453,8 +453,9 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
             />
           </div>
           <div className="grid gap-2">
-            <Label>Attachments (optional)</Label>
+            <Label htmlFor="attachments-quotation_attachment">Attachments (optional)</Label>
             <AttachmentPicker
+              id="attachments-quotation_attachment"
               kind="QUOTATION_ATTACHMENT"
               value={attachmentIds}
               onChange={setAttachmentIds}

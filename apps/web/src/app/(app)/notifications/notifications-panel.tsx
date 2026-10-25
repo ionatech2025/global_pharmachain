@@ -20,6 +20,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import {
+  cleanNotificationText,
+  notificationIconFor,
+  notificationToneFor,
+} from "@/components/notifications-bell";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { NotificationRow, Paginated } from "@/lib/api/types";
@@ -59,33 +64,52 @@ export function NotificationList({ notifications }: { notifications: Paginated<N
         </Button>
       </div>
       <ul className="divide-y rounded-lg border">
-        {notifications.items.map((n) => (
-          <li key={n.id}>
-            <button
-              type="button"
-              onClick={() => open(n)}
-              // Unread was carried by a background tint and a bolder weight
-              // alone — both invisible to a screen reader. data-unread exposes
-              // the state to styling and tests; the sr-only word states it.
-              data-unread={n.readAt ? undefined : "true"}
-              className={cn(
-                "block w-full px-4 py-3 text-left transition-colors hover:bg-accent",
-                !n.readAt && "bg-primary/5",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className={cn("text-sm", !n.readAt && "font-medium")}>
-                  {!n.readAt && <span className="sr-only">Unread: </span>}
-                  {n.title}
+        {notifications.items.map((n) => {
+          const Icon = notificationIconFor(n.type, n.title);
+          const tone = notificationToneFor(n.type, n.title);
+          const chipTone =
+            tone === "danger"
+              ? "bg-destructive/12 text-destructive-accent"
+              : tone === "warning"
+                ? "bg-warning/15 text-warning"
+                : tone === "success"
+                  ? "bg-success/12 text-success"
+                  : "";
+          return (
+            <li key={n.id}>
+              <button
+                type="button"
+                onClick={() => open(n)}
+                // Unread was carried by a background tint and a bolder weight
+                // alone — both invisible to a screen reader. data-unread exposes
+                // the state to styling and tests; the sr-only word states it.
+                data-unread={n.readAt ? undefined : "true"}
+                className={cn(
+                  "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent",
+                  !n.readAt && "bg-primary/5",
+                )}
+              >
+                <span className={cn("tile-chip mt-0.5 shrink-0", chipTone)} aria-hidden="true">
+                  <Icon className="size-3.5" />
                 </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {timeAgo(n.createdAt)}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={cn("text-sm", !n.readAt && "font-medium")}>
+                      {!n.readAt && <span className="sr-only">Unread: </span>}
+                      {cleanNotificationText(n.title)}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {timeAgo(n.createdAt)}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                    {cleanNotificationText(n.body)}
+                  </span>
                 </span>
-              </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>
-            </button>
-          </li>
-        ))}
+              </button>
+            </li>
+          );
+        })}
       </ul>
       {notifications.totalPages > 1 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">

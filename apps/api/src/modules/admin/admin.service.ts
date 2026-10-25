@@ -122,7 +122,7 @@ export class AdminService {
     await notify({
       companyId,
       type: "VERIFICATION_DECISION",
-      title: approve ? "Company verified 🎉" : "Verification rejected",
+      title: approve ? "Company verified" : "Verification rejected",
       body: approve
         ? "Your company has been verified. You now have full marketplace access."
         : `Verification was rejected: ${decision.reason ?? ""}. Correct the issues and resubmit.`,

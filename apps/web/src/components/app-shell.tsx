@@ -68,13 +68,13 @@ function NavLinks({
   onNavigate?: () => void;
 }) {
   return (
-    <nav aria-label="Main" className="flex-1 space-y-6 overflow-y-auto px-3 pb-6">
+    <nav aria-label="Main" className="flex-1 space-y-6 overflow-y-auto px-3 pt-4 pb-6">
       {sections.map((section) => (
         <div key={section.section}>
           <p className="px-2.5 pb-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
             {section.section}
           </p>
-          <div className="grid gap-0.5">
+          <div className="grid gap-1">
             {section.items.map((item) => {
               const hasMoreSpecificSibling = section.items.some(
                 (other) =>
@@ -94,13 +94,13 @@ function NavLinks({
                   // Solid pill for the current page: at a glance, from across
                   // the room, one item is lit and the rest recede.
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
                     active
-                      ? "bg-primary font-medium text-primary-foreground shadow-sm"
+                      ? "bg-primary font-semibold text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" />
+                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
                   {item.label}
                 </Link>
               );
@@ -157,7 +157,7 @@ function CompanyCard({ me }: { me: AuthenticatedUser }) {
   const membership = me.membership;
   if (!membership) return null;
   return (
-    <div className="p-3">
+    <div className="border-t border-border/60 p-3">
       <Link
         href="/company"
         className="block rounded-xl border bg-muted/40 px-3 py-2.5 transition-colors hover:bg-accent"
@@ -217,7 +217,10 @@ export function AppShell({
       </a>
 
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 lg:flex">
-        <Link href="/dashboard" className="px-5 py-4">
+        <Link
+          href="/dashboard"
+          className="flex h-14 shrink-0 items-center border-b border-border/60 px-5"
+        >
           <Logo markClassName="size-8" />
         </Link>
         <NavLinks sections={sections} pathname={pathname} />
@@ -225,7 +228,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="glass-nav sticky top-0 z-40 flex h-14 items-center gap-2 rounded-none border-x-0 border-t-0 px-4">
+        <header className="glass-nav sticky top-0 z-40 flex h-14 items-center gap-2 rounded-none border-x-0 border-t-0 px-4 lg:px-8">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button
@@ -237,8 +240,8 @@ export function AppShell({
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 gap-0 p-0">
-              <SheetTitle className="px-4 py-4">
+            <SheetContent side="left" className="w-72 max-w-[calc(100vw-2rem)] gap-0 p-0">
+              <SheetTitle className="flex h-14 shrink-0 items-center border-b border-border/60 px-4">
                 <Logo markClassName="size-8" />
               </SheetTitle>
               <SheetDescription className="sr-only">Main navigation</SheetDescription>
@@ -291,7 +294,7 @@ export function AppShell({
                   <span className="hidden max-w-32 truncate text-sm sm:block">{me.name}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 max-w-[calc(100vw-1rem)]">
                 <DropdownMenuLabel className="font-normal">
                   <p className="truncate text-sm font-medium">{me.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{me.email}</p>
@@ -320,7 +323,11 @@ export function AppShell({
           </div>
         </header>
 
-        <main id="main" className="mx-auto w-full max-w-[110rem] flex-1 space-y-4 p-4 lg:p-6">
+        <main
+          id="main"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[110rem] flex-1 space-y-5 p-4 outline-none sm:p-5 lg:px-8 lg:py-6"
+        >
           {me.isSuperAdmin && <PasskeyNudge />}
           <AnnouncementBanner announcements={announcements} />
           {unverified && membership && (
@@ -339,7 +346,7 @@ export function AppShell({
         </main>
         {/* Standing regulatory notice: the disclaimer must be reachable from where
             trading happens, not only the marketing page. */}
-        <footer className="mx-auto w-full max-w-[110rem] border-t px-4 py-3 text-[11px] leading-relaxed text-muted-foreground lg:px-6">
+        <footer className="mx-auto w-full max-w-[110rem] border-t px-4 py-3 text-[11px] leading-relaxed text-muted-foreground sm:px-5 lg:px-8">
           Global PharmaChain is an independent B2B matching directory and secure open-ledger
           information layer. It does not manufacture, formulate, dispense, store, transport, market,
           distribute or prescribe medicines, APIs or medical consumables, and does not independently
