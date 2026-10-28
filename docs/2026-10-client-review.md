@@ -449,7 +449,10 @@ nothing else references.
 axe-core 4.14 **clean on 36 combinations** (bell menu, member menu, both erase dialogs,
 data requests, account, verification, notifications and privacy pages; light and dark;
 1360 and 390 px); local scripts proving A1-A3 against a real database; the client-review
-spec 34 passed / 1 skipped. **On the live site** as the Nile Pharma company admin: the
+spec 34 passed / 1 skipped. Full local suite: **96 passed, 14 skipped, 1 failed** (epic2 case 21,
+which waits for a real invitation email — no mail relay locally). An earlier full run
+failed 16: the audit's own sign-ins had used up the login throttle (40 per 15 minutes per
+IP; the throttle table showed the bucket at 41, blocked); cleared, the same tests passed. **On the live site** as the Nile Pharma company admin: the
 menu stays inside a 640 px window and scrolls; opening an item lowered the server's
 count 323 → 322 and it stayed lowered after a reload (the badge reads "99+" at that
 level, as designed — the demo account's backlog is e2e residue); no language picker;
