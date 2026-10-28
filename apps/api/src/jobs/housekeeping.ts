@@ -20,6 +20,30 @@ import { shipmentPartyUserIds } from "../lib/shipment-access";
 import { runWebhookDeliveryPass } from "../lib/webhooks";
 import { deleteObject } from "../modules/document/storage";
 
+/**
+ * A digest restates the whole current state, so the one before it is obsolete
+ * the moment a new one is raised. Left unread, they piled up a day at a time:
+ * the platform admins' bell sat permanently at its cap, and opening a
+ * notification never visibly lowered it (client review, 2026-10-27). Marked
+ * read rather than deleted — the history stays on the notifications page.
+ */
+async function retirePreviousDigests(
+  userIds: string[],
+  type: "APPROVAL_PENDING" | "DATA_REQUEST",
+  titles: string[],
+  now: Date,
+): Promise<void> {
+  if (userIds.length === 0) return;
+  await prisma.notification.updateMany({
+    where: { userId: { in: userIds }, type, title: { in: titles }, readAt: null },
+    data: { readAt: now },
+  });
+}
+
+const APPROVAL_DIGEST_TITLE = "Approvals waiting on the platform team";
+const DSR_BREACHED_TITLE = "GDPR SLA breached";
+const DSR_APPROACHING_TITLE = "GDPR SLA approaching";
+
 /** RFQs past their deadline auto-close (US-402); buyers are told. */
 export async function runRfqAutoCloseJob(now = new Date()): Promise<void> {
   const due = await prisma.rfq.findMany({
@@ -120,6 +144,12 @@ export async function runDsrSlaJob(now = new Date()): Promise<void> {
   const overdue = pending.filter(
     (r) => now.getTime() - r.createdAt.getTime() > slaDays * 24 * 60 * 60 * 1000,
   );
+  await retirePreviousDigests(
+    superAdmins.map((u) => u.id),
+    "DATA_REQUEST",
+    [DSR_BREACHED_TITLE, DSR_APPROACHING_TITLE],
+    now,
+  );
   const summary =
     overdue.length > 0
       ? `${overdue.length} deletion request(s) are PAST the ${slaDays}-day SLA`
@@ -127,7 +157,7 @@ export async function runDsrSlaJob(now = new Date()): Promise<void> {
   await notify({
     userIds: superAdmins.map((u) => u.id),
     type: "DATA_REQUEST",
-    title: overdue.length > 0 ? "GDPR SLA breached" : "GDPR SLA approaching",
+    title: overdue.length > 0 ? DSR_BREACHED_TITLE : DSR_APPROACHING_TITLE,
     body: `${summary}. Oldest: ${pending[0]?.user.email ?? "?"} (${pending[0]?.createdAt.toDateString()}).`,
     href: "/admin/data-requests",
     emailContent: genericEventEmail({
@@ -316,10 +346,16 @@ export async function runLogisticsAlertsJob(now = new Date()): Promise<void> {
       where: { isSuperAdmin: true, status: "ACTIVE" },
       select: { id: true },
     });
+    await retirePreviousDigests(
+      superAdmins.map((u) => u.id),
+      "APPROVAL_PENDING",
+      [APPROVAL_DIGEST_TITLE],
+      now,
+    );
     await notify({
       userIds: superAdmins.map((u) => u.id),
       type: "APPROVAL_PENDING",
-      title: "Approvals waiting on the platform team",
+      title: APPROVAL_DIGEST_TITLE,
       body: `${pendingVerifications} verification(s), ${pendingCredits} credit request(s), ${escalatedDisputes} escalated dispute(s).`,
       href: "/admin/verification",
     });

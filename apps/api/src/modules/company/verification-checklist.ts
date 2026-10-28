@@ -1,4 +1,8 @@
-import { DOCUMENT_KIND_LABELS, requiredVerificationKinds } from "@pharmachain/core";
+import {
+  DOCUMENT_KIND_LABELS,
+  EXPIRY_ENFORCED_KINDS,
+  requiredVerificationKinds,
+} from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 
 const EXPIRING_SOON_DAYS = 30;
@@ -118,4 +122,53 @@ export function describeBlocking(blocking: ChecklistItem[]): string {
       return b.status === "EXPIRED" ? `${label} (expired)` : `${label} (missing)`;
     })
     .join(", ");
+}
+
+interface DatedDocument {
+  kind: string;
+  fileName: string;
+  expiresAt: Date | null;
+  version: number;
+  createdAt: Date;
+}
+
+/**
+ * The current copy of each kind whose date has passed. "Current" is the newest
+ * by version, then upload time — how the checklist reads it — so an older copy
+ * that was never formally replaced cannot keep a renewed company flagged, or
+ * flag it again the night after it is re-approved.
+ */
+export function lapsedCurrentDocuments<T extends DatedDocument>(docs: T[], now: Date): T[] {
+  const newestFirst = [...docs].sort(
+    (a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime(),
+  );
+  const current = new Map<string, T>();
+  for (const doc of newestFirst) if (!current.has(doc.kind)) current.set(doc.kind, doc);
+  return [...current.values()].filter(
+    (doc) => doc.expiresAt !== null && doc.expiresAt.getTime() < now.getTime(),
+  );
+}
+
+/** A company's lapsed expiry-enforced documents (US-104), current copies only. */
+export async function findLapsedDocuments(companyId: string, now = new Date()) {
+  const docs = await prisma.document.findMany({
+    where: {
+      ownerCompanyId: companyId,
+      status: "ACTIVE",
+      uploadCompletedAt: { not: null },
+      kind: { in: [...EXPIRY_ENFORCED_KINDS] },
+    },
+    select: { kind: true, fileName: true, expiresAt: true, version: true, createdAt: true },
+  });
+  return lapsedCurrentDocuments(docs, now);
+}
+
+/** Whether a company flagged for an expired document has put it right: every
+ *  mandatory document in place and in date, and nothing enforced still lapsed. */
+export async function renewalComplete(companyId: string, now = new Date()): Promise<boolean> {
+  const [checklist, lapsed] = await Promise.all([
+    buildVerificationChecklist(companyId),
+    findLapsedDocuments(companyId, now),
+  ]);
+  return checklist.complete && lapsed.length === 0;
 }

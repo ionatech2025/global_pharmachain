@@ -118,7 +118,10 @@ export default async function AdminCompaniesPage({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <VerificationStatusBadge status={company.verificationStatus} />
+                    <VerificationStatusBadge
+                      status={company.verificationStatus}
+                      previouslyVerified={company.verifiedAt !== null}
+                    />
                   </TableCell>
                   <TableCell>{fmtDate(company.reverificationDueAt)}</TableCell>
                   <TableCell>{fmtDate(company.createdAt)}</TableCell>

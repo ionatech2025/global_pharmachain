@@ -71,7 +71,9 @@ export type DashboardPrefInput = z.infer<typeof dashboardPrefSchema>;
 export const SUPPORTED_LOCALES = ["en", "fr", "sw", "hi", "zh", "pt"] as const;
 
 export const localePrefSchema = z.object({
-  locale: z.enum(SUPPORTED_LOCALES).nullable(),
+  // Optional: the language picker is withdrawn until the interface is
+  // translated, so the account page sends only the time zone.
+  locale: z.enum(SUPPORTED_LOCALES).nullable().optional(),
   timeZone: z
     .string()
     .max(64)

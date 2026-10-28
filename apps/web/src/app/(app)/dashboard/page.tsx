@@ -2,7 +2,7 @@ import {
   COMPANY_TYPE_LABELS,
   isLogisticsCompanyType,
   LOGISTICS_ROLE_LABELS,
-  VERIFICATION_STATUS_LABELS,
+  verificationStatusLabel,
 } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
@@ -634,7 +634,7 @@ export default async function DashboardPage() {
       key: "verification",
       icon: ShieldCheck,
       tone: "warning",
-      title: VERIFICATION_STATUS_LABELS[c.verificationStatus],
+      title: verificationStatusLabel(c.verificationStatus, me.membership?.previouslyVerified),
       detail: "Marketplace actions unlock once verification clears",
       href: "/company/verification",
     });

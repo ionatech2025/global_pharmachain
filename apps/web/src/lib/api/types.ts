@@ -343,6 +343,7 @@ export type AdminCompanyRow = Pick<
   | "country"
   | "verificationStatus"
   | "subscriptionTier"
+  | "verifiedAt"
   | "reverificationDueAt"
   | "createdAt"
 >;
@@ -376,8 +377,21 @@ export type AdminAnnouncementRow = Jsonify<Announcement> & {
 };
 
 export type DeletionRequestRow = Jsonify<DataDeletionRequest> & {
-  user: { id: string; email: string; name: string };
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    membership: { role: CompanyRole; company: { id: string; name: string } } | null;
+  };
+  /** Erasing this person leaves their company without an active Company Admin. */
+  soleCompanyAdmin: boolean;
 };
+
+/** POST /admin/users/:id/anonymize */
+export interface AnonymizeResult {
+  ok: true;
+  company: { id: string; leftWithoutAdmin: boolean; activeMembers: number } | null;
+}
 
 export type SupportIssueMessageRow = Jsonify<SupportIssueMessage> & {
   author: {

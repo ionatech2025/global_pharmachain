@@ -101,6 +101,7 @@ export class AdminController {
           country: true,
           verificationStatus: true,
           subscriptionTier: true,
+          verifiedAt: true,
           reverificationDueAt: true,
           createdAt: true,
         },
@@ -345,15 +346,16 @@ export class AdminController {
     @Body(zodPipe(adminReasonSchema)) body: { reason: string },
     @Req() req: FastifyRequest,
   ) {
-    const { before } = await this.adminService.anonymizeUser(user.id, params.id);
+    const { before, company } = await this.adminService.anonymizeUser(user.id, params.id);
     setAudit(req, {
       action: "admin.user-anonymize",
       entityType: "User",
       entityId: params.id,
       oldValues: before,
+      newValues: company ? { companyLeftWithoutAdmin: company.leftWithoutAdmin } : undefined,
       reason: body.reason,
     });
-    return { ok: true };
+    return { ok: true, company };
   }
 
   // ── Login activity (US-205) ────────────────────────────────────────────────
@@ -377,11 +379,7 @@ export class AdminController {
 
   @Get("data-deletion-requests")
   dataDeletionRequests() {
-    return prisma.dataDeletionRequest.findMany({
-      where: { status: "PENDING" },
-      include: { user: { select: { id: true, email: true, name: true } } },
-      orderBy: { createdAt: "asc" },
-    });
+    return this.adminService.dataDeletionRequests();
   }
 
   // ── Audit logs (US-903) ────────────────────────────────────────────────────

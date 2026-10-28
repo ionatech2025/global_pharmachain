@@ -37,10 +37,11 @@ import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AnonymizeExplainer } from "@/components/anonymize-explainer";
 import { UserStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
-import type { MemberRow } from "@/lib/api/types";
+import type { AnonymizeResult, MemberRow } from "@/lib/api/types";
 
 /** Approve / reject with mandatory rejection reason (US-104). */
 export function VerificationDecision({ companyId }: { companyId: string }) {
@@ -169,18 +170,37 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  function describe(action: OverrideAction): string {
+  // Each action says what it actually does. "Force password reset" read as the
+  // platform admin resetting the password behind the user's back, when all it
+  // does is email them a link — their password keeps working until they use it
+  // (client review, 2026-10-27).
+  function describe(action: OverrideAction, name: string): { title: string; body: string } {
     switch (action.kind) {
       case "reset-password":
-        return "send a password-reset link and revoke all sessions";
+        return {
+          title: "Send password reset link",
+          body: `${name} gets an email with a link to choose a new password, valid for one hour. Their current password keeps working until they use it; if they ignore the email, nothing changes.`,
+        };
       case "deactivate":
-        return "deactivate the account (immediate sign-out)";
+        return {
+          title: "Deactivate account",
+          body: `${name} is signed out at once and cannot sign in until the account is reactivated. Nothing is erased. They are told by email.`,
+        };
       case "reactivate":
-        return "reactivate the account";
+        return {
+          title: "Reactivate account",
+          body: `${name} can sign in again. They are told by email.`,
+        };
       case "role":
-        return `appoint this member as ${COMPANY_ROLE_LABELS[action.role]} (the company has none)`;
+        return {
+          title: `Appoint as ${COMPANY_ROLE_LABELS[action.role]}`,
+          body: `This company has no active Company Admin. ${name} becomes one and can then manage its members and their roles. They are told by email.`,
+        };
       case "anonymize":
-        return "permanently anonymize the account (GDPR deletion — irreversible)";
+        return {
+          title: "Anonymize (GDPR erasure)",
+          body: `Permanently erase ${name}'s personal data and close the account:`,
+        };
     }
   }
 
@@ -192,10 +212,29 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
       const base = `/admin/users/${member.user.id}`;
       if (action.kind === "role") {
         await api.post(`${base}/role`, { role: action.role, reason });
+        toast.success(`${member.user.name} is now Company Admin`);
+      } else if (action.kind === "reset-password") {
+        const { emailSent } = await api.post<{ emailSent: boolean }>(`${base}/reset-password`, {
+          reason,
+        });
+        // The link only ever reaches the user by email, so a relay failure has
+        // to be said out loud — "applied" would be untrue.
+        if (emailSent) toast.success(`Reset link sent to ${member.user.email}`);
+        else
+          toast.error(
+            "The reset email could not be sent, so nothing changed. Ask them to use “Forgot password” on the sign-in page.",
+          );
+      } else if (action.kind === "anonymize") {
+        const result = await api.post<AnonymizeResult>(`${base}/anonymize`, { reason });
+        toast.success(
+          result.company?.leftWithoutAdmin
+            ? "Anonymized. The company now has no Company Admin — appoint one of its members below."
+            : "Anonymized — the request is recorded in the audit log",
+        );
       } else {
         await api.post(`${base}/${action.kind}`, { reason });
+        toast.success(action.kind === "deactivate" ? "Account deactivated" : "Account reactivated");
       }
-      toast.success("Override applied and audited");
       setPending(null);
       setReason("");
       router.refresh();
@@ -205,6 +244,21 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
       setBusy(false);
     }
   }
+
+  const copy = pending ? describe(pending.action, pending.member.user.name) : null;
+  const otherActiveAdmins = pending
+    ? members.filter(
+        (m) =>
+          m.user.id !== pending.member.user.id &&
+          m.role === "COMPANY_ADMIN" &&
+          m.user.status === "ACTIVE",
+      ).length
+    : 0;
+  const soleAdmin =
+    pending?.action.kind === "anonymize" &&
+    pending.member.role === "COMPANY_ADMIN" &&
+    pending.member.user.status === "ACTIVE" &&
+    otherActiveAdmins === 0;
 
   return (
     <>
@@ -239,7 +293,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
                     <DropdownMenuItem
                       onClick={() => setPending({ member, action: { kind: "reset-password" } })}
                     >
-                      Force password reset
+                      Send password reset link
                     </DropdownMenuItem>
                     {member.user.status === "ACTIVE" ? (
                       <DropdownMenuItem
@@ -281,13 +335,26 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm override</DialogTitle>
-            <DialogDescription>
-              You are about to {pending ? describe(pending.action) : ""} for{" "}
-              {pending?.member.user.name}. A reason (min 5 characters) is required; the action is
-              audited and the user is notified by email.
-            </DialogDescription>
+            <DialogTitle>{copy?.title}</DialogTitle>
+            <DialogDescription>{copy?.body}</DialogDescription>
           </DialogHeader>
+          {pending?.action.kind === "anonymize" && (
+            <AnonymizeExplainer
+              name={pending.member.user.name}
+              soleAdmin={
+                soleAdmin
+                  ? {
+                      otherMembers: members.filter(
+                        (m) => m.user.id !== pending.member.user.id && m.user.status === "ACTIVE",
+                      ).length,
+                    }
+                  : undefined
+              }
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            A reason (min 5 characters) is required and recorded in the audit log.
+          </p>
           <Textarea
             rows={3}
             aria-label="Reason for override"
@@ -304,7 +371,13 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
               disabled={busy || reason.trim().length < 5}
               onClick={run}
             >
-              {busy ? "Applying…" : "Apply override"}
+              {busy
+                ? "Applying…"
+                : pending?.action.kind === "reset-password"
+                  ? "Send link"
+                  : pending?.action.kind === "anonymize"
+                    ? "Anonymize permanently"
+                    : (copy?.title ?? "Apply")}
             </Button>
           </DialogFooter>
         </DialogContent>

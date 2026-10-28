@@ -1,5 +1,6 @@
 "use client";
 
+import { COMPANY_ROLE_LABELS } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -10,14 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@pharmachain/ui/components/table";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AnonymizeExplainer } from "@/components/anonymize-explainer";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
-import type { DeletionRequestRow } from "@/lib/api/types";
+import type { AnonymizeResult, DeletionRequestRow } from "@/lib/api/types";
 import { fmtDate } from "@/lib/format";
 
 const SLA_DAYS = 30;
@@ -34,8 +37,23 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
     if (!reason || reason.trim().length < 5) return;
     setBusyId(request.id);
     try {
-      await api.post(`/admin/users/${request.user.id}/anonymize`, { reason });
-      toast.success("User anonymized — the request is marked completed");
+      const result = await api.post<AnonymizeResult>(`/admin/users/${request.user.id}/anonymize`, {
+        reason,
+      });
+      const company = request.user.membership?.company;
+      if (result.company?.leftWithoutAdmin && company) {
+        // The next step is on another page; say which, and take them there.
+        toast.success(`Anonymized. ${company.name} now has no Company Admin.`, {
+          description: "Appoint one of its members from the company page.",
+          action: {
+            label: "Open company",
+            onClick: () => router.push(`/admin/companies/${company.id}`),
+          },
+          duration: 15_000,
+        });
+      } else {
+        toast.success("Anonymized — the request is marked completed");
+      }
       router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -67,6 +85,17 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
               <TableCell>
                 <p className="font-medium">{request.user.name}</p>
                 <p className="text-xs text-muted-foreground">{request.user.email}</p>
+                {request.user.membership && (
+                  <p className="text-xs text-muted-foreground">
+                    {COMPANY_ROLE_LABELS[request.user.membership.role]} ·{" "}
+                    <Link
+                      href={`/admin/companies/${request.user.membership.company.id}`}
+                      className="underline hover:text-foreground"
+                    >
+                      {request.user.membership.company.name}
+                    </Link>
+                  </p>
+                )}
               </TableCell>
               <TableCell>
                 {remaining < 0 ? (
@@ -84,8 +113,21 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
                       Anonymize
                     </Button>
                   }
-                  title={`Anonymize ${request.user.email}?`}
-                  description="Irreversible: personal data is tombstoned, sessions revoked, the account deactivated. Audit and financial records are retained as required."
+                  title={`Anonymize ${request.user.name}?`}
+                  description={`${request.user.email} asked for their personal data to be erased. Anonymizing does this:`}
+                  details={
+                    <AnonymizeExplainer
+                      name={request.user.name}
+                      soleAdmin={
+                        request.soleCompanyAdmin && request.user.membership
+                          ? {
+                              companyName: request.user.membership.company.name,
+                              companyHref: `/admin/companies/${request.user.membership.company.id}`,
+                            }
+                          : undefined
+                      }
+                    />
+                  }
                   confirmLabel="Anonymize"
                   destructive
                   reasonLabel="Reason (recorded in the audit log)"

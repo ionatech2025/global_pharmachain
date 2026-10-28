@@ -13,7 +13,7 @@ export default async function AdminDataRequestsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Data deletion requests"
-        description="GDPR requests, oldest first — process within 30 days. Anonymizing tombstones the user's personal data and deactivates the account."
+        description="Requests to erase a person's data (GDPR), oldest first — process within 30 days. Anonymizing erases the person's name, contact details and sign-in methods and closes the account; the trade records they took part in are kept, shown as “Deleted User”."
       />
       <DeletionQueue requests={requests} />
     </div>

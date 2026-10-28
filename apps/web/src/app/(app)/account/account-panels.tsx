@@ -12,12 +12,14 @@ import {
 import { Input } from "@pharmachain/ui/components/input";
 import { Label } from "@pharmachain/ui/components/label";
 import { PasswordInput } from "@pharmachain/ui/components/password-input";
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
+import { resolvedBrowserTimeZone } from "@/lib/format";
 import { PasskeysCard } from "./passkeys-panel";
 
 function ChangePasswordCard() {
@@ -240,7 +242,7 @@ function DataPrivacyCard() {
             </Button>
           }
           title="Request account deletion?"
-          description="The platform team processes requests within 30 days; your account is then anonymized and deactivated. Records the law requires us to keep (audit and financial history) are retained."
+          description="The platform team processes requests within 30 days. Your name, contact details and sign-in methods are then erased and the account closed for good. Trade records you took part in (orders, documents, payments) and the audit log are kept, as the law requires — shown as “Deleted User”."
           confirmLabel="Request deletion"
           destructive
           onConfirm={requestDeletion}
@@ -253,9 +255,11 @@ function DataPrivacyCard() {
 export function AccountPanels({
   totpEnabled,
   isPlatformAdmin,
+  savedTimeZone,
 }: {
   totpEnabled: boolean;
   isPlatformAdmin: boolean;
+  savedTimeZone: string | null;
 }) {
   return (
     <div className="space-y-4">
@@ -263,40 +267,33 @@ export function AccountPanels({
       <PasskeysCard isPlatformAdmin={isPlatformAdmin} />
       <TotpCard initiallyEnabled={totpEnabled} />
       <WhatsappCard />
-      <LocaleCard />
+      <TimeZoneCard savedTimeZone={savedTimeZone} />
       <DataPrivacyCard />
     </div>
   );
 }
 
-const LOCALE_OPTIONS = [
-  { value: "", label: "Browser default" },
-  { value: "en", label: "English" },
-  { value: "fr", label: "Français" },
-  { value: "sw", label: "Kiswahili" },
-  { value: "hi", label: "हिन्दी" },
-  { value: "zh", label: "中文" },
-  { value: "pt", label: "Português" },
-];
-
-/** Phase 4 §4: locale-aware formatting + time-zone handling. The language
- *  preference also seeds the multi-language rollout. */
-function LocaleCard() {
-  const [locale, setLocale] = useState("");
-  const [timeZone, setTimeZone] = useState(
-    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "",
-  );
+/**
+ * Time zone only. A language picker sat here too, but the app has no
+ * translations: choosing Français changed nothing except how dates were
+ * written, which put French dates into English pages. Removed until the
+ * interface is actually translated (client review, 2026-10-27). The column and
+ * the API field stay, so the preference can come back with that work.
+ */
+function TimeZoneCard({ savedTimeZone }: { savedTimeZone: string | null }) {
+  const router = useRouter();
+  const [timeZone, setTimeZone] = useState(savedTimeZone ?? "");
+  const [browserZone, setBrowserZone] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  useEffect(() => setBrowserZone(resolvedBrowserTimeZone()), []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.patch("/me/locale", {
-        locale: locale || null,
-        timeZone: timeZone || null,
-      });
-      toast.success("Language & region preferences saved");
+      await api.patch("/me/locale", { timeZone: timeZone.trim() || null });
+      toast.success("Time zone saved");
+      router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -307,34 +304,20 @@ function LocaleCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Language & region</CardTitle>
+        <CardTitle className="text-sm">Time zone</CardTitle>
         <CardDescription>
-          Dates, times and numbers follow your locale and time zone across the app.
+          Dates and times across the app are shown in this zone. Leave it empty to follow your
+          browser{browserZone ? ` (${browserZone})` : ""}.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="flex flex-wrap items-end gap-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="pref-locale">Language</Label>
-            <select
-              id="pref-locale"
-              className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
-              value={locale}
-              onChange={(e) => setLocale(e.target.value)}
-            >
-              {LOCALE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-1.5">
             <Label htmlFor="pref-tz">Time zone (IANA)</Label>
             <Input
               id="pref-tz"
               className="w-56"
-              placeholder="Africa/Kampala"
+              placeholder={browserZone ?? "Africa/Kampala"}
               value={timeZone}
               onChange={(e) => setTimeZone(e.target.value)}
             />
