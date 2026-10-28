@@ -26,9 +26,12 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong className="text-foreground">Your rights.</strong> From Account settings you can
-          export your personal data at any time and request account deletion. Deletion requests are
-          actioned within 30 days by anonymising personal data; business and audit records that must
-          legally be retained survive attributed to “Deleted User”.
+          export your personal data at any time and request account deletion. We confirm the request
+          by email and complete it within one month: your name, email address, phone number, sign-in
+          details, devices, notifications and settings are erased and the account is closed. Records
+          the law requires us to keep — orders, RFQs, documents, payments and order messages (at
+          least five years under EU Good Distribution Practice) and the audit log — are kept, shown
+          as “Deleted User”. You may also complain to your data protection supervisory authority.
         </p>
         <p>
           <strong className="text-foreground">Notifications.</strong> Email and WhatsApp

@@ -583,6 +583,32 @@ export class AuthService {
         url: `${env.APP_URL}/admin/data-requests`,
       }),
     });
+    // Acknowledge receipt and say by when it will be done — the EDPB's 2025
+    // erasure action found people left without either (report issue 3).
+    // Art. 12(3): one month from receipt.
+    const due = new Date(request.createdAt);
+    due.setMonth(due.getMonth() + 1);
+    const dueText = due.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    await notify({
+      userIds: [userId],
+      type: "DATA_REQUEST",
+      title: "We received your request to delete your data",
+      body: `The platform team will complete it by ${dueText}. You can keep using your account until then.`,
+      href: "/account",
+      emailContent: genericEventEmail({
+        title: "We received your request to delete your data",
+        body: [
+          `Your request was received on ${request.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })} and will be completed by ${dueText}.`,
+          "Your name, email address, phone number, sign-in details, devices, notifications and settings will be erased and your account closed for good. Records the law requires us to keep — the orders, RFQs, documents, payments and order messages you took part in, and the platform's audit log — stay, without your name.",
+          "We will email you when it is done. If you did not make this request, contact support straight away.",
+        ].join("\n\n"),
+      }),
+    });
     await recordAudit(
       { id: userId, email: user.email },
       {

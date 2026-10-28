@@ -424,6 +424,41 @@ by the sweep; those wait for the company to refresh a document.
 
 No schema change and no new environment variable: this release needs no `db-migrate` run.
 
+### Audit of the second-edition release (2026-10-28)
+
+Re-checked against the code, a real database, the live site, and current guidance —
+the EDPB's report on its 2025 coordinated action on the right to erasure (adopted
+February 2026), the GitHub advisory database, TanStack Query's documented refetch
+behaviour, and axe-core 4.14 at WCAG 2.2 AA. It found five things worth fixing.
+
+| # | Finding | Evidence | Fix |
+| --- | --- | --- | --- |
+| A1 | **Erasure left personal data behind.** The authenticator-app secret, push-device subscriptions (endpoint + user agent), the driver's licence number, live password-reset tokens, the person's own notifications, saved searches, settings and queued messages to their address all survived. The EDPB report (§4.2.7) names masking-instead-of-deletion as a recurring failure. | Code: the erasure touched none of those tables or columns. After the fix, a local erasure seeded with each of them left none behind. | All deleted or cleared inside the erasure transaction; what is kept (trade records, order messages, the audit log, Art. 17(3)(b)/(e)) is unchanged and now stated. The visible action is renamed **"Erase personal data"**: since the audit log keeps the address, "anonymize" overstated it. |
+| A2 | **The person was never told.** No acknowledgement of the request and no confirmation of the outcome — the EDPB's "insufficient information" issue (§4.2.3; Art. 12(3)-(4)). | Code. | On request: an email and in-app notice with the date it will be done (one month). On completion: an email stating what was erased, what was kept and why, and the right to complain to a supervisory authority — sent straight to the address being erased, not through the outbox, and not logged. The privacy notice now says the same, with the retention period. |
+| A3 | **Approval and the nightly flag disagreed.** The sweep flags a company for any lapsed expiry-enforced document; approval checked only the mandatory ones, so a company with a lapsed *optional* import/export licence could be approved and re-flagged that night. Reactivation had the same gap. | Code: `decideVerification` consulted only the mandatory checklist. After the fix, approval is refused locally with "Import/Export Licence (expired)" and succeeds once it is renewed. | Approval, reactivation and the sweep apply one test. The admin's check list shows the lapsed optional document, pointing at the right copy. |
+| A4 | **Zod advisory GHSA-mrhx-c7xc-m3w5 (high, CVSS 7.5).** Zod ≤ 4.6.5 accumulates an issue per failing array element without limit — a large array can exhaust memory. The API validates every request body with Zod; the installed copy was 4.4.3, plus a nested 4.1.11. | `bun audit`; advisory published 2026-10-01. | Zod 4.6.7, forced through `overrides`; a clean install leaves one copy on disk. Remaining advisories: the same two build-time-only ones as before. |
+| A5 | **The bell kept refetching every page it had loaded.** An infinite query refetches all held pages on each poll (TanStack Query docs), and the bell is mounted on every signed-in page. The first fix (trim to page 1 on close) was undone by the closing animation, whose still-visible sentinel fetched page 2 again. | Request count after loading 4 pages and closing: 2-3 list requests a minute. | Trim on close, and load-more only while open: measured **1 request a minute, page 1 only**. |
+| A6 | Dark mode: the red "Erase personal data" menu item failed contrast (WCAG 1.4.3). Pre-existing — the old "Anonymize" item had the same style — because the menu's variant class bypassed the dark-mode override for `text-destructive`. | axe-core, dark, 1360 and 390 px. | Menu items use the text-safe `destructive-accent` token (fixes "Sign out" too). |
+
+**Checked and fine:** Next.js 16.4.2 is past the 14 October 2026 fixes (16.4.1); 16.4.3 is
+a bug-fix backport with no security content, so not taken. Erasure is idempotent (a
+second attempt is a 409) and serializable. Notification deletions touch only tables
+nothing else references.
+
+**Verification:** unit tests (core 131, API 96, email 31); typecheck 9/9; lint clean;
+axe-core 4.14 **clean on 36 combinations** (bell menu, member menu, both erase dialogs,
+data requests, account, verification, notifications and privacy pages; light and dark;
+1360 and 390 px); local scripts proving A1-A3 against a real database; the client-review
+spec 34 passed / 1 skipped. **On the live site** as the Nile Pharma company admin: the
+menu stays inside a 640 px window and scrolls; opening an item lowered the server's
+count 323 → 322 and it stayed lowered after a reload (the badge reads "99+" at that
+level, as designed — the demo account's backlog is e2e residue); no language picker;
+production logs since the release: 50 entries, all 200, no errors.
+
+**Production limit:** the platform admin now signs in with a passkey, so nothing behind
+the admin sign-in can be exercised from here — the admin specs fail at `/login` by
+design. The company-side checks above were run instead.
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,

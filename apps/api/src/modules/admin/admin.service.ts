@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import {
   type BulkClientOnboardInput,
+  DOCUMENT_KIND_LABELS,
   generateRefNo,
   requiredVerificationKinds,
   VERIFICATION_DOCUMENT_KINDS,
   type VerificationDecision,
 } from "@pharmachain/core";
-import type { CompanyRole } from "@pharmachain/db";
+import type { CompanyRole, DocumentKind } from "@pharmachain/db";
 import { Prisma, prisma } from "@pharmachain/db";
 import {
   genericEventEmail,
@@ -18,8 +19,14 @@ import { badRequest, conflict, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import { hashToken, randomToken } from "../../lib/crypto";
 import { defer } from "../../lib/defer";
-import { buildVerificationChecklist, describeBlocking } from "../company/verification-checklist";
-import { sendEmailTo } from "../shared/mailer";
+import { logger } from "../../lib/logger";
+import {
+  buildVerificationChecklist,
+  describeBlocking,
+  findLapsedDocuments,
+  renewalComplete,
+} from "../company/verification-checklist";
+import { getEmailProvider, sendEmailTo } from "../shared/mailer";
 
 const THREE_YEARS_MS = 3 * 365 * 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
@@ -58,7 +65,8 @@ export class AdminService {
     });
 
     const now = Date.now();
-    const checks = requiredVerificationKinds(company.type).map((kind) => {
+    const required: readonly DocumentKind[] = requiredVerificationKinds(company.type);
+    const checks = required.map((kind) => {
       const doc = documents.find((d) => d.kind === kind && d.status === "ACTIVE");
       return {
         kind,
@@ -69,6 +77,21 @@ export class AdminService {
         expiresAt: doc?.expiresAt ?? null,
       };
     });
+
+    // An optional licence that has lapsed blocks approval too (see
+    // decideVerification), so it is listed beside the mandatory ones.
+    for (const doc of await findLapsedDocuments(companyId)) {
+      if (required.includes(doc.kind)) continue;
+      const current = documents.find((d) => d.id === doc.id);
+      checks.push({
+        kind: doc.kind,
+        present: true,
+        notExpired: false,
+        scanClean: current?.scanStatus === "CLEAN",
+        documentId: doc.id,
+        expiresAt: doc.expiresAt,
+      });
+    }
 
     return {
       company,
@@ -89,11 +112,21 @@ export class AdminService {
     // cannot be verified while a mandatory document is absent or expired. The
     // blocked kinds are named so the admin knows what to chase.
     if (approve) {
-      const { blocking } = await buildVerificationChecklist(companyId);
-      if (blocking.length > 0) {
-        throw badRequest(
-          `Cannot approve — mandatory documents outstanding: ${describeBlocking(blocking)}`,
-        );
+      // The nightly sweep flags a company for ANY lapsed expiry-enforced
+      // document, not only the mandatory ones; approving past one it would flag
+      // again would just bounce the company back to "Document expired" overnight.
+      const [{ blocking }, lapsed] = await Promise.all([
+        buildVerificationChecklist(companyId),
+        findLapsedDocuments(companyId),
+      ]);
+      const outstanding = [
+        describeBlocking(blocking),
+        ...lapsed
+          .filter((d) => !blocking.some((b) => b.kind === d.kind))
+          .map((d) => `${DOCUMENT_KIND_LABELS[d.kind]} (expired)`),
+      ].filter(Boolean);
+      if (outstanding.length > 0) {
+        throw badRequest(`Cannot approve — documents outstanding: ${outstanding.join(", ")}`);
       }
     }
     const result = await prisma.company.updateMany({
@@ -236,12 +269,23 @@ export class AdminService {
     return { oldRole, updated };
   }
 
-  /** The personal-data half of GDPR anonymization, shared by the single-user
-   *  override and by company deletion so the two can never erase differently. */
+  /**
+   * The personal-data half of GDPR erasure, shared by the single-user override
+   * and by company deletion so the two can never erase differently.
+   *
+   * Erasure means deletion, not masking: the EDPB's 2025 coordinated action on
+   * the right to erasure (report adopted February 2026, issue 7) found
+   * controllers answering requests with pseudonymisation or partial masking,
+   * which does not satisfy Art. 17. So everything that exists only for this
+   * person goes — credentials, devices, their inbox, settings, saved searches —
+   * and what must be kept (trade records, the audit trail: Art. 17(3)(b)/(e))
+   * keeps a placeholder in place of the identity. The person is told exactly
+   * that, both before they ask and when it is done.
+   */
   private async tombstoneUser(
     tx: Prisma.TransactionClient,
     adminId: string,
-    user: { id: string; email: string },
+    user: { id: string; email: string; whatsappNumber?: string | null },
   ) {
     const anonymized = await tx.user.update({
       where: { id: user.id },
@@ -251,14 +295,35 @@ export class AdminService {
         passwordHash: null,
         whatsappNumber: null,
         whatsappVerifiedAt: null,
+        whatsappVerifyCodeHash: null,
+        whatsappVerifyExpiresAt: null,
+        totpSecret: null,
+        totpEnabledAt: null,
+        preferredCurrency: null,
+        locale: null,
+        timeZone: null,
+        lastLoginAt: null,
         status: "DEACTIVATED",
         deactivatedAt: new Date(),
         anonymizedAt: new Date(),
         sessionVersion: { increment: 1 },
       },
     });
-    // An erased person must not be able to sign in with a credential that is still on file.
-    await tx.webAuthnCredential.deleteMany({ where: { userId: user.id } });
+    const own = { where: { userId: user.id } };
+    // Credentials and devices: nothing may still sign in or receive pushes.
+    await tx.webAuthnCredential.deleteMany(own);
+    await tx.passwordResetToken.deleteMany(own);
+    await tx.pushSubscription.deleteMany(own);
+    // Things that exist only for this person and are no one's record.
+    await tx.notification.deleteMany(own);
+    await tx.notificationPreference.deleteMany(own);
+    await tx.savedSearch.deleteMany(own);
+    await tx.scheduledReport.deleteMany(own);
+    await tx.dashboardPreference.deleteMany(own);
+    await tx.driverProfile.deleteMany(own);
+    // Messages still queued for delivery to their address or phone.
+    const recipients = [user.email, user.whatsappNumber].filter((r): r is string => Boolean(r));
+    await tx.notificationOutbox.deleteMany({ where: { recipient: { in: recipients } } });
     await tx.dataDeletionRequest.updateMany({
       where: { userId: user.id, status: "PENDING" },
       data: { status: "COMPLETED", completedById: adminId, completedAt: new Date() },
@@ -274,10 +339,33 @@ export class AdminService {
       data: { email: `deleted-${user.id}@anonymized.invalid` },
     });
     // Deliberately retained: AuditLog.actorEmail (legal-basis audit trail,
-    // US-903) and Company.primaryContact* (company business record, owned
-    // by the company rather than the user) — unless the company itself is
-    // being deleted, which tombstones those too.
+    // US-903), the messages they wrote in order threads and the orders, RFQs,
+    // documents and payments they took part in (trade records, EU GDP: at least
+    // five years), and Company.primaryContact* (owned by the company) — unless
+    // the company itself is being deleted, which erases those too.
     return anonymized;
+  }
+
+  /** Art. 12(3)-(4): tell the person what was done, what was kept and why, and
+   *  where to complain. Sent straight to the address being erased — not through
+   *  the outbox, and without logging it, so no copy of it outlives the request. */
+  private async sendErasureConfirmation(to: string): Promise<void> {
+    try {
+      await getEmailProvider().send({
+        to,
+        ...genericEventEmail({
+          title: "Your personal data has been erased",
+          body: [
+            "As requested, Global PharmaChain has erased your name, email address, phone number, sign-in details, devices, notifications and settings, and closed your account. It cannot be signed in to again.",
+            "Records the law requires us to keep stay, without your name: the orders, RFQs, documents, payments and order messages you took part in (kept for at least five years under EU Good Distribution Practice), and the platform's audit log of actions taken, which records the address an action was taken under.",
+            "If you are not satisfied with how your request was handled, you can lodge a complaint with your data protection supervisory authority or seek a judicial remedy.",
+          ].join("\n\n"),
+        }),
+      });
+      logger.info("erasure confirmation sent");
+    } catch (err) {
+      logger.error("erasure confirmation failed", { error: String(err) });
+    }
   }
 
   /**
@@ -317,6 +405,7 @@ export class AdminService {
         company: { id: membership.companyId, leftWithoutAdmin: activeAdmins === 0, activeMembers },
       };
     }, SERIALIZABLE);
+    defer(this.sendErasureConfirmation(user.email));
     return { before: { email: user.email }, anonymized, company };
   }
 
@@ -454,8 +543,11 @@ export class AdminService {
     if (company.verificationStatus !== "SUSPENDED") {
       throw conflict("Only a suspended company can be reactivated");
     }
-    const checklist = await buildVerificationChecklist(companyId);
-    const next = company.verifiedAt && checklist.complete ? "VERIFIED" : "PENDING_VERIFICATION";
+    // Same test the approval gate and the nightly sweep apply.
+    const next =
+      company.verifiedAt && (await renewalComplete(companyId))
+        ? "VERIFIED"
+        : "PENDING_VERIFICATION";
     const moved = await prisma.company.updateMany({
       where: { id: companyId, verificationStatus: "SUSPENDED" },
       data: { verificationStatus: next },

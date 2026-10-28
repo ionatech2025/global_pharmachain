@@ -158,7 +158,7 @@ export async function findLapsedDocuments(companyId: string, now = new Date()) {
       uploadCompletedAt: { not: null },
       kind: { in: [...EXPIRY_ENFORCED_KINDS] },
     },
-    select: { kind: true, fileName: true, expiresAt: true, version: true, createdAt: true },
+    select: { id: true, kind: true, fileName: true, expiresAt: true, version: true, createdAt: true },
   });
   return lapsedCurrentDocuments(docs, now);
 }
