@@ -16,6 +16,12 @@ import {
  *
  * Cases that create companies are self-contained (unique names, own accounts)
  * and leave only an archived, anonymised company behind.
+ *
+ * The 2026-10-27 additions (pages 12-18 of the second edition) are at the end.
+ * The renewal flow ("Document expired" → "Awaiting re-approval") cannot be
+ * driven from here — the API refuses a lapsed expiry date, so only time or the
+ * database can make a document expire; it is covered by unit tests and the
+ * scripted run recorded in docs/2026-10-client-review.md.
  */
 
 const SUPER_ADMIN = "admin@pharmachain.local";
@@ -358,7 +364,7 @@ test.describe("platform admin company controls (page 12)", () => {
     const list = await (await adminApi(page, "get", "/admin/companies?q=Nile")).json();
     await page.goto(`/admin/companies/${list.items[0].id}`, { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Member actions" }).first().click();
-    await expect(page.getByRole("menuitem", { name: "Force password reset" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Send password reset link" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /Make (Operations|Finance)/i })).toHaveCount(0);
     // Nile Pharma has an active Company Admin, so not even the break-glass item.
     await expect(page.getByRole("menuitem", { name: /Appoint as Company Admin/i })).toHaveCount(0);
@@ -707,5 +713,171 @@ test.describe("QA, accessibility, reflow & Hercules design system (Oct 2026)", (
       () => document.querySelectorAll('[aria-hidden="true"] button').length,
     );
     expect(hiddenFocusable).toBe(0);
+  });
+});
+
+// ── Client review, 2026-10-27 (pages 12-18) ──────────────────────────────────
+
+test.describe("2026-10-27: password reset link, anonymize, notifications, language", () => {
+  test("the member menu says it sends a reset link, and that the old password still works", async ({
+    browser,
+  }) => {
+    const page = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
+    const list = await (await adminApi(page, "get", "/admin/companies?q=Nile")).json();
+    await page.goto(`/admin/companies/${list.items[0].id}`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Member actions" }).first().click();
+    await expect(page.getByRole("menuitem", { name: /Force password reset/i })).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Send password reset link" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Send password reset link" })).toBeVisible();
+    await expect(dialog).toContainText("current password keeps working until they use it");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await page.context().close();
+  });
+
+  test("a company's only admin can be anonymized; the queue says what that leaves", async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const tag = uniq();
+    const name = `Review Erasure ${tag} Ltd`;
+    const email = `erasure-${tag.toLowerCase()}@example.com`;
+    const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
+    const reg = await registerCompany(admin, {
+      company: {
+        name,
+        type: "SUPPLIER",
+        country: "Uganda",
+        registrationNumber: `ER-${tag}`,
+        address: "Plot 3, Erasure Road",
+        contactPhone: "+256700000003",
+      },
+      admin: { name: "Erasure Admin", email, password: PASSWORD },
+    });
+    expect(reg.status(), await reg.text()).toBeLessThan(300);
+    const companyId: string = (
+      await (await adminApi(admin, "get", `/admin/companies?q=${encodeURIComponent(name)}`)).json()
+    ).items[0].id;
+
+    // The person asks to be erased.
+    const member = await signInFresh(browser, email, PASSWORD);
+    const asked = await member.request.post(`${API_PATH}/auth/me/deletion-request`);
+    expect(asked.status(), await asked.text()).toBeLessThan(300);
+    await member.context().close();
+
+    // The queue names their company and warns that they are its only admin.
+    const queue = await (await adminApi(admin, "get", "/admin/data-deletion-requests")).json();
+    const request = queue.find((r: { user: { email: string } }) => r.user.email === email);
+    expect(request.soleCompanyAdmin).toBe(true);
+    expect(request.user.membership.company.name).toBe(name);
+
+    await admin.goto("/admin/data-requests", { waitUntil: "domcontentloaded" });
+    const row = admin.locator("tr", { hasText: email });
+    await expect(row.getByRole("link", { name })).toBeVisible();
+    await row.getByRole("button", { name: "Anonymize" }).click();
+    const dialog = admin.getByRole("dialog");
+    // Plain words, no "tombstone": what goes, what stays, and the gap it leaves.
+    await expect(dialog).not.toContainText(/tombstone/i);
+    await expect(dialog).toContainText("Erased:");
+    await expect(dialog).toContainText("Kept:");
+    await expect(dialog).toContainText(`the only Company Admin of ${name}`);
+    await dialog
+      .getByLabel(/Reason/)
+      .fill("QA review: erasure request from the company's only admin");
+    await dialog.getByRole("button", { name: "Anonymize" }).click();
+    // It used to stop here with "Reassign another Company Admin before anonymizing".
+    await expect(admin.getByText(`Anonymized. ${name} now has no Company Admin.`)).toBeVisible();
+
+    const detail = await (await adminApi(admin, "get", `/admin/companies/${companyId}`)).json();
+    expect(detail.company.members[0].user.name).toBe("Deleted User");
+    const again = await adminApi(admin, "post", `/admin/users/${request.user.id}/anonymize`, {
+      reason: "QA review: anonymize twice",
+    });
+    expect(again.status()).toBe(409);
+
+    // Leave nothing live behind: the company is archived the documented way.
+    await adminApi(admin, "post", `/admin/companies/${companyId}/suspend`, {
+      reason: "QA review: retire the erasure company",
+    });
+    const del = await adminApi(admin, "post", `/admin/companies/${companyId}/delete`, {
+      reason: "QA review: retire the erasure company",
+      confirmName: name,
+    });
+    expect(del.status(), await del.text()).toBe(200);
+    await admin.context().close();
+  });
+
+  test("opening a notification lowers the bell's count at once, and it stays lowered", async ({
+    browser,
+  }) => {
+    const page = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
+    const count = async (): Promise<number> =>
+      (await (await page.request.get(`${API_PATH}/notifications/unread-count`)).json()).count;
+    const before = await count();
+    test.skip(before === 0, "no unread notification for the platform admin");
+    const shown = (n: number) => (n > 99 ? "99+" : String(n));
+    const badge = page.getByTestId("unread-badge");
+    // The old badge stopped at "9+", so a backlog hid every decrement.
+    await expect(badge).toHaveText(shown(before));
+
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    await page.locator("[data-testid=bell-item][data-unread=true]").first().click();
+    if (before === 1) await expect(badge).toHaveCount(0);
+    else await expect(badge).toHaveText(shown(before - 1));
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    expect(await count()).toBe(before - 1);
+    await page.context().close();
+  });
+
+  test("the notification menu scrolls inside the window and loads older ones", async ({
+    browser,
+  }) => {
+    const page = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
+    const total = (await (await page.request.get(`${API_PATH}/notifications?pageSize=1`)).json())
+      .total;
+    test.skip(total <= 10, "needs more than one page of notifications");
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const menu = page.getByRole("menu");
+    const scroller = page.getByTestId("notification-scroll");
+    await expect(scroller).toBeVisible();
+    const box = await menu.boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(640);
+    const { scrollHeight, clientHeight } = await scroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(scrollHeight, "the list should overflow its scroll region").toBeGreaterThan(
+      clientHeight,
+    );
+
+    const items = scroller.getByTestId("bell-item");
+    const firstPage = await items.count();
+    await scroller.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+    await expect.poll(() => items.count(), { timeout: 15_000 }).toBeGreaterThan(firstPage);
+    await page.context().close();
+  });
+
+  test("the language picker is gone; the time zone is saved and shown again", async ({
+    browser,
+  }) => {
+    const page = await signIn(browser, NILE_OPS);
+    const me = await (await page.request.get(`${API_PATH}/auth/me`)).json();
+    await page.goto("/account", { waitUntil: "domcontentloaded" });
+    // It changed nothing but date formats — French dates on English pages.
+    await expect(page.getByLabel("Language", { exact: true })).toHaveCount(0);
+    const zone = page.getByLabel("Time zone (IANA)");
+    await zone.fill("Africa/Nairobi");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByText("Time zone saved")).toBeVisible();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByLabel("Time zone (IANA)")).toHaveValue("Africa/Nairobi");
+    // Put back whatever the demo account had.
+    const restored = await page.request.patch(`${API_PATH}/me/locale`, {
+      data: { timeZone: me.timeZone ?? null },
+    });
+    expect(restored.status()).toBe(200);
+    await page.context().close();
   });
 });

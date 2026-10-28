@@ -20,7 +20,7 @@ function readCookie(name: string): string | undefined {
  *
  * Server components have no way to know where the browser is, so before this
  * every RSC-formatted date fell back to the *function's* zone — UTC on Vercel
- * — for anyone who had not filled in Account → Language & region. Timestamps
+ * — for anyone who had not filled in Account → Time zone. Timestamps
  * across the app (login activity, last login, audit) were silently off by the
  * viewer's UTC offset.
  *

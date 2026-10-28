@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import { COMPANY_ROLE_LABELS, VERIFICATION_STATUS_LABELS } from "@pharmachain/core";
+import { COMPANY_ROLE_LABELS, verificationStatusLabel } from "@pharmachain/core";
 import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
@@ -168,7 +168,7 @@ function CompanyCard({ me }: { me: AuthenticatedUser }) {
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <Badge variant={membership.verificationStatus === "VERIFIED" ? "success" : "warning"}>
-            {VERIFICATION_STATUS_LABELS[membership.verificationStatus]}
+            {verificationStatusLabel(membership.verificationStatus, membership.previouslyVerified)}
           </Badge>
           {membership.subscriptionTier !== "FREEMIUM" && (
             <Badge variant="outline" className="capitalize">
@@ -197,14 +197,16 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Mirror the viewer's locale into the client-side formatter store so
-  // client-rendered panels format dates/amounts the same way the server did.
+  // Mirror the viewer's time zone into the client-side formatter store so
+  // client-rendered panels format dates the same way the server did.
   useEffect(() => {
-    setViewerFormat({ locale: me.locale, timeZone: me.timeZone ?? fallbackTimeZone });
-  }, [me.locale, me.timeZone, fallbackTimeZone]);
+    setViewerFormat({ timeZone: me.timeZone ?? fallbackTimeZone });
+  }, [me.timeZone, fallbackTimeZone]);
   const sections = navFor(me);
   const membership = me.membership;
   const unverified = membership && membership.verificationStatus !== "VERIFIED";
+  const renewalPending =
+    membership?.verificationStatus === "PENDING_VERIFICATION" && membership.previouslyVerified;
   const canTrade = Boolean(membership);
 
   return (
@@ -333,9 +335,16 @@ export function AppShell({
           {unverified && membership && (
             <Alert variant="warning">
               <ShieldCheck className="size-4" />
-              <AlertTitle>{VERIFICATION_STATUS_LABELS[membership.verificationStatus]}</AlertTitle>
+              <AlertTitle>
+                {verificationStatusLabel(
+                  membership.verificationStatus,
+                  membership.previouslyVerified,
+                )}
+              </AlertTitle>
               <AlertDescription>
-                Marketplace actions unlock once your company is verified.{" "}
+                {renewalPending
+                  ? "Your renewed documents are with the platform team. Marketplace actions unlock again once they re-approve your company."
+                  : "Marketplace actions unlock once your company is verified."}{" "}
                 <Link href="/company/verification" className="font-medium underline">
                   Review your document checklist
                 </Link>

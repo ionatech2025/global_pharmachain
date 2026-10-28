@@ -48,15 +48,37 @@ export default async function VerificationPage() {
         title="Company verification status"
         description="Upload the required documents; the platform team reviews them. Re-uploads create a new version — prior versions are retained."
       >
-        <VerificationStatusBadge status={checklist.verificationStatus} />
+        <VerificationStatusBadge
+          status={checklist.verificationStatus}
+          previouslyVerified={checklist.verifiedAt !== null}
+        />
       </PageHeader>
 
-      {checklist.verificationStatus === "PENDING_VERIFICATION" && (
-        <Alert variant="info" data-testid="pending-review-banner">
-          <AlertTitle>Pending Review</AlertTitle>
+      {checklist.verificationStatus === "PENDING_VERIFICATION" &&
+        (checklist.verifiedAt ? (
+          <Alert variant="info" data-testid="pending-review-banner">
+            <AlertTitle>Awaiting re-approval</AlertTitle>
+            <AlertDescription>
+              Your renewed documents are with the platform team. Marketplace actions unlock again
+              once they re-approve your company.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert variant="info" data-testid="pending-review-banner">
+            <AlertTitle>Pending Review</AlertTitle>
+            <AlertDescription>
+              Your verification documents have been submitted and are in &ldquo;Pending
+              Review&rdquo; state. The platform team is reviewing your company checklist below.
+            </AlertDescription>
+          </Alert>
+        ))}
+
+      {checklist.verificationStatus === "EXPIRED_DOCUMENT" && (
+        <Alert variant="warning" data-testid="expired-document-banner">
+          <AlertTitle>Document expired</AlertTitle>
           <AlertDescription>
-            Your verification documents have been submitted and are in &ldquo;Pending Review&rdquo;
-            state. The platform team is reviewing your company checklist below.
+            Replace each document marked expired below. As soon as nothing is expired or missing,
+            your company goes back to the platform team for re-approval — no further step needed.
           </AlertDescription>
         </Alert>
       )}

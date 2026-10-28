@@ -286,6 +286,144 @@ SQL if an admin loses every one.
 (WCAG 1.4.1) — fixed. 27 other `text-primary hover:underline` links exist; most are
 standalone, but a sweep of every page for in-sentence ones is worth doing.
 
+## Second edition: pages 12-18 (comments of 2026-10-22 and 2026-10-27)
+
+Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx-1.pdf` (18 pages). Pages 1-11 are
+word for word the edition handled above; the new material starts at "The Anonymize
+Flow". Branch `fix/client-review-2026-10-27`; spec cases in `e2e/client-review.spec.ts`
+under "2026-10-27".
+
+| # | Comment | Verdict | What changed |
+| --- | --- | --- | --- |
+| 20 | Anonymize: "What does it mean? What does to create a tombstone mean? Why does the admin have to create a new Company Admin in order to anonymize the current company admin?" (data requests and company page) | **Real defect: a dead end**, plus jargon | See "Anonymize" below. |
+| 21 | "Force password reset" suggests the admin resets the password behind the user's back; it only sends a link, and the old password keeps working. Rename to "Send Password Reset Link". | Agreed | Renamed. The dialog now says exactly what happens (link valid one hour; current password keeps working until it is used). It also used to claim it "revoked all sessions", which it never did. The admin is now told whether the email actually went out, instead of a blanket "override applied". |
+| 22 | Figure 1: choosing a language changes nothing. Build it now or remove it. | **Removed** | See "Language" below. |
+| 23 | Figure 2: the notification menu should scroll. | **Real defect** | The menu had `overflow: hidden` and no height limit, so a long list ran off the bottom of the window and could not be reached. It is now capped to the window, the list scrolls between a fixed header and footer, scrolling to the end loads older notifications (also a "Show older" item for keyboard users), and the header has "Mark all read". |
+| 24 | Figures 3-4: opening a notification does not lower the count, even after a refresh. | **Three causes**, all fixed | See "Unread count" below. |
+| 25 | US-104: the admin was not notified of an expired document; the company was not emailed. | **Both real** | See "Document expiry" below. |
+| 26 | Figures 5-6 and the note: after uploading a replacement, admin and company still see "Document expired"; it should say "Waiting re-approval". | **Real defect** | See "Renewal" below. |
+
+### Anonymize (comment 20)
+
+**What it means**, now written into both dialogs in these words: the person's name, email
+address, WhatsApp number, password, passkeys, and the IP addresses and devices in their
+sign-in history are erased; they are signed out and the account can never sign in again;
+the orders, RFQs, documents and payments they took part in are kept, shown as "Deleted
+User", because trade records must be retained; the audit log keeps the email address they
+acted under as the legal record of who did what. "Tombstone" was developer shorthand for
+exactly that — the row stays, its contents are replaced by a placeholder — and no longer
+appears in the interface.
+
+**Why it demanded a new Company Admin, and why that was wrong.** Anonymizing a company's
+only active Company Admin was refused ("Reassign another Company Admin before anonymizing
+this user") so that no company would be left without one. But since the 22 October
+change, a platform admin may appoint a Company Admin *only to a company that has none* —
+so neither step could go first. Only the person asking to be erased could unblock it, by
+promoting someone before leaving. An erasure request has a legal deadline (one month,
+GDPR Art. 12(3)); a staffing gap cannot hold it up. The guard is gone: the person is
+erased, the company is left without an admin, which is precisely the case the break-glass
+"Appoint as Company Admin" exists for. The dialog says so beforehand (and, if they are the
+company's only active member, suggests deactivating the company); afterwards the queue's
+toast links to the company page. The queue now also shows each requester's company and
+role. Anonymizing an already anonymized account is refused with a 409 instead of
+re-running.
+
+### Language (comment 22)
+
+The selector saved a preference that only changed how dates and numbers were *written* —
+there are no translations — so choosing Français put French dates into English pages
+(the "26 oct. 2026" visible in the client's own Figure 2 is that). It also never showed
+the saved value: it always read "Browser default". Translating the whole interface into
+six languages, including legal and regulatory text, is a project of its own and is not
+something to ship half-done, so the selector is removed and dates follow one format. What
+did work — the time zone — stays, as **Account → Time zone**, now showing the saved value
+and the browser zone it falls back to. The database column and the API field are kept, so
+the preference can return with real translations.
+
+### Unread count (comment 24)
+
+1. **The badge stopped at "9+".** Any account with ten or more unread items could open
+   one and see nothing change. It now counts to 99.
+2. **Daily digests piled up unread.** "Approvals waiting on the platform team" and "GDPR
+   SLA breached" are raised every day and restate the whole current state, so each one
+   made the previous obsolete — yet all stayed unread. A month of them kept the admin's
+   badge pinned. A new digest now marks the earlier unread copies of the same digest as
+   read (they stay in the history). The first daily run after release will clear the
+   backlog.
+3. **The full notifications page did not tell the bell.** Opening an item or pressing
+   "Mark all read" there left the bell's cached count until its next 30-second poll. Both
+   now update it at once, and the bell itself lowers the badge on the click rather than
+   after the request returns.
+
+Measured locally: an admin with 37 unread (35 of them back-dated digests) dropped to 3
+after the digest jobs ran; opening one moved the badge 3 → 2 immediately and it read 2
+after a reload.
+
+### Document expiry (comment 25)
+
+* **Admin notification.** It existed, but as one anonymous line ("1 company(ies) flagged
+  for expired documents") linking to the queue — and with two digests a day arriving
+  above it, it fell out of the bell's top eight within days, which is very likely why the
+  tester did not see it. It is now one notification **per company, named**, saying which
+  document lapsed and when, linking to that company, and **emailed**.
+* **Company email.** The 60/30/7-day reminders are emailed; the expiry itself was in-app
+  only. The tester's reading was right: a document set to expire the next day passes no
+  reminder threshold before the daily sweep (05:00 UTC) finds it already expired, so the
+  only message was the in-app one. The expiry notice is now emailed to the company admins
+  too, naming the document.
+* A lapsed document is now judged on the **current copy of each kind** (newest version),
+  as the checklist already did; an older copy that was never formally replaced could
+  otherwise keep re-flagging a company the night after it was re-approved.
+
+### Renewal → "Awaiting re-approval" (comment 26)
+
+A company flagged for an expired document stayed `EXPIRED_DOCUMENT` after uploading the
+renewal, so everyone kept seeing "Document expired" until an admin happened to look. It
+now behaves like a rejected company's re-upload already did: once the upload leaves
+nothing expired or missing, the company goes back to the verification queue
+(`PENDING_VERIFICATION`, audited as `company.verification-renewal`), the platform admins
+are notified and emailed ("… renewal awaiting re-approval"), and the company is told its
+renewal was received. It stays unverified — marketplace actions still wait for an admin
+— but because it was verified before, every label reads **"Awaiting re-approval"**: the
+app-shell banner and sidebar, the company's profile and checklist page, the admin queue
+(it moves from "Expired docs" to "Pending") and company page. No new database status, so
+no migration. The checklist page also explains, while a document is expired, that
+replacing it is all that is needed.
+
+Companies that had already uploaded a renewal before this release (the client's Breston
+Technologies) are picked up by the next daily sweep, which returns any flagged company
+whose renewal is complete to the queue. Three-year re-verification flags are left alone
+by the sweep; those wait for the company to refresh a document.
+
+### Verification (2026-10-28)
+
+* Unit: core 131, API 96, email 31. New: the renewal label, and the current-copy rule
+  for lapsed documents (including a renewal whose old copy was never superseded).
+* Typecheck 9/9, lint clean.
+* **Expiry and renewal, end to end on a local stack** (real PostgreSQL, the real job and
+  upload code, a stand-in S3 store): backdating Nile Pharma's trading licence and running
+  the job flagged the company, raised a named notification for its admin and for the
+  platform admin, and queued an email to each (console mail provider). Replacing the
+  licence through the UI turned "Document expired" into "Awaiting re-approval" in the
+  banner, badge, checklist and profile; the admin queue showed Nile under Pending as
+  "Awaiting re-approval" and not under Expired docs; approving made it Verified.
+* The daily sweep, run against the pre-fix state (flagged, renewal already in): the
+  company was returned to the queue; a company flagged by the three-year rule with valid
+  documents was left flagged, as intended.
+* Digests: 35 back-dated unread "Approvals waiting" digests plus a fresh one → after two
+  runs of each digest job, one unread digest remained.
+* `e2e/client-review.spec.ts`: five new cases — the reset-link wording and dialog; a
+  company's only admin erased from the data-requests queue (warning shown, no "tombstone",
+  toast names the admin-less company, a second attempt is a 409, the company is then
+  archived); the bell badge lowering on the click and after a reload; the menu staying
+  inside a 640 px window and loading older items on scroll; the language picker gone and
+  the time zone round-tripping. The whole file: 34 passed, 1 skipped (deployed-only).
+* Full local suite: **95 passed, 15 skipped, 1 failed** — the failure is epic2 case 21,
+  which waits for a real invitation email (no mail relay locally). The document-upload
+  case that always failed locally now passes, because the run used a stand-in S3 store.
+
+No schema change and no new environment variable: this release needs no `db-migrate` run.
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,

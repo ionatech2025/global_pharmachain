@@ -54,7 +54,10 @@ export default async function AdminCompanyPage({ params }: { params: Promise<{ i
         description={`${COMPANY_TYPE_LABELS[company.type]} · ${company.country} · Reg. ${company.registrationNumber}`}
       >
         <div className="flex items-center gap-2">
-          <VerificationStatusBadge status={company.verificationStatus} />
+          <VerificationStatusBadge
+            status={company.verificationStatus}
+            previouslyVerified={company.verifiedAt !== null}
+          />
           <TierSelect companyId={company.id} tier={company.subscriptionTier} />
         </div>
       </PageHeader>

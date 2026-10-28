@@ -73,6 +73,22 @@ export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
   DELETED: "Deleted",
 };
 
+/**
+ * The words for a company's status where it matters whether it was verified
+ * before. Back in the queue after a lapsed document was renewed (or a
+ * suspension lifted), it is waiting on re-approval, not a first review — and
+ * "Document expired" after the renewal is in reads as though the upload did
+ * not count (client review, 2026-10-27).
+ */
+export function verificationStatusLabel(
+  status: VerificationStatus,
+  previouslyVerified = false,
+): string {
+  return status === "PENDING_VERIFICATION" && previouslyVerified
+    ? "Awaiting re-approval"
+    : VERIFICATION_STATUS_LABELS[status];
+}
+
 /** Statuses a platform admin puts a company in: its members cannot sign in or act. */
 export function companyAccessBlocked(status: VerificationStatus): boolean {
   return status === "SUSPENDED" || status === "DELETED";

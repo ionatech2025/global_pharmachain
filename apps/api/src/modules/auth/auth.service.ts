@@ -90,6 +90,7 @@ export class AuthService {
             companyType: user.membership.company.type,
             role: user.membership.role,
             verificationStatus: user.membership.company.verificationStatus,
+            previouslyVerified: user.membership.company.verifiedAt !== null,
             subscriptionTier: user.membership.company.subscriptionTier,
           }
         : null,

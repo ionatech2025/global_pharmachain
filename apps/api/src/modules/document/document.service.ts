@@ -17,6 +17,7 @@ import { recordAudit } from "../../common/audit";
 import { badRequest, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
+import { requeueIfRenewed } from "../company/renewal";
 import { scanUploadedObject } from "./scan";
 import { buildStorageKey, presignDownload, putObject, statObject } from "./storage";
 
@@ -229,6 +230,24 @@ export class DocumentService {
         { id: user.id, email: user.email },
         {
           action: "company.verification-resubmit",
+          entityType: "Company",
+          entityId: document.ownerCompanyId,
+          companyId: document.ownerCompanyId,
+        },
+      );
+    }
+    // US-104: the same for a company flagged for an expired document, once this
+    // upload leaves nothing lapsed or missing. Read after the commit — the
+    // checklist has to see this version in place of the one it supersedes.
+    if (
+      isVerificationKind(document.kind) &&
+      membership.company.verificationStatus === "EXPIRED_DOCUMENT" &&
+      (await requeueIfRenewed(document.ownerCompanyId))
+    ) {
+      await recordAudit(
+        { id: user.id, email: user.email },
+        {
+          action: "company.verification-renewal",
           entityType: "Company",
           entityId: document.ownerCompanyId,
           companyId: document.ownerCompanyId,

@@ -280,29 +280,80 @@ export class AdminService {
     return anonymized;
   }
 
-  /** GDPR anonymization (US-1003): personal data tombstoned; business records
-   *  (RFQs, orders, audit) survive attributed to "Deleted User". */
+  /**
+   * GDPR anonymization (US-1003): the person's name, email, phone and sign-in
+   * credentials are erased and the account closed; business records (RFQs,
+   * orders, audit) survive attributed to "Deleted User".
+   *
+   * It used to be refused for a company's only Company Admin ("reassign another
+   * Company Admin first"). That was a dead end: a platform admin may appoint a
+   * Company Admin only to a company that has none, so neither step could go
+   * first — and an erasure request has a legal deadline that a staffing gap
+   * cannot hold up (client review, 2026-10-27). The company is left without an
+   * admin instead, which opens the break-glass appointment for its members.
+   */
   async anonymizeUser(adminId: string, userId: string) {
     const user = await this.loadUser(userId);
     if (user.isSuperAdmin) throw forbidden("Super admin accounts cannot be anonymized");
+    if (user.anonymizedAt) throw conflict("This account has already been anonymized");
     const membership = user.membership;
-    const anonymized = await prisma.$transaction(async (tx) => {
-      if (membership?.role === "COMPANY_ADMIN") {
-        const otherAdmins = await tx.companyUserRole.count({
+    const { anonymized, company } = await prisma.$transaction(async (tx) => {
+      const anonymized = await this.tombstoneUser(tx, adminId, user);
+      if (!membership) return { anonymized, company: null };
+      const [activeAdmins, activeMembers] = await Promise.all([
+        tx.companyUserRole.count({
           where: {
             companyId: membership.companyId,
             role: "COMPANY_ADMIN",
-            userId: { not: userId },
             user: { status: "ACTIVE" },
           },
-        });
-        if (otherAdmins === 0) {
-          throw conflict("Reassign another Company Admin before anonymizing this user");
-        }
-      }
-      return this.tombstoneUser(tx, adminId, user);
+        }),
+        tx.companyUserRole.count({
+          where: { companyId: membership.companyId, user: { status: "ACTIVE" } },
+        }),
+      ]);
+      return {
+        anonymized,
+        company: { id: membership.companyId, leftWithoutAdmin: activeAdmins === 0, activeMembers },
+      };
     }, SERIALIZABLE);
-    return { before: { email: user.email }, anonymized };
+    return { before: { email: user.email }, anonymized, company };
+  }
+
+  /** Pending erasure requests, oldest first, with what the admin needs to know
+   *  before acting: whose company the person belongs to, and whether they are
+   *  its only Company Admin (erasing them leaves it without one). */
+  async dataDeletionRequests() {
+    const requests = await prisma.dataDeletionRequest.findMany({
+      where: { status: "PENDING" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            membership: { select: { role: true, company: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return Promise.all(
+      requests.map(async (request) => {
+        const membership = request.user.membership;
+        const soleCompanyAdmin =
+          membership?.role === "COMPANY_ADMIN" &&
+          (await prisma.companyUserRole.count({
+            where: {
+              companyId: membership.company.id,
+              role: "COMPANY_ADMIN",
+              userId: { not: request.user.id },
+              user: { status: "ACTIVE" },
+            },
+          })) === 0;
+        return { ...request, soleCompanyAdmin };
+      }),
+    );
   }
 
   // ── Company lifecycle: suspend / reactivate / delete ───────────────────────

@@ -88,7 +88,10 @@ export default async function VerificationQueuePage({
                   <TableCell>{company.country}</TableCell>
                   <TableCell>{fmtDate(company.createdAt)}</TableCell>
                   <TableCell>
-                    <VerificationStatusBadge status={company.verificationStatus} />
+                    <VerificationStatusBadge
+                      status={company.verificationStatus}
+                      previouslyVerified={company.verifiedAt !== null}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

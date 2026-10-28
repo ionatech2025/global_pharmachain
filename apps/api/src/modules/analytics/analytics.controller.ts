@@ -80,7 +80,7 @@ export class AnalyticsController {
   @Patch("me/locale")
   async setLocale(
     @CurrentUser() user: AuthUser,
-    @Body(zodPipe(localePrefSchema)) body: { locale: string | null; timeZone: string | null },
+    @Body(zodPipe(localePrefSchema)) body: { locale?: string | null; timeZone: string | null },
   ) {
     await prisma.user.update({
       where: { id: user.id },

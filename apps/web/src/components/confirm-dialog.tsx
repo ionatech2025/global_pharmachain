@@ -18,6 +18,8 @@ interface ConfirmDialogProps {
   trigger: React.ReactElement<{ onClick?: () => void }>;
   title: string;
   description: string;
+  /** Anything the reader must know before confirming, below the description. */
+  details?: React.ReactNode;
   confirmLabel?: string;
   destructive?: boolean;
   /** When set, a reason textarea is shown and required (min 5 chars). */
@@ -34,6 +36,7 @@ export function ConfirmDialog({
   trigger,
   title,
   description,
+  details,
   confirmLabel = "Confirm",
   destructive = false,
   reasonLabel,
@@ -64,6 +67,7 @@ export function ConfirmDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
+          {details}
           {reasonLabel && (
             <div className="grid gap-2">
               <Label htmlFor="confirm-reason">{reasonLabel}</Label>

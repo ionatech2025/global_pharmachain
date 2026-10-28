@@ -39,7 +39,10 @@ export default async function CompanyPage() {
         description={`${COMPANY_TYPE_LABELS[company.type]} · ${company.country}`}
       >
         <div className="flex items-center gap-2">
-          <VerificationStatusBadge status={company.verificationStatus} />
+          <VerificationStatusBadge
+            status={company.verificationStatus}
+            previouslyVerified={company.verifiedAt !== null}
+          />
           {company.profileStatus === "PUBLISHED" ? (
             <Badge variant="success">Profile published</Badge>
           ) : (

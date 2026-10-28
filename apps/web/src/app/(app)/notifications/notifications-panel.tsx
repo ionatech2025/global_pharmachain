@@ -15,6 +15,7 @@ import {
 } from "@pharmachain/ui/components/card";
 import { Switch } from "@pharmachain/ui/components/switch";
 import { cn } from "@pharmachain/ui/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import {
   cleanNotificationText,
+  markReadInCache,
   notificationIconFor,
   notificationToneFor,
 } from "@/components/notifications-bell";
@@ -32,10 +34,18 @@ import { timeAgo } from "@/lib/format";
 
 export function NotificationList({ notifications }: { notifications: Paginated<NotificationRow> }) {
   const router = useRouter();
+  // The bell in the header keeps its own cached count; reading here has to move
+  // it too, or it shows the old number until its next poll (client review,
+  // 2026-10-27, figure 4).
+  const queryClient = useQueryClient();
 
   async function open(notification: NotificationRow) {
     try {
-      if (!notification.readAt) await api.post(`/notifications/${notification.id}/read`);
+      if (!notification.readAt) {
+        await api.post(`/notifications/${notification.id}/read`);
+        markReadInCache(queryClient, notification.id);
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      }
       if (notification.href) router.push(notification.href);
       else router.refresh();
     } catch (err) {
@@ -46,6 +56,8 @@ export function NotificationList({ notifications }: { notifications: Paginated<N
   async function markAll() {
     try {
       await api.post("/notifications/read-all");
+      markReadInCache(queryClient, "all");
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));

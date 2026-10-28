@@ -23,6 +23,8 @@ export interface AuthenticatedUser {
     companyType: CompanyType;
     role: CompanyRole;
     verificationStatus: VerificationStatus;
+    /** Verified at some point before — tells a renewal apart from a first review. */
+    previouslyVerified?: boolean;
     subscriptionTier: SubscriptionTier;
   } | null;
 }

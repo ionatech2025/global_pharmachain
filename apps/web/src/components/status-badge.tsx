@@ -9,8 +9,8 @@ import {
   type QuotationStatus,
   RFQ_STATUS_LABELS,
   type RfqStatus,
-  VERIFICATION_STATUS_LABELS,
   type VerificationStatus,
+  verificationStatusLabel,
 } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 
@@ -86,11 +86,19 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return <StatusBadge variant={ORDER_VARIANTS[status]} label={ORDER_STATUS_LABELS[status]} />;
 }
 
-export function VerificationStatusBadge({ status }: { status: VerificationStatus }) {
+/** Pass `previouslyVerified` wherever the company's history is known: a renewal
+ *  back in the queue then reads "Awaiting re-approval", not a first review. */
+export function VerificationStatusBadge({
+  status,
+  previouslyVerified = false,
+}: {
+  status: VerificationStatus;
+  previouslyVerified?: boolean;
+}) {
   return (
     <StatusBadge
       variant={VERIFICATION_VARIANTS[status]}
-      label={VERIFICATION_STATUS_LABELS[status]}
+      label={verificationStatusLabel(status, previouslyVerified)}
     />
   );
 }

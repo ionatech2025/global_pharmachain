@@ -23,6 +23,7 @@ export default async function AccountPage() {
       <AccountPanels
         totpEnabled={Boolean(me.totpEnabled)}
         isPlatformAdmin={Boolean(me.isSuperAdmin)}
+        savedTimeZone={me.timeZone ?? null}
       />
     </div>
   );

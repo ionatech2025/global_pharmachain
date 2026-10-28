@@ -22,13 +22,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       getViewer(),
       api.get<AnnouncementRow[]>("/announcements/active"),
     ]);
-    // Prime the request-scoped formatter store so server-rendered dates and
-    // amounts honour the viewer's saved locale/time zone. The cookie <TimeZoneSync/>
+    // Prime the request-scoped formatter store so server-rendered dates honour
+    // the viewer's saved time zone. Not their saved locale: the interface is
+    // English only, and a French date in an English sentence read as a bug. The cookie <TimeZoneSync/>
     // writes only backfills a zone the account has not set — without it Intl
     // falls back to the serverless function's own zone (UTC) and every
     // timestamp is off by the viewer's offset (US-205 QA, 2026-08-30).
     const browserTimeZone = decodeTimeZoneCookie((await cookies()).get(TZ_COOKIE)?.value);
-    setViewerFormat({ locale: me.locale, timeZone: me.timeZone ?? browserTimeZone });
+    setViewerFormat({ timeZone: me.timeZone ?? browserTimeZone });
     return (
       <Providers nonce={nonce}>
         <TimeZoneSync />

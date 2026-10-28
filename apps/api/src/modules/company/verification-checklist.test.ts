@@ -3,6 +3,7 @@ import {
   type ChecklistItem,
   type ChecklistItemStatus,
   describeBlocking,
+  lapsedCurrentDocuments,
   selectBlocking,
 } from "./verification-checklist";
 
@@ -56,5 +57,58 @@ describe("verification approval gate (US-103)", () => {
       item("TRADING_LICENCE", "EXPIRED"),
     ]);
     expect(message).toBe("Certificate of Incorporation (missing), Trading Licence (expired)");
+  });
+});
+
+describe("lapsed documents read the current copy only (US-104, client review 2026-10-27)", () => {
+  const now = new Date("2026-10-27T12:00:00Z");
+  const doc = (kind: string, version: number, expiresAt: string | null, createdAt: string) => ({
+    kind,
+    fileName: `${kind}-v${version}.pdf`,
+    version,
+    expiresAt: expiresAt ? new Date(expiresAt) : null,
+    createdAt: new Date(createdAt),
+  });
+
+  test("a lapsed licence is reported", () => {
+    const lapsed = lapsedCurrentDocuments(
+      [doc("TRADING_LICENCE", 1, "2026-10-23T00:00:00Z", "2026-01-01T00:00:00Z")],
+      now,
+    );
+    expect(lapsed.map((d) => d.kind)).toEqual(["TRADING_LICENCE"]);
+  });
+
+  test("a renewal clears it even when the old copy was never marked superseded", () => {
+    // Figures 5 and 6: the company replaced the expired document and still read
+    // "Document expired". The newer version is the one that counts.
+    const lapsed = lapsedCurrentDocuments(
+      [
+        doc("TRADING_LICENCE", 1, "2026-10-23T00:00:00Z", "2026-01-01T00:00:00Z"),
+        doc("TRADING_LICENCE", 2, "2029-10-23T00:00:00Z", "2026-10-24T00:00:00Z"),
+      ],
+      now,
+    );
+    expect(lapsed).toEqual([]);
+  });
+
+  test("two copies on the same version: the later upload counts", () => {
+    const docs = [
+      doc("GMP_CERTIFICATE", 1, "2029-01-01T00:00:00Z", "2026-10-25T00:00:00Z"),
+      doc("GMP_CERTIFICATE", 1, "2026-10-01T00:00:00Z", "2026-03-01T00:00:00Z"),
+    ];
+    expect(lapsedCurrentDocuments(docs, now)).toEqual([]);
+    expect(lapsedCurrentDocuments([...docs].reverse(), now)).toEqual([]);
+  });
+
+  test("an undated document never lapses, and kinds are judged separately", () => {
+    const lapsed = lapsedCurrentDocuments(
+      [
+        doc("TAX_ID", 1, null, "2026-01-01T00:00:00Z"),
+        doc("GMP_CERTIFICATE", 3, "2026-10-27T11:00:00Z", "2026-01-01T00:00:00Z"),
+        doc("TRADING_LICENCE", 2, "2026-10-28T00:00:00Z", "2026-01-01T00:00:00Z"),
+      ],
+      now,
+    );
+    expect(lapsed.map((d) => d.kind)).toEqual(["GMP_CERTIFICATE"]);
   });
 });
