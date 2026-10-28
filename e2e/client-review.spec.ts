@@ -763,6 +763,14 @@ test.describe("2026-10-27: password reset link, anonymize, notifications, langua
     const member = await signInFresh(browser, email, PASSWORD);
     const asked = await member.request.post(`${API_PATH}/auth/me/deletion-request`);
     expect(asked.status(), await asked.text()).toBeLessThan(300);
+    // Receipt is acknowledged to them, with the date it will be done (EDPB CEF 2025).
+    const inbox = await (
+      await member.request.get(`${API_PATH}/notifications?page=1&pageSize=5`)
+    ).json();
+    const ack = inbox.items.find((n: { title: string }) =>
+      n.title.startsWith("We received your request to delete your data"),
+    );
+    expect(ack?.body).toMatch(/will complete it by \d{1,2} \w+ \d{4}/);
     await member.context().close();
 
     // The queue names their company and warns that they are its only admin.
@@ -774,19 +782,22 @@ test.describe("2026-10-27: password reset link, anonymize, notifications, langua
     await admin.goto("/admin/data-requests", { waitUntil: "domcontentloaded" });
     const row = admin.locator("tr", { hasText: email });
     await expect(row.getByRole("link", { name })).toBeVisible();
-    await row.getByRole("button", { name: "Anonymize" }).click();
+    await row.getByRole("button", { name: "Erase data" }).click();
     const dialog = admin.getByRole("dialog");
     // Plain words, no "tombstone": what goes, what stays, and the gap it leaves.
     await expect(dialog).not.toContainText(/tombstone/i);
     await expect(dialog).toContainText("Erased:");
     await expect(dialog).toContainText("Kept:");
+    await expect(dialog).toContainText("Told:");
     await expect(dialog).toContainText(`the only Company Admin of ${name}`);
     await dialog
       .getByLabel(/Reason/)
       .fill("QA review: erasure request from the company's only admin");
-    await dialog.getByRole("button", { name: "Anonymize" }).click();
+    await dialog.getByRole("button", { name: "Erase permanently" }).click();
     // It used to stop here with "Reassign another Company Admin before anonymizing".
-    await expect(admin.getByText(`Anonymized. ${name} now has no Company Admin.`)).toBeVisible();
+    await expect(
+      admin.getByText(`Personal data erased. ${name} now has no Company Admin.`),
+    ).toBeVisible();
 
     const detail = await (await adminApi(admin, "get", `/admin/companies/${companyId}`)).json();
     expect(detail.company.members[0].user.name).toBe("Deleted User");

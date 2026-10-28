@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /**
- * What "anonymize" does, in words a reviewer can check against the code
+ * What erasing a person's data does, in words a reviewer can check against the code
  * (AdminService.tombstoneUser). The client asked what it means and what
  * "tombstoning" is (review, 2026-10-27); the company page and the
  * data-requests queue share this so the two can never describe it differently.
@@ -26,18 +26,23 @@ export function AnonymizeExplainer({
       <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
         <li>
           <span className="font-medium text-foreground">Erased:</span> {name}&rsquo;s name, email
-          address, WhatsApp number, password and passkeys, and the IP addresses and devices in their
-          sign-in history. The email address can be registered again.
+          address, WhatsApp number, password, passkeys and authenticator app, the devices and IP
+          addresses in their sign-in history, their notifications, saved searches and settings. The
+          email address can be registered again.
         </li>
         <li>
           <span className="font-medium text-foreground">Closed:</span> they are signed out
           everywhere and the account can never sign in again.
         </li>
         <li>
-          <span className="font-medium text-foreground">Kept:</span> the orders, RFQs, documents and
-          payments they took part in, now shown as &ldquo;Deleted User&rdquo; — trade records must
-          be retained. The audit log keeps the email address they acted under, as the legal record
-          of who did what.
+          <span className="font-medium text-foreground">Kept:</span> the orders, RFQs, documents,
+          payments and order messages they took part in, now shown as &ldquo;Deleted User&rdquo; —
+          trade records must be retained. The audit log keeps the email address they acted under, as
+          the legal record of who did what.
+        </li>
+        <li>
+          <span className="font-medium text-foreground">Told:</span> they are emailed a confirmation
+          saying what was erased, what was kept and why, and how to complain.
         </li>
       </ul>
       <p className="font-medium">This cannot be undone.</p>

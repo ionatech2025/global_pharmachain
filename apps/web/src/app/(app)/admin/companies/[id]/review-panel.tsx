@@ -198,7 +198,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
         };
       case "anonymize":
         return {
-          title: "Anonymize (GDPR erasure)",
+          title: "Erase personal data (GDPR)",
           body: `Permanently erase ${name}'s personal data and close the account:`,
         };
     }
@@ -228,8 +228,8 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
         const result = await api.post<AnonymizeResult>(`${base}/anonymize`, { reason });
         toast.success(
           result.company?.leftWithoutAdmin
-            ? "Anonymized. The company now has no Company Admin — appoint one of its members below."
-            : "Anonymized — the request is recorded in the audit log",
+            ? "Personal data erased. The company now has no Company Admin — appoint one of its members below."
+            : "Personal data erased — the person has been emailed a confirmation",
         );
       } else {
         await api.post(`${base}/${action.kind}`, { reason });
@@ -322,7 +322,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
                       variant="destructive"
                       onClick={() => setPending({ member, action: { kind: "anonymize" } })}
                     >
-                      Anonymize (GDPR)
+                      Erase personal data (GDPR)
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -376,7 +376,7 @@ export function MemberOverrides({ members }: { members: MemberRow[] }) {
                 : pending?.action.kind === "reset-password"
                   ? "Send link"
                   : pending?.action.kind === "anonymize"
-                    ? "Anonymize permanently"
+                    ? "Erase permanently"
                     : (copy?.title ?? "Apply")}
             </Button>
           </DialogFooter>

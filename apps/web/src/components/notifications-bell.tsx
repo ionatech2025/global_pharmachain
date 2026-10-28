@@ -134,6 +134,7 @@ export function NotificationsBell() {
   // State, not a ref: the list lives in a portal that mounts only while the
   // menu is open, and the observer below has to start when it appears.
   const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: unread } = useQuery({
     queryKey: UNREAD_COUNT_KEY,
@@ -164,14 +165,16 @@ export function NotificationsBell() {
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = latest;
   // Scrolling to the end of the list loads the next page; the button below is
   // the same action for keyboard and screen-reader users.
+  // Only while open: the content stays mounted through its closing animation,
+  // and a sentinel still on screen then would fetch the page just trimmed away.
   useEffect(() => {
-    if (!sentinel || !hasNextPage || isFetchingNextPage) return;
+    if (!menuOpen || !sentinel || !hasNextPage || isFetchingNextPage) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [sentinel, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [menuOpen, sentinel, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   async function open(notification: NotificationRow) {
     if (!notification.readAt) {
@@ -197,10 +200,23 @@ export function NotificationsBell() {
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
   }
 
+  // An infinite query refetches every page it holds on each poll, and this one
+  // is mounted on every signed-in page. Back to the first page once the menu
+  // closes, so scrolling far back once does not cost N requests a minute after.
+  function onOpenChange(next: boolean) {
+    setMenuOpen(next);
+    if (next) return;
+    queryClient.setQueryData<InfiniteData<Paginated<NotificationRow>>>(LATEST_KEY, (data) =>
+      data && data.pages.length > 1
+        ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+        : data,
+    );
+  }
+
   const count = unread?.count ?? 0;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         {/* The accessible name is built from the visible content ("Notifications 12
             unread"), not an aria-label: a label that merely resembles the badge fails

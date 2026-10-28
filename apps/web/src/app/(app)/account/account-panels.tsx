@@ -215,7 +215,9 @@ function DataPrivacyCard() {
     setRequesting(true);
     try {
       await api.post("/auth/me/deletion-request");
-      toast.success("Deletion request submitted — the platform team has been notified");
+      toast.success(
+        "Request received — we have emailed you a confirmation with the date it will be done",
+      );
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -228,7 +230,8 @@ function DataPrivacyCard() {
       <CardHeader>
         <CardTitle className="text-sm">Your data</CardTitle>
         <CardDescription>
-          Export a copy of your personal data, or request account deletion (30-day SLA).
+          Export a copy of your personal data, or request account deletion (completed within one
+          month).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
@@ -242,7 +245,7 @@ function DataPrivacyCard() {
             </Button>
           }
           title="Request account deletion?"
-          description="The platform team processes requests within 30 days. Your name, contact details and sign-in methods are then erased and the account closed for good. Trade records you took part in (orders, documents, payments) and the audit log are kept, as the law requires — shown as “Deleted User”."
+          description="The platform team completes requests within one month and emails you when it is done. Your name, contact details, sign-in methods, devices and settings are then erased and the account closed for good. Trade records you took part in (orders, documents, payments, order messages) and the audit log are kept, as the law requires — shown as “Deleted User”."
           confirmLabel="Request deletion"
           destructive
           onConfirm={requestDeletion}

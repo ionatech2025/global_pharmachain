@@ -43,7 +43,7 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
       const company = request.user.membership?.company;
       if (result.company?.leftWithoutAdmin && company) {
         // The next step is on another page; say which, and take them there.
-        toast.success(`Anonymized. ${company.name} now has no Company Admin.`, {
+        toast.success(`Personal data erased. ${company.name} now has no Company Admin.`, {
           description: "Appoint one of its members from the company page.",
           action: {
             label: "Open company",
@@ -52,7 +52,7 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
           duration: 15_000,
         });
       } else {
-        toast.success("Anonymized — the request is marked completed");
+        toast.success("Personal data erased — the request is completed and the person emailed");
       }
       router.refresh();
     } catch (err) {
@@ -110,11 +110,11 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
                 <ConfirmDialog
                   trigger={
                     <Button size="sm" variant="destructive" disabled={busyId === request.id}>
-                      Anonymize
+                      Erase data
                     </Button>
                   }
-                  title={`Anonymize ${request.user.name}?`}
-                  description={`${request.user.email} asked for their personal data to be erased. Anonymizing does this:`}
+                  title={`Erase ${request.user.name}'s personal data?`}
+                  description={`${request.user.email} asked for their personal data to be erased. This does the following:`}
                   details={
                     <AnonymizeExplainer
                       name={request.user.name}
@@ -128,7 +128,7 @@ export function DeletionQueue({ requests }: { requests: DeletionRequestRow[] }) 
                       }
                     />
                   }
-                  confirmLabel="Anonymize"
+                  confirmLabel="Erase permanently"
                   destructive
                   reasonLabel="Reason (recorded in the audit log)"
                   onConfirm={(reason) => anonymize(request, reason)}
