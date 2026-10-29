@@ -92,7 +92,40 @@ announce every historical RFQ to every supplier at once.
    held function per open tab; push (VAPID) already exists but is not configured on the
    deployment.
 
-## Release (when approved)
+## Release (2026-10-29)
 
-Migrate first, then deploy: the new code selects `Rfq.distributedAt`, and every RFQ read
-would 500 on a database without it. `db-migrate` workflow, then `scripts/deploy-vercel.sh`.
+Migrate first, then deploy — the new code selects `Rfq.distributedAt`, and every RFQ read
+would 500 on a database without it. Done in that order:
+
+1. PR #26 merged (`2e05943`), CI `verify` green.
+2. `db-migrate` run 40927574234 on `main`: before — one pending
+   (`20261029000000_rfq_delivery`); after — "Database schema is up to date". The live
+   (old) code was then checked against the migrated database: RFQ list and detail, supplier
+   inbox and notifications all 200.
+3. `scripts/deploy-vercel.sh` → `nkab9gtgy` (fourth attempt; the first three were this
+   machine's transient `fetch failed`). Rollback target: `4yvviumul`.
+4. Verified with the Vercel CLI: Ready, all four aliases, functions in `sin1`; the served
+   chunk carries the amendment dialog on both domains; an unauthenticated amend and an
+   unauthenticated inbox stream are refused with 401 (the stream before it opens);
+   runtime logs 50/50 × 200.
+
+**Test RFQs on production now reach real suppliers unless aimed.** A production RFQ for
+the demo supplier's type reached 3 verified companies; `quietRfqTarget` aims the suite's
+RFQs at a category only the demo supplier lists in (reach 1, checked at run time) and
+skips when none exists.
+
+## Found during the release: the frequent jobs barely run
+
+`jobs-frequent.yml` is scheduled every 10 minutes (144 runs a day). GitHub ran it **3–7
+times a day** over the last eight days (60 of 60 runs inspected, all `schedule`) — about 4%,
+consistent with GitHub's documented best-effort scheduling, but far worse than its "can be
+delayed" suggests. Every frequent-tier job inherits that: **email/WhatsApp outbox retries,
+webhook retries, quotation expiry, token cleanup, RFQ auto-close, and the new
+rfq-distribution safety net.** This release does not depend on that clock for correctness
+(effective status at read; delivery in the request path), but retries do.
+
+Vercel Cron would be the natural fix (it sends `CRON_SECRET` as the bearer token the
+dispatcher already checks, and the variable is set) — but the team is on the **Hobby**
+plan, which allows a cron once a day and fails the deploy for anything more frequent.
+Options for the owner: Vercel Pro (then a `crons` entry in `vercel.json`), or an external
+scheduler calling `GET /api/backend/jobs/run?tier=frequent` with the secret.
