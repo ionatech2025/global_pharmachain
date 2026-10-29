@@ -3,6 +3,7 @@ import {
   ADMIN_PASSWORD,
   API_PATH,
   DEMO_PASSWORD,
+  expectCanonicalLink,
   gotoResilient,
   signIn,
   signInFresh,
@@ -125,6 +126,7 @@ test.describe("US-201 invitation and registration", () => {
     expect(mail, "no invitation email arrived within the timeout").toBeTruthy();
     const url = linkIn(mail as string, "/invite");
     expect(url, "the invitation email carried no /invite link").toBeTruthy();
+    expectCanonicalLink(url as string, "the invitation email");
 
     // Register through the link exactly as the invited user would.
     const page = await (await browser.newContext()).newPage();
@@ -342,7 +344,9 @@ test.describe("US-203 platform-admin overrides", () => {
 
     const mail = await waitForEmail(invited.mailbox as Mailbox, /reset/i);
     expect(mail, "no password-reset email arrived").toBeTruthy();
-    expect(linkIn(mail as string, "/reset-password"), "no reset link in the email").toBeTruthy();
+    const resetLink = linkIn(mail as string, "/reset-password");
+    expect(resetLink, "no reset link in the email").toBeTruthy();
+    expectCanonicalLink(resetLink as string, "the password-reset email");
 
     // Audit: the action, the target and the operator's stated reason.
     const audit = await (

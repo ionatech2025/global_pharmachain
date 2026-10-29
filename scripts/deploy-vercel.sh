@@ -20,7 +20,9 @@ API_RUNTIME="nodejs24.x"
 # page's canonical/OG URLs, sitemap.xml, robots.txt. A local `vercel build`
 # does not see Vercel's system variables, so without this the static pages
 # fell back to http://localhost:3000. Step 4c refuses to release if it leaks.
-export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-https://global-pharmachain.vercel.app}"
+# The client's own domain is canonical (2026-10-30): canonical URLs, the sitemap,
+# robots and social cards name it. The vercel.app host still serves the same build.
+export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-https://www.pharmachainglobal.com}"
 
 echo "== 1. Build the API serverless bundle =="
 cd apps/api

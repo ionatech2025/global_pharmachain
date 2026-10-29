@@ -348,3 +348,15 @@ export async function quietRfqTarget(
 
 export const QUIET_TARGET_SKIP =
   "no category reaches only the demo supplier on this deployment; raising an RFQ would notify real suppliers";
+
+/**
+ * Emails must link to the canonical site — www.pharmachainglobal.com since
+ * 2026-10-30 — whichever host a run uses: someone signed in on the custom domain
+ * who follows a link to another host lands there signed out. Checked only when
+ * E2E_CANONICAL_ORIGIN says what canonical is for the target under test.
+ */
+export function expectCanonicalLink(url: string, what: string): void {
+  const canonical = process.env.E2E_CANONICAL_ORIGIN;
+  if (canonical)
+    expect(new URL(url).origin, `${what} links to the canonical domain`).toBe(canonical);
+}

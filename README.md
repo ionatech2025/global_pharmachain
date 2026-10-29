@@ -11,7 +11,7 @@ cold-chain events, payments/invoicing/FX with an append-only ledger, push +
 WhatsApp notifications, KPI analytics, ratings, a hash-chained traceability
 ledger with QR verification, outbound webhooks and a public API.
 
-Production: https://global-pharmachain.vercel.app. The findings of a 2026-07
+Production: https://www.pharmachainglobal.com (canonical; https://global-pharmachain.vercel.app serves the same deployment). The findings of a 2026-07
 principal architecture review and their remediation are traced in
 [`docs/architecture-review-remediation.md`](docs/architecture-review-remediation.md);
 a 2026-08 performance/loading/robustness audit and its remediation are traced in
