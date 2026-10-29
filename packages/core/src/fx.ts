@@ -40,3 +40,28 @@ export function convertAmount(
   const rate = fxRate(pairs, from, to);
   return rate === null ? null : amount * rate;
 }
+
+/**
+ * Listing ids ordered by price compared in one currency (USD). Listings are
+ * priced in their own currencies, so ordering the raw numbers would put
+ * 1,000 KES ahead of 10 USD. Each price goes through the same conversion as the
+ * displayed approximations; one that cannot be converted (no rate on file)
+ * sorts last rather than being guessed. Ties fall back to name, then id, so a
+ * page boundary never reshuffles between requests.
+ */
+export function orderByComparablePrice(
+  rows: ReadonlyArray<{ id: string; name: string; price: number; currency: string }>,
+  pairs: readonly FxPair[],
+  direction: "asc" | "desc",
+): string[] {
+  const keyed = rows.map((r) => ({ ...r, usd: convertAmount(pairs, r.price, r.currency, "USD") }));
+  keyed.sort((a, b) => {
+    if (a.usd !== b.usd) {
+      if (a.usd === null) return 1;
+      if (b.usd === null) return -1;
+      return direction === "asc" ? a.usd - b.usd : b.usd - a.usd;
+    }
+    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  });
+  return keyed.map((r) => r.id);
+}

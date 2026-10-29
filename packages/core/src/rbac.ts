@@ -21,7 +21,7 @@ export const PERMISSIONS = [
   "message:read",
   "message:write",
   "usage:read",
-  "finance:read", // payments, invoices, ledger, reports (Phase 3)
+  "finance:read", // payments, invoices, ledger, reports, billing history (Phase 3)
   "finance:manage", // initiate/confirm payments, issue invoices (Phase 3)
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -50,8 +50,12 @@ const ROLE_PERMISSIONS: Record<CompanyRole, readonly Permission[]> = {
     "bom:write",
     "message:read",
     "message:write",
+    // Usage counters only (what is left of this month's RFQ allowance), which
+    // the people raising RFQs need. Not finance:read: payments, invoices, the
+    // ledger, financial reports and the company's billing history are no part
+    // of the operations role (US-204 TC1, client review 2026-10-29 — Operations
+    // staff could open the Finance page and read all of it).
     "usage:read",
-    "finance:read",
   ],
   FINANCE: [
     "catalogue:read",

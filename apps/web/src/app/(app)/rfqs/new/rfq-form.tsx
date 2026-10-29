@@ -6,8 +6,9 @@ import {
   COMPANY_TYPES,
   type RfqCreate,
   type RfqReach,
+  type RfqReachNotice,
   rfqCreateSchema,
-  rfqReachNotice,
+  rfqReachNotices,
 } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Card, CardContent } from "@pharmachain/ui/components/card";
@@ -93,8 +94,10 @@ export function RfqForm({
       ),
     staleTime: 60_000,
   });
-  const notice = reach
-    ? rfqReachNotice(reach, categories.find((c) => c.id === categoryId)?.name)
+  // One notice per field: whether the company type reaches anyone sits under the
+  // type, how much the category narrows that sits under the category.
+  const notices = reach
+    ? rfqReachNotices(reach, categories.find((c) => c.id === categoryId)?.name)
     : null;
 
   async function onSubmit(values: RfqCreate) {
@@ -193,6 +196,7 @@ export function RfqForm({
                   <FormDescription>
                     Only verified companies of this type will see the RFQ.
                   </FormDescription>
+                  {notices && <ReachNotice notice={notices.type} testId="reach-type-notice" />}
                   <FormMessage />
                 </FormItem>
               )}
@@ -222,20 +226,8 @@ export function RfqForm({
                       ))}
                     </SelectContent>
                   </Select>
-                  {notice && (
-                    <FormDescription
-                      aria-live="polite"
-                      className={cn(
-                        "flex items-start gap-1.5",
-                        notice.tone === "warning" && "font-medium text-warning",
-                        notice.tone === "narrowed" && "text-foreground",
-                      )}
-                    >
-                      {notice.tone === "warning" && (
-                        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                      )}
-                      <span>{notice.text}</span>
-                    </FormDescription>
+                  {notices?.category && (
+                    <ReachNotice notice={notices.category} testId="reach-category-notice" />
                   )}
                   <FormMessage />
                 </FormItem>
@@ -312,5 +304,24 @@ export function RfqForm({
         </Form>
       </CardContent>
     </Card>
+  );
+}
+
+function ReachNotice({ notice, testId }: { notice: RfqReachNotice; testId: string }) {
+  return (
+    <FormDescription
+      aria-live="polite"
+      data-testid={testId}
+      className={cn(
+        "flex items-start gap-1.5",
+        notice.tone === "warning" && "font-medium text-warning",
+        notice.tone === "narrowed" && "text-foreground",
+      )}
+    >
+      {notice.tone === "warning" && (
+        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      )}
+      <span>{notice.text}</span>
+    </FormDescription>
   );
 }

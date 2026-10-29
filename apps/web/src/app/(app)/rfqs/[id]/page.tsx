@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
 import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/page-header";
+import { RfqReachSummary } from "@/components/rfq-reach-summary";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
@@ -76,10 +77,14 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
               <span className="text-muted-foreground">Deadline:</span>{" "}
               <span data-testid="rfq-deadline">{fmtDeadline(rfq.deadline)}</span>
             </p>
-            <p>
-              <span className="text-muted-foreground">Visible suppliers:</span>{" "}
-              {rfq.visibleSupplierCount}
-            </p>
+            <div className="flex gap-1">
+              <span className="text-muted-foreground">Sent to:</span>
+              <RfqReachSummary
+                targetCompanyType={rfq.targetCompanyType}
+                categoryName={rfq.category?.name}
+                reach={rfq.visibleSupplierCount}
+              />
+            </div>
             {rfq.specifications && (
               <div>
                 <p className="text-muted-foreground">Specifications:</p>

@@ -462,6 +462,38 @@ production logs since the release: 50 entries, all 200, no errors.
 the admin sign-in can be exercised from here — the admin specs fail at `/login` by
 design. The company-side checks above were run instead.
 
+## Third edition: pages 19-23 (comments of 2026-10-29)
+
+Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx-2.pdf` (23 pages). Pages 1-18 are the
+second edition unchanged (page 18's US-104 notes were addressed in #24/#25). The new
+material is one item in the text layer and five more in the screenshots on pages 19-23.
+Spec: `e2e/client-review-2026-10-29.spec.ts`.
+
+| # | Comment | Verdict | What changed |
+| --- | --- | --- | --- |
+| 27 | US-204 TC1 "FAILS. An operations staff is able to see the Financial data of a company." | **Real defect, in the permission matrix** | `OPERATIONS` held `finance:read` — payments, invoices, the ledger, financial reports — while the matrix's own comment said "Operations: … no billing". The existing unit test was titled "…but not members or billing" and never asserted billing. Removed; billing history (credit requests, fees, payment methods) moved from `usage:read` to `finance:read`, so Operations keeps only the usage counters it needs to raise RFQs. Finance is no longer in Operations' sidebar; `/finance` gives them the not-authorised page; the Usage page says billing is handled by the Company Admin and Finance staff. Two existing specs had been asserting the defect as correct (Operations reading `/billing/credit-requests` and `/finance`) and were corrected. |
+| 28 | A Laboratory Consumables Supplier's two RFQs for Raw Material Manufacturers: one never reached a Raw Material Manufacturer (iONA Tech). | **Working as designed, but invisible on both sides** | Production data: the missing one (`RFQ-2026-B793W4R1`) named the material category *APIs*, which only one Raw Material Manufacturer lists (reach 1 of 3); the visible one named no category (reach 3). iONA Tech lists only under *Antibiotics*. The rule — a named category goes only to suppliers listing it — is a deliberate earlier decision, so it stays; what changes is that both sides can now see it. The buyer's RFQ list and RFQ page say whom each RFQ was sent to (type, category, suppliers reached), and the supplier's inbox states the rule it applied, naming the categories it matched on. |
+| 29 | After quoting, the RFQ stays under "RFQs to quote on"; resubmission is possible from both tabs. | **Real defect** | The inbox lists only RFQs the company can still quote on; anything it has quoted on is under Quotations sent, where it is resubmitted or withdrawn. |
+| 30 | "No verified company of this type yet" shows under *Material category* though it is about *Target supplier category*. | **Real defect** | One combined notice, rendered under the category field. Now two: the type's under the type field, the category's under the category field (none when the type already reaches nobody). |
+| 31 | Marketplace filters: country as a dropdown; "company name" should read "Supplier"; "relevance" has no relevance column — perhaps price; cleaner layout. | **Agreed** | Country of origin is a list of the countries searchable listings actually carry (new `GET /catalogue/origins`, cached like categories). Sort options say what they do — *Featured first* (what "relevance" always was: paid placement, then name), *Supplier (A–Z)*, and new *Price: low to high / high to low*, compared in one currency (listings are priced in several; raw numbers would rank 1,000 KES above 10 USD). One labelled filter panel with a Clear link. Old `sort=` values still work. |
+| 32 | Admin company search finds names only. | **Agreed** | One box searches name, country, registration number, company type (by the label shown in the Type column — "supplier" finds every Supplier type) and tier. |
+
+Found while verifying: light-mode info badges measured **4.31:1** (axe, "Quotations sent"),
+under AA for 12px text; `--info` darkened from L 0.50 to 0.46 → 5.0:1 on the page canvas and
+6.0:1 on cards (computed; the model reproduced axe's 4.31 as 4.32 before trusting it).
+
+**Verification.** Production first, as a negative control: Operations got **200** from
+`/finance/report` and the Finance link was in their sidebar (the new TC1 tests fail on the
+live code, as they should). Locally: unit tests core 147 / API 101 / email 31; typecheck and
+lint clean; the new spec plus the corrected ones 27/27; axe-core WCAG 2.2 AA **0 violations**
+on 36 page × theme × width combinations (marketplace, My RFQs, an RFQ, the RFQ form, Usage
+as Operations, the not-authorised page, both quote-inbox tabs, admin company search; light
+and dark; 1360 and 390 px). Full local suite: 114 passed, 3 failed — epic2 case 21 (no mail
+relay locally), the idle-session case (its trace files were deleted by a second Playwright
+run I started concurrently; passes on its own), and the new marketplace case, whose test
+compared a five-minute-cached dropdown with a live read (rewritten to check behaviour:
+choosing a listed country filters to it; passes).
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,

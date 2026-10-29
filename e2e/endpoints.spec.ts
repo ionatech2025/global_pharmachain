@@ -71,8 +71,18 @@ test.describe
       await ok(page, "/companies/me");
       await ok(page, "/companies/me/usage");
       await ok(page, "/companies/me/verification");
-      // RBAC: member management is COMPANY_ADMIN-only (members:manage)
-      for (const path of ["/companies/me/members", "/companies/me/invites"]) {
+      // RBAC: member management is COMPANY_ADMIN-only (members:manage), and
+      // billing and finance are not Operations' (US-204 TC1; until the
+      // 2026-10-29 client review Operations could read every one of these).
+      for (const path of [
+        "/companies/me/members",
+        "/companies/me/invites",
+        "/billing/credit-requests",
+        "/billing/credit-fees",
+        "/invoices",
+        "/finance/ledger",
+        "/finance/report",
+      ]) {
         const res = await page.request.get(`${API_PATH}${path}`);
         expect(res.status(), `OPERATIONS denied ${path}`).toBe(403);
       }
@@ -84,7 +94,6 @@ test.describe
       await ok(page, "/notifications?page=1");
       await ok(page, "/notifications/unread-count");
       await ok(page, "/notifications/preferences");
-      await ok(page, "/billing/credit-requests");
       await ok(page, "/announcements/active");
       await ok(page, "/issues");
       const threadId = await firstId(page, "/threads");
@@ -125,6 +134,14 @@ test.describe
     test("member + invite management endpoints", async () => {
       await ok(page, "/companies/me/members");
       await ok(page, "/companies/me/invites");
+    });
+
+    test("billing and finance stay with the Company Admin", async () => {
+      await ok(page, "/billing/credit-requests");
+      await ok(page, "/billing/credit-fees");
+      await ok(page, "/invoices");
+      await ok(page, "/finance/ledger");
+      await ok(page, "/finance/report");
     });
   });
 

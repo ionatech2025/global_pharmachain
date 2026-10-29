@@ -79,7 +79,7 @@ test.describe
       rfq = await raiseRfq(buyer, target, `E2E delivery ${runId}`);
 
       // The inbox the supplier already has open picks it up by itself (SSE).
-      await expect(supplier.getByRole("link", { name: rfq.refNo })).toBeVisible({
+      await expect(supplier.getByRole("link", { name: rfq.refNo, exact: true })).toBeVisible({
         timeout: 30_000,
       });
 

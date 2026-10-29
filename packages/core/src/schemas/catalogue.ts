@@ -42,15 +42,28 @@ export type ListingCreate = z.infer<typeof listingCreateSchema>;
 export const listingUpdateSchema = listingBase.omit({ kind: true }).partial();
 export type ListingUpdate = z.infer<typeof listingUpdateSchema>;
 
+export const MARKETPLACE_SORTS = ["relevance", "company", "price_asc", "price_desc"] as const;
+export type MarketplaceSort = (typeof MARKETPLACE_SORTS)[number];
+export const MARKETPLACE_SORT_LABELS: Record<MarketplaceSort, string> = {
+  relevance: "Featured first",
+  company: "Supplier (A–Z)",
+  price_asc: "Price: low to high",
+  price_desc: "Price: high to low",
+};
+
 export const catalogueSearchSchema = paginationQuerySchema.extend({
   q: optionalFilter(z.string().max(120)),
   kind: optionalFilter(z.enum(LISTING_KINDS)),
   categoryId: optionalFilter(z.uuid()),
   country: optionalFilter(z.string().max(56)),
   certification: optionalFilter(z.string().max(80)),
+  // "relevance" is Featured-first placement and "company" is supplier A–Z; the
+  // values are kept so saved and shared marketplace links keep working, the
+  // labels say what they do (client review, 2026-10-29). Price is compared in
+  // one currency — see orderByComparablePrice.
   sort: z.preprocess(
     (v) => (v === "" ? undefined : v),
-    z.enum(["relevance", "company"]).default("relevance"),
+    z.enum(MARKETPLACE_SORTS).default("relevance"),
   ),
 });
 export type CatalogueSearch = z.infer<typeof catalogueSearchSchema>;

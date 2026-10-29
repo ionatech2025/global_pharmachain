@@ -16,6 +16,12 @@ describe("rbac matrix", () => {
     expect(can("OPERATIONS", "order:update-status")).toBe(true);
     expect(can("OPERATIONS", "members:manage")).toBe(false);
     expect(can("OPERATIONS", "company:manage")).toBe(false);
+    // "No billing" is the half this test's title promised and never checked;
+    // Operations held finance:read until the 2026-10-29 client review.
+    expect(can("OPERATIONS", "finance:read")).toBe(false);
+    expect(can("OPERATIONS", "finance:manage")).toBe(false);
+    // What they do keep: this month's allowance, needed to raise RFQs.
+    expect(can("OPERATIONS", "usage:read")).toBe(true);
   });
 
   test("finance read orders and handle documents, but no catalogue writes", () => {
@@ -24,5 +30,7 @@ describe("rbac matrix", () => {
     expect(can("FINANCE", "catalogue:write")).toBe(false);
     expect(can("FINANCE", "rfq:write")).toBe(false);
     expect(can("FINANCE", "members:manage")).toBe(false);
+    expect(can("FINANCE", "finance:read")).toBe(true);
+    expect(can("FINANCE", "finance:manage")).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { CatalogueSearch, ListingCreate, ListingUpdate } from "@pharmachain/core";
-import { paginate, skipTake } from "@pharmachain/core";
+import { orderByComparablePrice, paginate, skipTake } from "@pharmachain/core";
 import type { DocumentKind, Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
 import { forbidden, notFound } from "../../common/errors";
@@ -84,27 +84,82 @@ export class CatalogueService {
     // Featured listing whose name sorted late never reached page one — the
     // placement a company paid for did nothing. The enum's declared order is
     // FREEMIUM < PREMIUM < FEATURED, so descending puts Featured first.
+    const include = {
+      ...LISTING_INCLUDE,
+      company: { select: { id: true, name: true, country: true, subscriptionTier: true } },
+    } satisfies Prisma.ListingInclude;
+
+    if (query.sort === "price_asc" || query.sort === "price_desc") {
+      return this.searchByPrice(where, include, query, query.sort === "price_asc" ? "asc" : "desc");
+    }
+
     const orderBy: Prisma.ListingOrderByWithRelationInput[] =
       query.sort === "company"
         ? [{ company: { name: "asc" } }, { name: "asc" }]
         : [{ company: { subscriptionTier: "desc" } }, { name: "asc" }, { id: "asc" }];
 
     const [rows, total] = await prisma.$transaction([
-      prisma.listing.findMany({
-        where,
-        orderBy,
-        ...skipTake(query),
-        include: {
-          ...LISTING_INCLUDE,
-          company: {
-            select: { id: true, name: true, country: true, subscriptionTier: true },
-          },
-        },
-      }),
+      prisma.listing.findMany({ where, orderBy, ...skipTake(query), include }),
       prisma.listing.count({ where }),
     ]);
 
     return paginate(rows.map(withDocumentFlags), total, query);
+  }
+
+  /**
+   * Price order across currencies. A database ORDER BY on the stored number
+   * would rank 1,000 KES above 10 USD, so the matching listings' prices are
+   * compared in USD (orderByComparablePrice) and only the requested page is then
+   * loaded in full. Matches are read as three columns each; the marketplace is
+   * the verified, published subset, so this stays small.
+   */
+  private async searchByPrice(
+    where: Prisma.ListingWhereInput,
+    include: Prisma.ListingInclude,
+    query: CatalogueSearch,
+    direction: "asc" | "desc",
+  ) {
+    const [candidates, rates] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        select: { id: true, name: true, price: true, currency: true },
+      }),
+      prisma.exchangeRate.findMany({ select: { base: true, quote: true, rate: true } }),
+    ]);
+    const ordered = orderByComparablePrice(
+      candidates.map((c) => ({ ...c, price: Number(c.price) })),
+      rates.map((r) => ({ base: r.base, quote: r.quote, rate: Number(r.rate) })),
+      direction,
+    );
+    const { skip, take } = skipTake(query);
+    const pageIds = ordered.slice(skip, skip + take);
+    const rows = await prisma.listing.findMany({ where: { id: { in: pageIds } }, include });
+    const position = new Map(pageIds.map((id, i) => [id, i]));
+    rows.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+    return paginate(rows.map(withDocumentFlags), candidates.length, query);
+  }
+
+  /**
+   * Countries of origin that searchable listings actually carry, for the
+   * marketplace's country filter. A dropdown of these replaces typing a name
+   * (client review, 2026-10-29: misspellings found nothing); taking them from
+   * the data means every option returns results. Case variants are merged.
+   */
+  async listOrigins(): Promise<string[]> {
+    const rows = await prisma.listing.findMany({
+      where: {
+        status: "PUBLISHED",
+        company: { verificationStatus: "VERIFIED", profileStatus: "PUBLISHED" },
+      },
+      select: { countryOfOrigin: true },
+      distinct: ["countryOfOrigin"],
+    });
+    const byKey = new Map<string, string>();
+    for (const { countryOfOrigin } of rows) {
+      const name = countryOfOrigin.trim();
+      if (name && !byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
   }
 
   listCategories() {

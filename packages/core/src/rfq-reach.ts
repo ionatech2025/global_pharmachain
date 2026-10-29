@@ -20,34 +20,62 @@ export interface RfqReachNotice {
 
 const companies = (n: number) => `${n} verified ${n === 1 ? "company" : "companies"}`;
 
-export function rfqReachNotice(reach: RfqReach, categoryName?: string): RfqReachNotice {
+/**
+ * Two notices, one per field, because they answer different questions. The
+ * company-type notice says whether anyone of that type exists at all; the
+ * category notice says how much naming a category narrows that. They used to be
+ * one message shown under the category field, so "No verified company of this
+ * type yet" sat under "Material category" and read as a fault of the category
+ * (client review, 2026-10-29). The category notice is null when the type already
+ * reaches nobody — there is nothing left for a category to narrow.
+ */
+export function rfqReachNotices(
+  reach: RfqReach,
+  categoryName?: string,
+): { type: RfqReachNotice; category: RfqReachNotice | null } {
   const { ofType, inCategory } = reach;
   if (ofType === 0) {
     return {
-      tone: "warning",
-      text: "No verified company of this type yet — nobody would see this RFQ.",
+      type: {
+        tone: "warning",
+        text: "No verified company of this type yet — nobody would see this RFQ.",
+      },
+      category: null,
     };
   }
+  const type: RfqReachNotice = { tone: "info", text: `${companies(ofType)} of this type.` };
   if (inCategory === null || !categoryName) {
     return {
-      tone: "info",
-      text: `Any category: all ${companies(ofType)} of this type will see it.`,
+      type,
+      category: {
+        tone: "info",
+        text: `Any category: all ${ofType} of them will see it.`,
+      },
     };
   }
   if (inCategory === 0) {
     return {
-      tone: "warning",
-      text: `No verified company of this type lists ${categoryName} yet, so nobody would see this RFQ. Choose Any category to reach all ${ofType}.`,
+      type,
+      category: {
+        tone: "warning",
+        text: `None of the ${ofType} lists ${categoryName} yet, so nobody would see this RFQ. Choose Any category to reach all ${ofType}.`,
+      },
     };
   }
   if (inCategory < ofType) {
     return {
-      tone: "narrowed",
-      text: `Only the ${inCategory} of ${ofType} that list ${categoryName} will see it. Choose Any category to reach all ${ofType}.`,
+      type,
+      category: {
+        tone: "narrowed",
+        text: `Only the ${inCategory} of ${ofType} that list ${categoryName} will see it. Choose Any category to reach all ${ofType}.`,
+      },
     };
   }
   return {
-    tone: "info",
-    text: `All ${companies(ofType)} of this type list ${categoryName}, so the category costs no reach.`,
+    type,
+    category: {
+      tone: "info",
+      text: `All ${ofType} list ${categoryName}, so the category costs no reach.`,
+    },
   };
 }

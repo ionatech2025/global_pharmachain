@@ -11,6 +11,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
+import { RfqReachSummary } from "@/components/rfq-reach-summary";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { Paginated, RfqRow } from "@/lib/api/types";
@@ -54,6 +55,7 @@ export default async function RfqsPage({
                 <TableHead>Reference</TableHead>
                 <TableHead>Item</TableHead>
                 <TableHead>Quantity</TableHead>
+                <TableHead>Sent to</TableHead>
                 <TableHead>Deadline</TableHead>
                 <TableHead>Quotes</TableHead>
                 <TableHead>Status</TableHead>
@@ -73,6 +75,13 @@ export default async function RfqsPage({
                   <TableCell>{rfq.title}</TableCell>
                   <TableCell>
                     {fmtNumber(rfq.quantity)} {rfq.unit}
+                  </TableCell>
+                  <TableCell>
+                    <RfqReachSummary
+                      targetCompanyType={rfq.targetCompanyType}
+                      categoryName={rfq.category?.name}
+                      reach={rfq.visibleSupplierCount}
+                    />
                   </TableCell>
                   <TableCell>{fmtDeadline(rfq.deadline)}</TableCell>
                   <TableCell>{rfq._count.quotations}</TableCell>

@@ -19,6 +19,7 @@ import {
   auditLogQuerySchema,
   type BulkClientOnboardInput,
   bulkClientOnboardSchema,
+  companyTypesMatching,
   creditDecisionSchema,
   exchangeRateUpsertSchema,
   idParamSchema,
@@ -28,6 +29,7 @@ import {
   paginationQuerySchema,
   parameterUpdateSchema,
   skipTake,
+  subscriptionTiersMatching,
   tierUpdateSchema,
   VERIFICATION_STATUSES,
   validateParamValue,
@@ -84,10 +86,26 @@ export class AdminController {
 
   @Get("companies")
   async companies(@Query(zodPipe(companiesQuerySchema)) query: CompaniesQuery) {
+    // One box, several columns: name, country and registration number by text;
+    // company type and tier by the words the admin reads in those columns
+    // (client review, 2026-10-29: it searched the name only).
+    const q = query.q?.trim();
+    const types = q ? companyTypesMatching(q) : [];
+    const tiers = q ? subscriptionTiersMatching(q) : [];
     const where: Prisma.CompanyWhereInput = {
       // Deleted companies are archived: out of the default list, reachable by filtering.
       verificationStatus: query.status ?? { not: "DELETED" },
-      ...(query.q ? { name: { contains: query.q, mode: "insensitive" } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { country: { contains: q, mode: "insensitive" } },
+              { registrationNumber: { contains: q, mode: "insensitive" } },
+              ...(types.length > 0 ? [{ type: { in: types } }] : []),
+              ...(tiers.length > 0 ? [{ subscriptionTier: { in: tiers } }] : []),
+            ],
+          }
+        : {}),
     };
     const [items, total] = await prisma.$transaction([
       prisma.company.findMany({

@@ -28,3 +28,6 @@ export const getCategories = cache(() => getReference<CategoryRow[]>("/catalogue
 export const getExchangeRates = cache(() =>
   getReference<ExchangeRateRow[]>("/catalogue/exchange-rates"),
 );
+
+/** Countries of origin that searchable listings carry — the marketplace's country filter. */
+export const getOrigins = cache(() => getReference<string[]>("/catalogue/origins"));
