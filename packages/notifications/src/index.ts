@@ -69,6 +69,15 @@ export async function notify(input: NotifyInput): Promise<void> {
   }
 }
 
+/**
+ * notify() for callers that keep their own delivery record and retry: the same
+ * fan-out, but a failure is thrown instead of logged, so the caller does not
+ * mark undelivered work as delivered (RFQ distribution).
+ */
+export async function notifyOrThrow(input: NotifyInput): Promise<void> {
+  await fanout(input);
+}
+
 async function fanout(input: NotifyInput): Promise<void> {
   let userIds = input.userIds ?? [];
   if (input.companyId) {

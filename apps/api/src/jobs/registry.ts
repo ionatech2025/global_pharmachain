@@ -1,6 +1,7 @@
 import { prisma } from "@pharmachain/db";
 import { logger } from "../lib/logger";
 import { TraceService } from "../modules/intelligence/trace.service";
+import { runRfqDistributionJob } from "../modules/rfq/distribution";
 import { runDocumentExpiryJob } from "./document-expiry";
 import {
   runDsrSlaJob,
@@ -34,6 +35,7 @@ export type JobTier = "frequent" | "daily";
 
 const JOBS: Record<string, { tier: JobTier; run: () => Promise<unknown> }> = {
   "rfq-auto-close": { tier: "frequent", run: () => runRfqAutoCloseJob() },
+  "rfq-distribution": { tier: "frequent", run: () => runRfqDistributionJob() },
   "quotation-expiry": { tier: "frequent", run: () => runQuotationExpiryJob() },
   "outbox-retry": { tier: "frequent", run: () => runOutboxJob() },
   "webhook-retry": { tier: "frequent", run: () => runWebhookRetryJob() },

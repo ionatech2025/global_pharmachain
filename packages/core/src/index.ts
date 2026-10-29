@@ -12,6 +12,7 @@ export * from "./password-policy";
 export * from "./pdf";
 export * from "./rbac";
 export * from "./refno";
+export * from "./rfq-deadline";
 export * from "./rfq-reach";
 export * from "./schemas/admin";
 export * from "./schemas/analytics";

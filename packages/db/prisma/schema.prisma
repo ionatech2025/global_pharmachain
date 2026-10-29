@@ -247,6 +247,10 @@ enum NotificationType {
   APPROVAL_PENDING
   PAYMENT_OVERDUE
   ISSUE_UPDATE
+  // RFQ delivery (2026-10-29): a new RFQ reaching an eligible supplier, and the
+  // receipt a supplier gets for a quotation (UNCITRAL Model Law art. 30(5)(c)).
+  NEW_RFQ
+  QUOTATION_RECEIPT
 }
 
 enum IssueCategory {
@@ -347,6 +351,7 @@ model Company {
   documents             Document[]
   listings              Listing[]
   rfqs                  Rfq[]
+  rfqDistributions      RfqDistribution[]
   quotations            Quotation[]
   ordersAsBuyer         Order[]               @relation("OrderBuyer")
   ordersAsSeller        Order[]               @relation("OrderSeller")
@@ -407,6 +412,7 @@ model User {
   loginActivity           LoginActivity[]
   documentsUploaded       Document[]
   rfqsCreated             Rfq[]
+  rfqAmendments           RfqAmendment[]
   quotationsSubmitted     Quotation[]
   ordersCreated           Order[]
   orderStatusEvents       OrderStatusEvent[]
@@ -643,21 +649,64 @@ model Rfq {
   awardedAt            DateTime?
   closedAt             DateTime?
   cancelledAt          DateTime?
+  /// When every eligible supplier has been delivered this RFQ; null while
+  /// delivery is pending (the rfq-distribution job finishes what a request
+  /// could not).
+  distributedAt        DateTime?
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
-  buyerCompany Company         @relation(fields: [buyerCompanyId], references: [id])
-  createdBy    User            @relation(fields: [createdById], references: [id])
-  category     Category?       @relation(fields: [categoryId], references: [id])
-  bomItem      BomItem?        @relation(fields: [bomItemId], references: [id])
-  quotations   Quotation[]
-  documents    Document[]
-  threads      MessageThread[]
-  order        Order?
+  buyerCompany  Company           @relation(fields: [buyerCompanyId], references: [id])
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  category      Category?         @relation(fields: [categoryId], references: [id])
+  bomItem       BomItem?          @relation(fields: [bomItemId], references: [id])
+  quotations    Quotation[]
+  documents     Document[]
+  threads       MessageThread[]
+  order         Order?
+  distributions RfqDistribution[]
+  amendments    RfqAmendment[]
 
   @@index([status, deadline])
   @@index([buyerCompanyId, createdAt])
   @@index([targetCompanyType, status])
+  @@index([distributedAt])
+}
+
+/// Who an RFQ was provided to — the record UNCITRAL's Model Law (arts. 28(2),
+/// 30(4)) needs so that an addendum, a deadline extension or a cancellation
+/// reaches every one of them. A row is created before its notice is sent and
+/// stamped delivered after, so a crash in between is retried, not lost.
+model RfqDistribution {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  rfqId       String    @db.Uuid
+  companyId   String    @db.Uuid
+  createdAt   DateTime  @default(now())
+  claimedAt   DateTime?
+  attempts    Int       @default(0)
+  deliveredAt DateTime?
+
+  rfq     Rfq     @relation(fields: [rfqId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([rfqId, companyId])
+  @@index([companyId, deliveredAt])
+}
+
+/// A dated change to an open RFQ: an addendum, a deadline extension, or both.
+model RfqAmendment {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  rfqId            String   @db.Uuid
+  createdById      String   @db.Uuid
+  note             String
+  previousDeadline DateTime
+  newDeadline      DateTime
+  createdAt        DateTime @default(now())
+
+  rfq       Rfq  @relation(fields: [rfqId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([rfqId, createdAt])
 }
 
 model Quotation {

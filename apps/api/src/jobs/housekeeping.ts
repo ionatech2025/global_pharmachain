@@ -51,12 +51,19 @@ export async function runRfqAutoCloseJob(now = new Date()): Promise<void> {
     select: { id: true, refNo: true, title: true, buyerCompanyId: true, createdById: true },
   });
   if (due.length === 0) return;
-  await prisma.rfq.updateMany({
-    where: { id: { in: due.map((r) => r.id) } },
-    data: { status: "CLOSED", closedAt: now },
-  });
+  // One conditional update each: an RFQ awarded or cancelled between the read
+  // and the write used to be overwritten to CLOSED (and its buyer told it had
+  // closed). Only the ones this run actually moved are announced.
+  const closed: typeof due = [];
+  for (const rfq of due) {
+    const moved = await prisma.rfq.updateMany({
+      where: { id: rfq.id, status: "OPEN", deadline: { lt: now } },
+      data: { status: "CLOSED", closedAt: now },
+    });
+    if (moved.count === 1) closed.push(rfq);
+  }
   await Promise.all(
-    due.map((rfq) =>
+    closed.map((rfq) =>
       notify({
         userIds: [rfq.createdById],
         type: "RFQ_STATUS_CHANGE",
@@ -72,7 +79,7 @@ export async function runRfqAutoCloseJob(now = new Date()): Promise<void> {
       }),
     ),
   );
-  logger.info("rfq auto-close job done", { closed: due.length });
+  logger.info("rfq auto-close job done", { closed: closed.length });
 }
 
 /** Quotations past their validity window expire (US-404). */

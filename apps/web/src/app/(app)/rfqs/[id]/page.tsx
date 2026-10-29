@@ -2,13 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/compon
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { ApiClientError } from "@/lib/api/http";
 import { apiServer } from "@/lib/api/server";
 import type { QuotationRow, RfqDetail } from "@/lib/api/types";
-import { fmtDate, fmtNumber } from "@/lib/format";
-import { BuyerQuotations, CancelRfqButton, SupplierQuotePanel } from "./panels";
+import { fmtDateTime, fmtDeadline, fmtNumber } from "@/lib/format";
+import { AmendRfqButton, BuyerQuotations, CancelRfqButton, SupplierQuotePanel } from "./panels";
 
 export const metadata = { title: "RFQ" };
 
@@ -30,6 +31,9 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-4">
+      {/* New quotations, amendments, a cancellation or the deadline passing show
+          up without a reload; the form a supplier is filling in keeps its input. */}
+      <LiveRefresh stream={`/rfqs/${rfq.id}/stream`} />
       {/*
        * Which side of this RFQ you are on decides what the page does, so it is
        * stated rather than implied. A supplier reaching this page from the
@@ -49,6 +53,9 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
         }
       >
         <RfqStatusBadge status={rfq.status} />
+        {rfq.viewerIsBuyer && rfq.status === "OPEN" && (
+          <AmendRfqButton rfqId={rfq.id} deadline={rfq.deadline} />
+        )}
         {rfq.viewerIsBuyer && rfq.status === "OPEN" && <CancelRfqButton rfqId={rfq.id} />}
       </PageHeader>
 
@@ -66,7 +73,8 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
               <span className="text-muted-foreground">Category:</span> {rfq.category?.name ?? "Any"}
             </p>
             <p>
-              <span className="text-muted-foreground">Deadline:</span> {fmtDate(rfq.deadline)}
+              <span className="text-muted-foreground">Deadline:</span>{" "}
+              <span data-testid="rfq-deadline">{fmtDeadline(rfq.deadline)}</span>
             </p>
             <p>
               <span className="text-muted-foreground">Visible suppliers:</span>{" "}
@@ -90,6 +98,23 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
               <p className="text-xs text-muted-foreground">
                 Raised from BOM line “{rfq.bomItem.materialName}”.
               </p>
+            )}
+            {rfq.amendments.length > 0 && (
+              <div className="space-y-2 border-t pt-2" data-testid="rfq-amendments">
+                <p className="text-muted-foreground">Amendments ({rfq.amendments.length}):</p>
+                <ol className="space-y-2">
+                  {rfq.amendments.map((a, i) => (
+                    <li key={a.id} className="rounded-md bg-muted/50 p-2">
+                      <p className="text-xs text-muted-foreground">
+                        #{i + 1} · {fmtDateTime(a.createdAt)}
+                        {a.newDeadline !== a.previousDeadline &&
+                          ` · deadline ${fmtDeadline(a.previousDeadline)} → ${fmtDeadline(a.newDeadline)}`}
+                      </p>
+                      <p className="whitespace-pre-wrap">{a.note}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             )}
             {rfq.order && (
               <p>

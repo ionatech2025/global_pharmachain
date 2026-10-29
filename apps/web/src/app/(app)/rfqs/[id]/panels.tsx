@@ -32,7 +32,7 @@ import { Textarea } from "@pharmachain/ui/components/textarea";
 import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AttachmentPicker } from "@/components/attachment-picker";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -41,7 +41,7 @@ import { QuotationStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { ApiClientError, errorMessage } from "@/lib/api/http";
 import type { QuotationRow, RfqDetail } from "@/lib/api/types";
-import { fmtDate, fmtMoney } from "@/lib/format";
+import { fmtDate, fmtDeadline, fmtMoney, toLocalInputValue } from "@/lib/format";
 
 export function CancelRfqButton({ rfqId }: { rfqId: string }) {
   const router = useRouter();
@@ -68,11 +68,104 @@ export function CancelRfqButton({ rfqId }: { rfqId: string }) {
         </Button>
       }
       title="Cancel this RFQ?"
-      description="Responding suppliers will be notified and the RFQ becomes read-only. This cannot be undone."
+      description="Every supplier this RFQ was sent to is notified, and it becomes read-only. This cannot be undone."
       confirmLabel="Cancel RFQ"
       destructive
       onConfirm={cancel}
     />
+  );
+}
+
+/**
+ * Addendum and deadline extension (UNCITRAL Model Law arts. 28(2), 30(2)-(4)).
+ * The deadline can only move later; every supplier the RFQ reached is told.
+ */
+export function AmendRfqButton({ rfqId, deadline }: { rfqId: string; deadline: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [extend, setExtend] = useState(false);
+  const [newDeadline, setNewDeadline] = useState(() => toLocalInputValue(deadline));
+  const [busy, setBusy] = useState(false);
+  const current = new Date(deadline);
+  const chosen = new Date(newDeadline);
+  const deadlineOk = !extend || (Number.isFinite(chosen.getTime()) && chosen > current);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const result = await api.post<{ recipients: number }>(`/rfqs/${rfqId}/amend`, {
+        note: note.trim(),
+        ...(extend ? { newDeadline: chosen.toISOString() } : {}),
+      });
+      toast.success(`Amendment sent to ${result.recipients} supplier(s)`);
+      setOpen(false);
+      setNote("");
+      setExtend(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Amend / extend deadline
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Amend this RFQ</DialogTitle>
+            <DialogDescription>
+              The amendment is dated, kept with the RFQ and sent to every supplier it reached.
+              Suppliers who already quoted can replace their quotation before the deadline.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="amend-note">What changes (at least 10 characters)</Label>
+            <Textarea
+              id="amend-note"
+              rows={4}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Delivery is now to Entebbe, not Kampala. Quote CIF Entebbe."
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={extend} onChange={(e) => setExtend(e.target.checked)} />
+            Extend the deadline
+          </label>
+          {extend && (
+            <div className="grid gap-2">
+              <Label htmlFor="amend-deadline">New deadline ({zone})</Label>
+              <Input
+                id="amend-deadline"
+                type="datetime-local"
+                min={toLocalInputValue(deadline)}
+                value={newDeadline}
+                onChange={(e) => setNewDeadline(e.target.value)}
+                aria-invalid={!deadlineOk}
+              />
+              <p className="text-xs text-muted-foreground">
+                Currently {fmtDeadline(deadline)}. A deadline can be extended, not brought forward.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={busy || note.trim().length < 10 || !deadlineOk} onClick={submit}>
+              {busy ? "Sending…" : "Send amendment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -104,17 +197,25 @@ export function BuyerQuotations({
   initial: QuotationRow[];
 }) {
   const router = useRouter();
-  const [quotations, setQuotations] = useState(initial);
   const [sort, setSort] = useState<"price" | "leadTime">("price");
+  // Derived from the server's list on every render, never copied into state: a
+  // copy froze the table at first paint, so a quotation arriving (or a refresh
+  // after an action) changed nothing on screen. Same order as the API's sort.
+  const quotations = useMemo(
+    () =>
+      [...initial].sort((a, b) =>
+        sort === "price"
+          ? Number(a.unitPrice) - Number(b.unitPrice)
+          : a.leadTimeDays - b.leadTimeDays,
+      ),
+    [initial, sort],
+  );
   const [accepting, setAccepting] = useState<QuotationRow | null>(null);
   const [busy, setBusy] = useState(false);
   const canAward = rfqStatus === "OPEN" || rfqStatus === "CLOSED";
 
-  async function resort(next: "price" | "leadTime") {
+  function resort(next: "price" | "leadTime") {
     setSort(next);
-    setQuotations(
-      await api.get<QuotationRow[]>(`/rfqs/${rfqId}/quotations`, { query: { sort: next } }),
-    );
   }
 
   async function accept() {

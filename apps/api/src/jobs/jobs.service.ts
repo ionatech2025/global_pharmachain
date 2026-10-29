@@ -15,6 +15,11 @@ export class JobsService {
     return runRegisteredJob("rfq-auto-close");
   }
 
+  @Cron("*/5 * * * *", { timeZone: "UTC" })
+  rfqDistribution(): Promise<unknown> {
+    return runRegisteredJob("rfq-distribution");
+  }
+
   @Cron("*/15 * * * *", { timeZone: "UTC" })
   quotationExpiry(): Promise<unknown> {
     return runRegisteredJob("quotation-expiry");

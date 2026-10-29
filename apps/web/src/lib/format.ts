@@ -158,6 +158,32 @@ export function fmtDate(value: string | Date | null | undefined): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(new Date(value));
 }
 
+/**
+ * A deadline as procurement must state it — a date AND a time (UNCITRAL Model
+ * Law art. 30(1)) — with the zone named. A date alone was off by a day for
+ * anyone east of UTC: 23:59 UTC on the 5th is the 6th in Kampala.
+ */
+export function fmtDeadline(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const { locale, timeZone } = formatStore();
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(new Date(value));
+}
+
+/** An instant as a `<input type="datetime-local">` value, in the browser's zone. */
+export function toLocalInputValue(value: string | Date): string {
+  const d = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function fmtDateTime(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const { locale, timeZone } = formatStore();

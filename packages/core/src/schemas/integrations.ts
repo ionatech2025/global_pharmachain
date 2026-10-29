@@ -8,6 +8,12 @@ export const WEBHOOK_EVENTS = [
   "invoice.issued",
   "payment.confirmed",
   "shipment.exception",
+  // RFQ delivery (2026-10-29): suppliers' systems learn of an RFQ, and of every
+  // change to it, without polling; the buyer's learns of each quotation.
+  "rfq.published",
+  "rfq.amended",
+  "rfq.cancelled",
+  "quotation.received",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

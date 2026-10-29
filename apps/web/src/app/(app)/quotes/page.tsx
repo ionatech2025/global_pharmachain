@@ -10,12 +10,13 @@ import {
 import { cn } from "@pharmachain/ui/lib/utils";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
 import { QuotationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { MyQuotationRow, Paginated, RfqInboxRow } from "@/lib/api/types";
-import { fmtDate, fmtMoney, fmtNumber } from "@/lib/format";
+import { fmtDate, fmtDeadline, fmtMoney, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Quote inbox" };
 
@@ -91,16 +92,23 @@ async function InboxView({
   page: number;
 }) {
   const result = await api.get<Paginated<RfqInboxRow>>("/rfqs/inbox", { query: { page } });
+  // A new RFQ, a cancellation, an amendment or a deadline passing reaches this
+  // list without a reload.
+  const live = <LiveRefresh stream="/rfqs/inbox/stream" />;
   if (result.items.length === 0) {
     return (
-      <EmptyState
-        title="No open RFQs right now"
-        hint="RFQs matching your company category and published listing categories appear here."
-      />
+      <>
+        {live}
+        <EmptyState
+          title="No open RFQs right now"
+          hint="RFQs matching your company category and published listing categories appear here — and you are notified the moment one is published."
+        />
+      </>
     );
   }
   return (
     <>
+      {live}
       <Table>
         <TableHeader>
           <TableRow>
@@ -129,7 +137,7 @@ async function InboxView({
                 {fmtNumber(rfq.quantity)} {rfq.unit}
               </TableCell>
               <TableCell className="text-muted-foreground">{rfq.category?.name ?? "Any"}</TableCell>
-              <TableCell>{fmtDate(rfq.deadline)}</TableCell>
+              <TableCell>{fmtDeadline(rfq.deadline)}</TableCell>
               <TableCell>
                 {rfq.quotations.length > 0 ? (
                   <Badge variant="success">Submitted (v{rfq.quotations[0]?.version})</Badge>
