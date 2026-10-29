@@ -478,6 +478,22 @@ Spec: `e2e/client-review-2026-10-29.spec.ts`.
 | 31 | Marketplace filters: country as a dropdown; "company name" should read "Supplier"; "relevance" has no relevance column — perhaps price; cleaner layout. | **Agreed** | Country of origin is a list of the countries searchable listings actually carry (new `GET /catalogue/origins`, cached like categories). Sort options say what they do — *Featured first* (what "relevance" always was: paid placement, then name), *Supplier (A–Z)*, and new *Price: low to high / high to low*, compared in one currency (listings are priced in several; raw numbers would rank 1,000 KES above 10 USD). One labelled filter panel with a Clear link. Old `sort=` values still work. |
 | 32 | Admin company search finds names only. | **Agreed** | One box searches name, country, registration number, company type (by the label shown in the Type column — "supplier" finds every Supplier type) and tier. |
 
+Found while verifying: light-mode info badges measured **4.31:1** (axe, "Quotations sent"),
+under AA for 12px text; `--info` darkened from L 0.50 to 0.46 → 5.0:1 on the page canvas and
+6.0:1 on cards (computed; the model reproduced axe's 4.31 as 4.32 before trusting it).
+
+**Verification.** Production first, as a negative control: Operations got **200** from
+`/finance/report` and the Finance link was in their sidebar (the new TC1 tests fail on the
+live code, as they should). Locally: unit tests core 147 / API 101 / email 31; typecheck and
+lint clean; the new spec plus the corrected ones 27/27; axe-core WCAG 2.2 AA **0 violations**
+on 36 page × theme × width combinations (marketplace, My RFQs, an RFQ, the RFQ form, Usage
+as Operations, the not-authorised page, both quote-inbox tabs, admin company search; light
+and dark; 1360 and 390 px). Full local suite: 114 passed, 3 failed — epic2 case 21 (no mail
+relay locally), the idle-session case (its trace files were deleted by a second Playwright
+run I started concurrently; passes on its own), and the new marketplace case, whose test
+compared a five-minute-cached dropdown with a live read (rewritten to check behaviour:
+choosing a listed country filters to it; passes).
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,

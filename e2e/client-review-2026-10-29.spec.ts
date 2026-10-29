@@ -196,9 +196,22 @@ test("marketplace: a country list, honest sort names, and price compared across 
   await page.goto("/marketplace", { waitUntil: "domcontentloaded" });
   const country = page.getByLabel("Country of origin");
   await expect(country).toHaveJSProperty("tagName", "SELECT");
-  const origins = await json<string[]>(page, "/catalogue/origins");
-  if (origins.length > 0) {
-    await expect(country.locator("option", { hasText: origins[0] as string })).toHaveCount(1);
+  // The list is reference data, cached for five minutes like categories, so it
+  // is checked by what it does rather than compared with a live read: choosing
+  // one of its countries returns listings from that country.
+  const options = (await country
+    .locator("option")
+    .evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))) as string[];
+  expect(options[0]).toBe("");
+  const chosen = options.find((v) => v !== "");
+  if (chosen) {
+    const filtered = await json<{ items: Array<{ countryOfOrigin: string }> }>(
+      page,
+      `/catalogue/search?country=${encodeURIComponent(chosen)}&pageSize=50`,
+    );
+    for (const l of filtered.items) {
+      expect(l.countryOfOrigin.toLowerCase()).toContain(chosen.toLowerCase());
+    }
   }
   const sortOptions = await page.getByLabel("Sort by").locator("option").allTextContents();
   expect(sortOptions).toEqual([
