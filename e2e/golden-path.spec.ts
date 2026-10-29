@@ -1,5 +1,5 @@
 import { type Browser, expect, test } from "@playwright/test";
-import { ADMIN_PASSWORD, API_PATH, signIn } from "./helpers";
+import { ADMIN_PASSWORD, API_PATH, QUIET_TARGET_SKIP, quietRfqTarget, signIn } from "./helpers";
 
 /**
  * Phase 1 golden path against the seeded demo stack (see e2e/README.md):
@@ -60,13 +60,20 @@ test.describe
 
     test("buyer signs in and raises an RFQ", async ({ browser }) => {
       const page = await signIn(browser, BUYER_EMAIL);
+      // The RFQ is delivered to every supplier it targets (2026-10-29): aim it at a
+      // category only the demo seller lists in, so no real company is notified.
+      const seller = await signIn(browser, SELLER_EMAIL);
+      const quiet = await quietRfqTarget(page, seller);
+      await seller.context().close();
+      test.skip(quiet === null, QUIET_TARGET_SKIP);
 
-      await page.goto("/rfqs/new");
+      await page.goto(quiet?.categoryId ? `/rfqs/new?categoryId=${quiet.categoryId}` : "/rfqs/new");
       await page.getByLabel("Product / material required").fill(RFQ_TITLE);
       await page.getByLabel("Quantity").fill("250");
       await page.getByLabel("Unit").fill("kg");
-      const deadline = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      await page.getByLabel("Response deadline").fill(deadline);
+      // A date and a time (UNCITRAL art. 30(1)) — the field used to take a date only.
+      const day = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      await page.getByLabel("Response deadline").fill(`${day}T17:00`);
       await page.getByRole("button", { name: /publish rfq/i }).click();
 
       await expect(page).toHaveURL(/\/rfqs\/[0-9a-f-]{36}/, { timeout: 20_000 });

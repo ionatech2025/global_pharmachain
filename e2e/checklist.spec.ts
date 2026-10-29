@@ -1,6 +1,13 @@
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@pharmachain/core";
 import { expect, type Page, test } from "@playwright/test";
-import { ADMIN_PASSWORD, API_PATH, firstId, signIn } from "./helpers";
+import {
+  ADMIN_PASSWORD,
+  API_PATH,
+  firstId,
+  QUIET_TARGET_SKIP,
+  quietRfqTarget,
+  signIn,
+} from "./helpers";
 
 /** The label the UI actually renders for an order status. */
 const orderStatusLabel = (status: unknown) =>
@@ -302,12 +309,16 @@ test.describe("US-405 award confirmation", () => {
           r.status === "OPEN" && r.targetCompanyType === supplierType,
       )?.id;
       if (!openId) {
+        // Delivered to every supplier it targets since 2026-10-29: aim it where
+        // only the demo supplier lists, or skip rather than notify real ones.
+        const quiet = await quietRfqTarget(page, supplier);
+        test.skip(quiet === null, QUIET_TARGET_SKIP);
         const raised = await page.request.post(`${API_PATH}/rfqs`, {
           data: {
             title: `Award-dialog fixture ${Date.now().toString(36).toUpperCase()}`,
             quantity: "10",
             unit: "kg",
-            targetCompanyType: supplierType,
+            ...quiet,
             deadline: new Date(Date.now() + 10 * 864e5).toISOString(),
           },
         });
@@ -388,12 +399,14 @@ test.describe
         const me = await (await supplier.request.get(`${API_PATH}/auth/me`)).json();
         const supplierType = me?.membership?.companyType;
         expect(supplierType, "supplier persona has no company membership").toBeTruthy();
+        const quiet = await quietRfqTarget(page, supplier);
+        test.skip(quiet === null, QUIET_TARGET_SKIP);
         const raised = await page.request.post(`${API_PATH}/rfqs`, {
           data: {
             title: `E2E notification fixture ${Date.now().toString(36).toUpperCase()}`,
             quantity: "5",
             unit: "kg",
-            targetCompanyType: supplierType,
+            ...quiet,
             deadline: new Date(Date.now() + 10 * 864e5).toISOString(),
           },
         });

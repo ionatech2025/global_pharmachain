@@ -122,6 +122,57 @@ export async function gotoResilient(page: Page, path: string, attempts = 4): Pro
   throw lastError;
 }
 
+/**
+ * A platform admin with a passkey must present it after the password, so a
+ * deployed run needs one too. It is a dedicated test credential (not the
+ * admin's own), held as a key pair outside the repo:
+ *   E2E_ADMIN_PASSKEY_ID           credential id, base64url (as the server stores it)
+ *   E2E_ADMIN_PASSKEY_PRIVATE_KEY  P-256 private key, PKCS#8 DER, base64
+ *   E2E_ADMIN_PASSKEY_RP_ID        the deployment's relying-party id
+ *   E2E_ADMIN_PASSKEY_EMAIL        whose it is (default: the seeded super admin)
+ * Chromium's virtual authenticator then answers the prompt like Touch ID would.
+ * The server refuses a signature counter that does not move forward (a cloned
+ * authenticator), and every context gets a fresh authenticator, so the counter
+ * starts from the clock: always ahead of whatever the last run left stored.
+ */
+const ADMIN_PASSKEY =
+  process.env.E2E_ADMIN_PASSKEY_ID && process.env.E2E_ADMIN_PASSKEY_PRIVATE_KEY
+    ? {
+        id: process.env.E2E_ADMIN_PASSKEY_ID,
+        privateKey: process.env.E2E_ADMIN_PASSKEY_PRIVATE_KEY,
+        rpId: process.env.E2E_ADMIN_PASSKEY_RP_ID ?? new URL(TARGET).hostname,
+        email: (process.env.E2E_ADMIN_PASSKEY_EMAIL ?? "admin@pharmachain.local").toLowerCase(),
+      }
+    : null;
+let passkeyUses = 0;
+
+export async function attachPasskeyIfAny(page: Page, email: string): Promise<void> {
+  if (!ADMIN_PASSKEY || email.toLowerCase() !== ADMIN_PASSKEY.email) return;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await cdp.send("WebAuthn.addCredential", {
+    authenticatorId,
+    credential: {
+      credentialId: Buffer.from(ADMIN_PASSKEY.id, "base64url").toString("base64"),
+      isResidentCredential: true,
+      rpId: ADMIN_PASSKEY.rpId,
+      privateKey: ADMIN_PASSKEY.privateKey,
+      userHandle: Buffer.from("pharmachain-e2e-platform-admin").toString("base64"),
+      signCount: Math.floor(Date.now() / 1000) + passkeyUses++,
+    },
+  });
+}
+
 async function captureSession(
   browser: Browser,
   email: string,
@@ -129,6 +180,7 @@ async function captureSession(
 ): Promise<StorageState> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
+  await attachPasskeyIfAny(page, email);
   await gotoResilient(page, "/login");
   await page.getByLabel("Work email").fill(email);
   // `exact` matters: the field carries a show/hide toggle labelled "Show
@@ -176,6 +228,7 @@ export async function signInFresh(
   password: string = DEMO_PASSWORD,
 ): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
+  await attachPasskeyIfAny(page, email);
   await gotoResilient(page, "/login");
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -227,3 +280,71 @@ export async function registerCompany(page: Page, data: unknown): Promise<APIRes
       : {},
   });
 }
+
+/**
+ * Top up the shared demo companies' monthly freemium allowance through the real
+ * US-907 flow (the company admin requests credits, the super admin confirms), so
+ * a spec that raises RFQs or quotes does not fail at LIMIT_REACHED mid-month on
+ * a dataset that only grows across runs. The golden path does the same inline.
+ */
+export async function topUpCredits(
+  browser: Browser,
+  requests: Array<{ email: string; kind: "RFQ" | "QUOTATION"; count: number }>,
+): Promise<void> {
+  const ids: string[] = [];
+  for (const { email, kind, count } of requests) {
+    const page = await signIn(browser, email);
+    const res = await page.request.post(`${API_PATH}/billing/credit-requests`, {
+      data: { kind, count },
+    });
+    expect(res.ok(), `credit request (${kind}) for ${email}: ${res.status()}`).toBeTruthy();
+    ids.push((await res.json()).id as string);
+    await page.context().close();
+  }
+  const admin = await signIn(browser, "admin@pharmachain.local", ADMIN_PASSWORD);
+  for (const id of ids) {
+    const res = await admin.request.post(`${API_PATH}/admin/credit-requests/${id}/decide`, {
+      data: { decision: "CONFIRM" },
+    });
+    expect(res.ok(), `confirm credit request ${id}`).toBeTruthy();
+  }
+  await admin.context().close();
+}
+
+/**
+ * Where a test RFQ can go without reaching anyone real. Since RFQs are
+ * delivered (2026-10-29), every RFQ the suite raises is emailed to each verified
+ * supplier it targets — on a deployed stack that includes real companies. A
+ * category in which only the demo supplier publishes narrows delivery to it;
+ * this finds one at run time (who lists where changes), by asking the API the
+ * same reach question the RFQ form asks. Null when none exists: callers raising
+ * RFQs against a deployed stack must then skip, not notify strangers.
+ */
+export async function quietRfqTarget(
+  buyer: Page,
+  supplier: Page,
+): Promise<{ targetCompanyType: string; categoryId?: string } | null> {
+  const me = await (await supplier.request.get(`${API_PATH}/auth/me`)).json();
+  const targetCompanyType = me?.membership?.companyType as string;
+  const mine = await (await supplier.request.get(`${API_PATH}/catalogue?pageSize=100`)).json();
+  const listings = (Array.isArray(mine) ? mine : (mine.items ?? [])) as Array<{
+    status: string;
+    categoryId: string;
+  }>;
+  const categories = [
+    ...new Set(listings.filter((l) => l.status === "PUBLISHED").map((l) => l.categoryId)),
+  ];
+  for (const categoryId of categories) {
+    const reach = await (
+      await buyer.request.get(
+        `${API_PATH}/rfqs/reach?targetCompanyType=${targetCompanyType}&categoryId=${categoryId}`,
+      )
+    ).json();
+    if (reach.inCategory === 1) return { targetCompanyType, categoryId };
+  }
+  // Locally every supplier is a seeded demo company, so no category is needed.
+  return LOCAL_TARGET ? { targetCompanyType } : null;
+}
+
+export const QUIET_TARGET_SKIP =
+  "no category reaches only the demo supplier on this deployment; raising an RFQ would notify real suppliers";
