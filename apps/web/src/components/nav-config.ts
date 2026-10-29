@@ -1,5 +1,5 @@
 import type { AuthenticatedUser } from "@pharmachain/auth";
-import { isLogisticsCompanyType } from "@pharmachain/core";
+import { can, isLogisticsCompanyType } from "@pharmachain/core";
 import {
   Activity,
   Building2,
@@ -92,6 +92,10 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
   // shell. Developers is a company-admin concern, hidden from other roles
   // (the command menu still indexes everything).
   const isCompanyAdmin = me.membership?.role === "COMPANY_ADMIN";
+  // Finance is a destination only for roles that may read it — Operations may
+  // not (US-204 TC1). The API refuses them either way; the link would only lead
+  // to the not-authorised page.
+  const seesFinance = me.membership ? can(me.membership.role, "finance:read") : false;
   return [
     {
       section: "Trade",
@@ -108,7 +112,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
       section: "Insight",
       items: [
         { href: "/intelligence", label: "Intelligence", icon: Sparkles },
-        { href: "/finance", label: "Finance", icon: Landmark },
+        ...(seesFinance ? [{ href: "/finance", label: "Finance", icon: Landmark }] : []),
       ],
     },
     {

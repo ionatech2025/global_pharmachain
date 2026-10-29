@@ -590,3 +590,26 @@ export const ORDER_PIPELINE_STAGES: ReadonlyArray<{
 export const ORDER_STAGE_BY_STATUS: Record<OrderStatus, string> = Object.fromEntries(
   ORDER_PIPELINE_STAGES.flatMap((stage) => stage.statuses.map((s) => [s, stage.key])),
 ) as Record<OrderStatus, string>;
+
+/**
+ * Admin company search beyond the name (client review, 2026-10-29: checking
+ * whether any Wholesale Pharmacy existed meant paging through every company).
+ * A query matches a company type when the type's label — what the admin reads in
+ * the Type column — contains it, and a tier when its name does. Below two
+ * characters nothing matches, so a single letter does not select whole types.
+ */
+export function companyTypesMatching(query: string): CompanyType[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 2) return [];
+  return COMPANY_TYPES.filter(
+    (t) =>
+      COMPANY_TYPE_LABELS[t].toLowerCase().includes(needle) ||
+      t.toLowerCase().replaceAll("_", " ").includes(needle),
+  );
+}
+
+export function subscriptionTiersMatching(query: string): SubscriptionTier[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 2) return [];
+  return SUBSCRIPTION_TIERS.filter((t) => t.toLowerCase().includes(needle));
+}

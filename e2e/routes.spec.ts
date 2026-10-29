@@ -107,8 +107,14 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     await visit(page, "/rfqs", /RFQ|Microcrystalline|Paracetamol/i);
     await visit(page, "/rfqs/new", /Raise an RFQ|product|material/i);
     // A material category narrows who sees an RFQ (only suppliers listing it),
-    // so the form states the reach of the current choice before publishing.
-    await expect(page.getByText(/Any category: all \d+ verified compan/i)).toBeVisible();
+    // so the form states the reach of the current choice before publishing —
+    // the type's count under the type, the category's effect under the category.
+    await expect(page.getByTestId("reach-type-notice")).toHaveText(
+      /\d+ verified compan(y|ies) of this type/i,
+    );
+    await expect(page.getByTestId("reach-category-notice")).toHaveText(
+      /Any category: all \d+ of them will see it/i,
+    );
     const reach = await page.request.get(
       `${API_PATH}/rfqs/reach?targetCompanyType=RAW_MATERIAL_MANUFACTURER`,
     );
@@ -146,7 +152,7 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     if (threadId) await visit(page, `/messages/${threadId}`, /Malaba|CoA|message|reply|order/i);
   });
 
-  test("intelligence + finance analytics", async () => {
+  test("intelligence analytics; finance is not an Operations destination", async () => {
     // Prices are per category, never blended: the API returns per-category
     // series plus how many quotations could be priced at all.
     const res = await page.request.get(`${API_PATH}/intelligence/prices`);
@@ -159,7 +165,10 @@ test.describe("Company user (buyer) routes render seeded data", () => {
     await expect(page.getByRole("heading", { name: "Prices by category" })).toBeVisible();
     // Every chart offers its values as a table — the path for touch and keyboard.
     await expect(page.getByText("View as table").first()).toBeVisible();
-    await visit(page, "/finance", /Cash movement|payments|invoices/i);
+    // US-204 TC1: Operations is refused finance with the not-authorised page.
+    await page.goto("/finance", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/forbidden/);
+    await expect(page.getByText(/not authorised to view this/i)).toBeVisible();
   });
 });
 
@@ -167,6 +176,12 @@ test.describe("Company admin routes", () => {
   test("member management renders", async ({ browser }) => {
     const page = await signIn(browser, "admin@nilepharma.demo", DEMO_PW);
     await visit(page, "/company/members", /member|invite|role|Grace|Peter/i);
+    await page.context().close();
+  });
+
+  test("finance analytics render for the Company Admin", async ({ browser }) => {
+    const page = await signIn(browser, "admin@nilepharma.demo", DEMO_PW);
+    await visit(page, "/finance", /Cash movement|payments|invoices/i);
     await page.context().close();
   });
 });

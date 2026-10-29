@@ -1,7 +1,7 @@
 // Response typing shared with the API via type-only Prisma imports (erased at
 // build time — no Prisma runtime reaches the browser bundle).
 
-import type { Paginated, UsageEvaluation } from "@pharmachain/core";
+import type { CompanyType, Paginated, UsageEvaluation } from "@pharmachain/core";
 import type {
   Announcement,
   AuditLog,
@@ -92,10 +92,15 @@ export type RfqRow = Jsonify<Rfq> & {
   _count: { quotations: number };
 };
 
+/** GET /rfqs/inbox — RFQs this company can still quote on (quoted ones are under Quotations sent). */
 export type RfqInboxRow = Jsonify<Rfq> & {
   buyerCompany: CompanyRef;
   category: { name: string } | null;
-  quotations: Array<{ id: string; status: string; version: number }>;
+};
+
+/** The rule the inbox applied: the company type, and the listing categories it matched on. */
+export type RfqInboxResponse = Paginated<RfqInboxRow> & {
+  scope: { companyType: CompanyType; categories: Array<{ id: string; name: string }> };
 };
 
 export type RfqDetail = Jsonify<Rfq> & {

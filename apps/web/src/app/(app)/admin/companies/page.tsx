@@ -50,7 +50,11 @@ export default async function AdminCompaniesPage({
         title="Companies"
         description="All registered companies; open one to manage verification, tier and members, or onboard a trial client cohort."
       >
-        <LiveSearch label="Search companies" placeholder="Search by name…" className="w-64" />
+        <LiveSearch
+          label="Search companies"
+          placeholder="Name, country, type or tier…"
+          className="w-72"
+        />
         <OnboardClientsDialog />
       </PageHeader>
 
@@ -81,7 +85,7 @@ export default async function AdminCompaniesPage({
       {companies.items.length === 0 ? (
         <EmptyState
           title="No companies found"
-          hint="No company matches that name — clear the search to see all registered companies."
+          hint="No company's name, country, registration number, type or tier matches that search — clear it to see all registered companies."
         />
       ) : (
         <>

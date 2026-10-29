@@ -181,21 +181,40 @@ export class RfqService {
     return paginate(items.map(withEffectiveStatus), total, query);
   }
 
-  /** Supplier inbox (US-402): open, before deadline, targeted at my company
-   *  type, and — when the RFQ names a category — matching my published lines. */
+  /**
+   * Supplier inbox (US-402): RFQs this company can still quote on — open, before
+   * the deadline, targeted at its company type and, when an RFQ names a
+   * category, matching one of its published listing categories.
+   *
+   * "Still": an RFQ it has already quoted on lives under Quotations sent, where
+   * it is resubmitted or withdrawn. It used to stay here too, so the same
+   * quotation could be replaced from both tabs (client review, 2026-10-29).
+   *
+   * The response also states the rule it applied (`scope`): which categories
+   * this company is matched on. An RFQ naming another category reaches only the
+   * suppliers listing it, and nothing used to tell a supplier why an RFQ for its
+   * company type never appeared (the same review).
+   */
   async inbox(membership: Membership, query: PaginationQuery) {
     const myCategories = await prisma.listing.findMany({
       where: { companyId: membership.companyId, status: "PUBLISHED" },
-      select: { categoryId: true },
+      select: { category: { select: { id: true, name: true } } },
       distinct: ["categoryId"],
     });
-    const categoryIds = myCategories.map((l) => l.categoryId);
+    const categories = myCategories
+      .map((l) => l.category)
+      .sort((a, b) => a.name.localeCompare(b.name));
     const where = {
       status: "OPEN",
       deadline: { gt: new Date() },
       targetCompanyType: membership.company.type,
       buyerCompanyId: { not: membership.companyId },
-      OR: [{ categoryId: null }, { categoryId: { in: categoryIds } }],
+      OR: [{ categoryId: null }, { categoryId: { in: categories.map((c) => c.id) } }],
+      // Any quotation it still has here (active, withdrawn, expired, accepted)
+      // is one it cannot submit afresh — that RFQ is under Quotations sent.
+      quotations: {
+        none: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
+      },
     } satisfies Prisma.RfqWhereInput;
     const [items, total] = await prisma.$transaction([
       prisma.rfq.findMany({
@@ -203,17 +222,16 @@ export class RfqService {
         include: {
           buyerCompany: { select: { id: true, name: true, country: true } },
           category: { select: { name: true } },
-          quotations: {
-            where: { supplierCompanyId: membership.companyId, status: { not: "SUPERSEDED" } },
-            select: { id: true, status: true, version: true },
-          },
         },
         orderBy: { deadline: "asc" },
         ...skipTake(query),
       }),
       prisma.rfq.count({ where }),
     ]);
-    return paginate(items, total, query);
+    return {
+      ...paginate(items, total, query),
+      scope: { companyType: membership.company.type, categories },
+    };
   }
 
   /**

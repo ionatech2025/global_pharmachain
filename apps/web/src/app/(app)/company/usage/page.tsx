@@ -1,4 +1,4 @@
-import type { UsageEvaluation } from "@pharmachain/core";
+import { can, type UsageEvaluation } from "@pharmachain/core";
 import { Meter } from "@/components/dashboard/charts";
 import { Panel, PanelBody, PanelHeader } from "@/components/dashboard/panel";
 import { PageHeader } from "@/components/page-header";
@@ -41,11 +41,16 @@ function UsageCard({ title, usage }: { title: string; usage: UsageEvaluation }) 
 
 export default async function UsagePage() {
   const api = await apiServer();
-  const [usage, credits, me] = await Promise.all([
+  // Request-deduplicated: the layout already fetched this.
+  const me = await getViewer();
+  // Billing (credit purchases, fees, payment references) is for the Company Admin
+  // and Finance staff; Operations sees only the allowance they spend (US-204 TC1).
+  const seesBilling = me.membership ? can(me.membership.role, "finance:read") : false;
+  const [usage, credits] = await Promise.all([
     api.get<UsageSummary>("/companies/me/usage"),
-    api.get<CreditRequestRow[]>("/billing/credit-requests"),
-    // Request-deduplicated: the layout already fetched this.
-    getViewer(),
+    seesBilling
+      ? api.get<CreditRequestRow[]>("/billing/credit-requests")
+      : Promise.resolve([] as CreditRequestRow[]),
   ]);
 
   return (
@@ -58,11 +63,20 @@ export default async function UsagePage() {
         <UsageCard title="RFQs created" usage={usage.rfq} />
         <UsageCard title="Quotations submitted" usage={usage.quotation} />
       </div>
-      <CreditRequestPanel
-        credits={credits}
-        canRequest={me.membership?.role === "COMPANY_ADMIN"}
-        tier={me.membership?.subscriptionTier ?? "FREEMIUM"}
-      />
+      {seesBilling ? (
+        <CreditRequestPanel
+          credits={credits}
+          canRequest={me.membership?.role === "COMPANY_ADMIN"}
+          tier={me.membership?.subscriptionTier ?? "FREEMIUM"}
+        />
+      ) : (
+        <Panel data-testid="billing-restricted">
+          <PanelHeader
+            title="Credits and billing"
+            description="Access restricted: buying credits and the company's billing history are handled by your Company Admin and Finance staff. Ask them if this month's allowance runs low."
+          />
+        </Panel>
+      )}
     </div>
   );
 }

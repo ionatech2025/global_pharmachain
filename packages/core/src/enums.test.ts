@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { VERIFICATION_STATUSES, verificationStatusLabel } from "./enums";
+import {
+  companyTypesMatching,
+  subscriptionTiersMatching,
+  VERIFICATION_STATUSES,
+  verificationStatusLabel,
+} from "./enums";
 
 describe("verification status words (client review, 2026-10-27)", () => {
   test("a renewal back in the queue reads as awaiting re-approval", () => {
@@ -17,5 +22,29 @@ describe("verification status words (client review, 2026-10-27)", () => {
       expect(verificationStatusLabel(status, true)).toBe(verificationStatusLabel(status, false));
     }
     expect(verificationStatusLabel("EXPIRED_DOCUMENT", true)).toBe("Document expired");
+  });
+});
+
+describe("admin company search matches types and tiers (client review, 2026-10-29)", () => {
+  test("a word in the Type column finds every type that shows it", () => {
+    const types = companyTypesMatching("supplier");
+    expect(types).toContain("SUPPLIER");
+    expect(types).toContain("LABORATORY_CONSUMABLES_SUPPLIER");
+    expect(types).not.toContain("RAW_MATERIAL_MANUFACTURER");
+  });
+
+  test("the label the admin reads matches, case-insensitively", () => {
+    expect(companyTypesMatching("Wholesale Pharmacy")).toEqual(["WHOLESALE_PHARMACY"]);
+    expect(companyTypesMatching("raw material")).toEqual(["RAW_MATERIAL_MANUFACTURER"]);
+  });
+
+  test("tiers match by name", () => {
+    expect(subscriptionTiersMatching("premium")).toEqual(["PREMIUM"]);
+    expect(subscriptionTiersMatching("FREE")).toEqual(["FREEMIUM"]);
+  });
+
+  test("one character selects nothing", () => {
+    expect(companyTypesMatching("s")).toEqual([]);
+    expect(subscriptionTiersMatching("p")).toEqual([]);
   });
 });

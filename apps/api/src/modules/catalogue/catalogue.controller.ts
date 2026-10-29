@@ -71,6 +71,13 @@ export class CatalogueController {
     return this.catalogueService.listExchangeRates();
   }
 
+  @Public()
+  @Header("Cache-Control", REFERENCE_CACHE_CONTROL)
+  @Get("origins")
+  origins() {
+    return this.catalogueService.listOrigins();
+  }
+
   @RequirePermission("catalogue:read")
   @Get()
   listMine(

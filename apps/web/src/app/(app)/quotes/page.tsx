@@ -1,3 +1,4 @@
+import { COMPANY_TYPE_LABELS } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import {
   Table,
@@ -15,7 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
 import { QuotationStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
-import type { MyQuotationRow, Paginated, RfqInboxRow } from "@/lib/api/types";
+import type { MyQuotationRow, Paginated, RfqInboxResponse } from "@/lib/api/types";
 import { fmtDate, fmtDeadline, fmtMoney, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Quote inbox" };
@@ -45,7 +46,7 @@ export default async function QuotesPage({
         title="Quote inbox"
         description={
           view === "inbox"
-            ? "Open RFQs targeted at your company category. RFQs disappear at their deadline."
+            ? "RFQs you can still quote on. Once you quote, an RFQ moves to Quotations sent; RFQs leave at their deadline."
             : "Quotations your company has sent, newest first."
         }
       />
@@ -91,17 +92,46 @@ async function InboxView({
   api: Awaited<ReturnType<typeof apiServer>>;
   page: number;
 }) {
-  const result = await api.get<Paginated<RfqInboxRow>>("/rfqs/inbox", { query: { page } });
+  const result = await api.get<RfqInboxResponse>("/rfqs/inbox", { query: { page } });
   // A new RFQ, a cancellation, an amendment or a deadline passing reaches this
   // list without a reload.
   const live = <LiveRefresh stream="/rfqs/inbox/stream" />;
+  // Say which rule produced this list. An RFQ that names a material category goes
+  // only to suppliers listing in it, and a supplier used to have no way to know
+  // why an RFQ for its company type never appeared (client review, 2026-10-29).
+  const { companyType, categories } = result.scope;
+  const scope = (
+    <p className="text-sm text-muted-foreground" data-testid="inbox-scope">
+      RFQs for{" "}
+      <span className="font-medium text-foreground">{COMPANY_TYPE_LABELS[companyType]}</span>{" "}
+      companies that name no material category
+      {categories.length > 0 ? (
+        <>
+          {" "}
+          or one you publish listings in:{" "}
+          <span className="font-medium text-foreground">
+            {categories.map((c) => c.name).join(", ")}
+          </span>
+          .
+        </>
+      ) : (
+        <>. You publish no listings yet, so RFQs that name a category don&rsquo;t reach you.</>
+      )}{" "}
+      An RFQ naming another category goes only to suppliers listing in it —{" "}
+      <Link href="/catalogue" className="font-medium text-primary underline">
+        publish listings
+      </Link>{" "}
+      to receive those too. RFQs you have quoted on are under Quotations sent.
+    </p>
+  );
   if (result.items.length === 0) {
     return (
       <>
         {live}
+        {scope}
         <EmptyState
-          title="No open RFQs right now"
-          hint="RFQs matching your company category and published listing categories appear here — and you are notified the moment one is published."
+          title="Nothing waiting for a quote"
+          hint="New RFQs that match the rule above appear here — and you are notified the moment one is published."
         />
       </>
     );
@@ -109,6 +139,7 @@ async function InboxView({
   return (
     <>
       {live}
+      {scope}
       <Table>
         <TableHeader>
           <TableRow>
@@ -117,7 +148,9 @@ async function InboxView({
             <TableHead>Quantity</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Deadline</TableHead>
-            <TableHead>Your quote</TableHead>
+            <TableHead className="text-right">
+              <span className="sr-only">Action</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -138,12 +171,14 @@ async function InboxView({
               </TableCell>
               <TableCell className="text-muted-foreground">{rfq.category?.name ?? "Any"}</TableCell>
               <TableCell>{fmtDeadline(rfq.deadline)}</TableCell>
-              <TableCell>
-                {rfq.quotations.length > 0 ? (
-                  <Badge variant="success">Submitted (v{rfq.quotations[0]?.version})</Badge>
-                ) : (
-                  <Badge variant="outline">Not quoted</Badge>
-                )}
+              <TableCell className="text-right">
+                <Link
+                  href={`/rfqs/${rfq.id}`}
+                  className="text-sm font-medium text-primary hover:underline"
+                  aria-label={`Quote on ${rfq.refNo}`}
+                >
+                  Quote
+                </Link>
               </TableCell>
             </TableRow>
           ))}

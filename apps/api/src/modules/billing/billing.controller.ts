@@ -40,12 +40,15 @@ export class BillingController {
    * is excluded on purpose: it exists so two trading companies can put money
    * with a third party, which is meaningless for a fee owed to the platform.
    */
-  @RequirePermission("usage:read")
+  // Billing, not usage: fees, payment methods and the purchase history are for
+  // the Company Admin and Finance staff; Operations sees only the usage counters
+  // (/companies/me/usage). US-204 TC1, client review 2026-10-29.
+  @RequirePermission("finance:read")
   @Get("payment-methods")
   paymentMethods() {
     return enabledPaymentMethods().filter((m) => m.method !== "ESCROW");
   }
-  @RequirePermission("usage:read")
+  @RequirePermission("finance:read")
   @Get("credit-requests")
   list(@CurrentMembership() membership: Membership) {
     return prisma.creditRequest.findMany({
@@ -56,7 +59,7 @@ export class BillingController {
   }
 
   /** US-907: the fee is shown at the point of request, before submitting. */
-  @RequirePermission("usage:read")
+  @RequirePermission("finance:read")
   @Get("credit-fees")
   async fees() {
     const [rfq, quotation, featured, verificationPremium, insights, currency] = await Promise.all([
