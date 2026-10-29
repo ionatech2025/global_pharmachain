@@ -59,6 +59,7 @@ test.describe
     });
 
     test("buyer signs in and raises an RFQ", async ({ browser }) => {
+      test.setTimeout(180_000); // two sign-ins; a deployed target can take ~30 s each from here
       const page = await signIn(browser, BUYER_EMAIL);
       // The RFQ is delivered to every supplier it targets (2026-10-29): aim it at a
       // category only the demo seller lists in, so no real company is notified.
@@ -67,7 +68,14 @@ test.describe
       await seller.context().close();
       test.skip(quiet === null, QUIET_TARGET_SKIP);
 
+      // Typed only once the form has hydrated: a field filled before React
+      // attaches is reset by it (seen 2026-10-29 — the title came back empty).
+      // The reach notice is rendered by a client-side query, so it can only
+      // appear after hydration — a precise signal, unlike "network idle".
       await page.goto(quiet?.categoryId ? `/rfqs/new?categoryId=${quiet.categoryId}` : "/rfqs/new");
+      await expect(page.getByText(/will see it|would see this RFQ|costs no reach/)).toBeVisible({
+        timeout: 60_000,
+      });
       await page.getByLabel("Product / material required").fill(RFQ_TITLE);
       await page.getByLabel("Quantity").fill("250");
       await page.getByLabel("Unit").fill("kg");
