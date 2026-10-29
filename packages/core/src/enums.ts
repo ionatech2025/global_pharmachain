@@ -374,6 +374,9 @@ export const NOTIFICATION_TYPES = [
   "APPROVAL_PENDING",
   "PAYMENT_OVERDUE",
   "ISSUE_UPDATE",
+  // RFQ delivery (2026-10-29)
+  "NEW_RFQ",
+  "QUOTATION_RECEIPT",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -391,6 +394,9 @@ export const PREFERENCE_EVENT_TYPES = [
   "DOCUMENT_MISSING",
   "DISPUTE_UPDATE",
   "ISSUE_UPDATE",
+  // New RFQs can be muted per channel. QUOTATION_RECEIPT is deliberately not
+  // here: a receipt is the supplier's record of submission, always sent.
+  "NEW_RFQ",
 ] as const satisfies readonly NotificationType[];
 export type PreferenceEventType = (typeof PREFERENCE_EVENT_TYPES)[number];
 
@@ -407,6 +413,7 @@ export const PREFERENCE_EVENT_LABELS: Record<PreferenceEventType, string> = {
   DOCUMENT_MISSING: "Missing shipment documents",
   DISPUTE_UPDATE: "Dispute and complaint updates",
   ISSUE_UPDATE: "Support issue and ticket updates",
+  NEW_RFQ: "New RFQs your company can quote on",
 };
 
 export const ANNOUNCEMENT_AUDIENCES = ["ALL", "ROLE", "COMPANY"] as const;

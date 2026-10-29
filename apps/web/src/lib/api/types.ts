@@ -104,6 +104,13 @@ export type RfqDetail = Jsonify<Rfq> & {
   documents: Array<{ id: string; fileName: string; size: number }>;
   bomItem: { id: string; materialName: string; bomId: string } | null;
   order: { id: string; orderNo: string } | null;
+  amendments: Array<{
+    id: string;
+    note: string;
+    previousDeadline: string;
+    newDeadline: string;
+    createdAt: string;
+  }>;
   viewerIsBuyer: boolean;
   myQuotation: Jsonify<Quotation> | null;
 };

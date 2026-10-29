@@ -1,6 +1,21 @@
 import { Injectable } from "@nestjs/common";
-import type { CompanyType, PaginationQuery, QuotationSubmit, RfqCreate } from "@pharmachain/core";
-import { canTransitionRfq, generateRefNo, paginate, skipTake } from "@pharmachain/core";
+import type {
+  CompanyType,
+  PaginationQuery,
+  QuotationSubmit,
+  RfqAmend,
+  RfqCreate,
+} from "@pharmachain/core";
+import {
+  canTransitionRfq,
+  effectiveRfqStatus,
+  formatNoticeTime,
+  generateRefNo,
+  paginate,
+  RFQ_STATUSES,
+  type RfqStatus,
+  skipTake,
+} from "@pharmachain/core";
 import { Prisma, prisma } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
@@ -11,6 +26,7 @@ import { defer } from "../../lib/defer";
 import { withSerializableRetry } from "../../lib/tx";
 import { emitWebhookEvent } from "../../lib/webhooks";
 import { evaluateCompanyUsage } from "../billing/usage";
+import { distributeRfq, rfqAudience } from "./distribution";
 
 const SERIALIZABLE = { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
 
@@ -41,6 +57,11 @@ export async function rfqReach(
       : Promise.resolve(null),
   ]);
   return { ofType, inCategory };
+}
+
+/** Status as a reader should act on it — see effectiveRfqStatus. */
+function withEffectiveStatus<T extends { status: RfqStatus; deadline: Date }>(rfq: T): T {
+  return { ...rfq, status: effectiveRfqStatus(rfq.status, rfq.deadline) };
 }
 
 @Injectable()
@@ -132,6 +153,9 @@ export class RfqService {
     );
 
     if (usage.crossesWarnThreshold) await this.usageWarning(membership.companyId, "RFQ");
+    // Delivered to every eligible supplier straight after the response; the
+    // rfq-distribution job finishes anything this attempt could not.
+    defer(distributeRfq(rfq.id));
     return rfq;
   }
 
@@ -154,7 +178,7 @@ export class RfqService {
       }),
       prisma.rfq.count({ where }),
     ]);
-    return paginate(items, total, query);
+    return paginate(items.map(withEffectiveStatus), total, query);
   }
 
   /** Supplier inbox (US-402): open, before deadline, targeted at my company
@@ -223,7 +247,11 @@ export class RfqService {
       }),
       prisma.quotation.count({ where }),
     ]);
-    return paginate(items, total, query);
+    return paginate(
+      items.map((q) => ({ ...q, rfq: withEffectiveStatus(q.rfq) })),
+      total,
+      query,
+    );
   }
 
   private async isEligibleSupplierForRfq(
@@ -261,12 +289,33 @@ export class RfqService {
         },
         bomItem: { select: { id: true, materialName: true, bomId: true } },
         order: { select: { id: true, orderNo: true } },
+        amendments: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            note: true,
+            previousDeadline: true,
+            newDeadline: true,
+            createdAt: true,
+          },
+        },
       },
     });
     if (!rfq) throw notFound("RFQ not found");
 
     const isBuyer = membership?.companyId === rfq.buyerCompanyId;
-    const isEligibleSupplier = !isBuyer && (await this.isEligibleSupplierForRfq(membership, rfq));
+    // A supplier the RFQ was delivered to keeps access even if it stops matching
+    // later (a listing unpublished): it was given the solicitation, and its
+    // addenda and outcome are still its business.
+    const isRecipient =
+      !isBuyer &&
+      membership !== undefined &&
+      (await prisma.rfqDistribution.findUnique({
+        where: { rfqId_companyId: { rfqId, companyId: membership.companyId } },
+        select: { id: true },
+      })) !== null;
+    const isEligibleSupplier =
+      !isBuyer && (isRecipient || (await this.isEligibleSupplierForRfq(membership, rfq)));
     if (!isBuyer && !isEligibleSupplier && !user.isSuperAdmin) throw notFound("RFQ not found");
 
     const myQuotation =
@@ -281,41 +330,193 @@ export class RfqService {
           })
         : null;
 
-    return { ...rfq, viewerIsBuyer: isBuyer, myQuotation };
+    return { ...withEffectiveStatus(rfq), viewerIsBuyer: isBuyer, myQuotation };
   }
 
   async cancelRfq(_user: AuthUser, membership: Membership, rfqId: string) {
-    const rfq = await prisma.rfq.findUnique({
-      where: { id: rfqId },
-      include: { quotations: { where: { status: { not: "SUPERSEDED" } } } },
-    });
+    const rfq = await prisma.rfq.findUnique({ where: { id: rfqId } });
     if (!rfq || rfq.buyerCompanyId !== membership.companyId) throw notFound("RFQ not found");
-    if (!canTransitionRfq(rfq.status, "CANCELLED")) {
+    const from = RFQ_STATUSES.filter((st) => canTransitionRfq(st, "CANCELLED"));
+    if (!from.includes(rfq.status)) {
       throw conflict(`An RFQ in status ${rfq.status} cannot be cancelled`);
     }
-    const updated = await prisma.rfq.update({
-      where: { id: rfqId },
+    // Conditional, like the award: a cancel racing an award (two tabs, two
+    // colleagues) used to overwrite AWARDED with CANCELLED while the order stood.
+    const moved = await prisma.rfq.updateMany({
+      where: { id: rfqId, status: { in: from } },
       data: { status: "CANCELLED", cancelledAt: new Date() },
     });
-    // US-407: suppliers who responded are notified
-    const supplierIds = [...new Set(rfq.quotations.map((q) => q.supplierCompanyId))];
+    if (moved.count === 0)
+      throw conflict("This RFQ was just awarded or closed — it was not cancelled");
+    const updated = await prisma.rfq.findUniqueOrThrow({ where: { id: rfqId } });
+    // US-407 / UNCITRAL art. 30(4): every supplier the RFQ was provided to is
+    // told — not only those that had already quoted (some were still preparing).
+    const audience = await rfqAudience(rfqId);
+    const url = `${env.APP_URL}/rfqs/${rfq.id}`;
     await Promise.all(
-      supplierIds.map((companyId) =>
+      audience.map((companyId) =>
         notify({
           companyId,
+          roles: ["COMPANY_ADMIN", "OPERATIONS"],
           type: "RFQ_STATUS_CHANGE",
           title: "RFQ cancelled",
-          body: `RFQ ${rfq.refNo} (${rfq.title}) was cancelled by the buyer.`,
-          href: "/quotes",
+          body: `RFQ ${rfq.refNo} (${rfq.title}) was cancelled by the buyer. No quotation is needed.`,
+          href: `/rfqs/${rfq.id}`,
           emailContent: genericEventEmail({
             title: "RFQ cancelled",
-            body: `RFQ ${rfq.refNo} — ${rfq.title} — was cancelled by the buyer.`,
-            url: `${env.APP_URL}/quotes`,
+            body: `RFQ ${rfq.refNo} — ${rfq.title} — was cancelled by the buyer. No quotation is needed.`,
+            url,
           }),
+          whatsappText: `PharmaChain: RFQ ${rfq.refNo} was cancelled by the buyer.`,
         }),
       ),
     );
+    defer(
+      emitWebhookEvent(audience, "rfq.cancelled", {
+        rfqId: rfq.id,
+        refNo: rfq.refNo,
+        title: rfq.title,
+        cancelledAt: updated.cancelledAt?.toISOString(),
+      }),
+    );
     return updated;
+  }
+
+  /**
+   * An addendum to an open RFQ, optionally with a later deadline (UNCITRAL Model
+   * Law arts. 28(2), 30(2)-(4)): dated, kept, and sent promptly to every supplier
+   * the RFQ reached. A deadline only moves later — shortening it would take time
+   * from suppliers already preparing a response.
+   */
+  async amendRfq(user: AuthUser, membership: Membership, rfqId: string, input: RfqAmend) {
+    const rfq = await prisma.rfq.findUnique({ where: { id: rfqId } });
+    if (!rfq || rfq.buyerCompanyId !== membership.companyId) throw notFound("RFQ not found");
+    if (effectiveRfqStatus(rfq.status, rfq.deadline) !== "OPEN") {
+      throw conflict("Only an open RFQ can be amended, before its deadline");
+    }
+    const newDeadline = input.newDeadline ? new Date(input.newDeadline) : rfq.deadline;
+    if (newDeadline.getTime() < rfq.deadline.getTime()) {
+      throw badRequest("A deadline can be extended, not brought forward");
+    }
+    const amendment = await prisma.$transaction(async (tx) => {
+      // Compare-and-set on the deadline read above, so two amendments in flight
+      // cannot silently overwrite each other's extension.
+      const moved = await tx.rfq.updateMany({
+        where: { id: rfqId, status: "OPEN", deadline: { equals: rfq.deadline, gt: new Date() } },
+        data: { deadline: newDeadline },
+      });
+      if (moved.count === 0) {
+        throw conflict("The RFQ changed while you were amending it — reload and try again");
+      }
+      return tx.rfqAmendment.create({
+        data: {
+          rfqId,
+          createdById: user.id,
+          note: input.note,
+          previousDeadline: rfq.deadline,
+          newDeadline,
+        },
+      });
+    });
+
+    const extended = newDeadline.getTime() !== rfq.deadline.getTime();
+    const closes = formatNoticeTime(newDeadline);
+    const headline = extended
+      ? `RFQ ${rfq.refNo} amended — the deadline is now ${closes}.`
+      : `RFQ ${rfq.refNo} amended. The deadline is unchanged: ${closes}.`;
+    const url = `${env.APP_URL}/rfqs/${rfq.id}`;
+    const audience = await rfqAudience(rfqId);
+    await Promise.all(
+      audience.map((companyId) =>
+        notify({
+          companyId,
+          roles: ["COMPANY_ADMIN", "OPERATIONS"],
+          type: "RFQ_STATUS_CHANGE",
+          title: extended ? "RFQ amended, deadline extended" : "RFQ amended",
+          body: `${headline} ${input.note}`,
+          href: `/rfqs/${rfq.id}`,
+          emailContent: genericEventEmail({
+            title: extended ? "RFQ amended — deadline extended" : "RFQ amended",
+            body: `${headline}\n\n${rfq.title}\n\n${input.note}\n\nThe amendment is part of the RFQ. If you have already quoted, your quotation stands; you can replace it before the deadline.`,
+            url,
+            cta: "Review the amendment",
+          }),
+          whatsappText: `PharmaChain: ${headline} ${url}`,
+        }),
+      ),
+    );
+    defer(
+      emitWebhookEvent(audience, "rfq.amended", {
+        rfqId: rfq.id,
+        refNo: rfq.refNo,
+        amendmentId: amendment.id,
+        note: input.note,
+        previousDeadline: rfq.deadline.toISOString(),
+        deadline: newDeadline.toISOString(),
+      }),
+    );
+    return { amendment, recipients: audience.length };
+  }
+
+  // ─── Live change feeds (SSE) ────────────────────────────────────────────────
+
+  /**
+   * What an RFQ page shows, reduced to a string that changes when it does: the
+   * RFQ itself (status, deadline, amendments all bump updatedAt), its effective
+   * status (the deadline passing is a change even before the close job runs),
+   * and quotations — every one for the buyer, only its own for a supplier, so
+   * the feed never reveals that competitors quoted (US-406).
+   */
+  async rfqFingerprint(rfqId: string, viewer: { companyId: string | null; isBuyer: boolean }) {
+    // A viewer with no company (a platform admin) follows the RFQ itself only:
+    // there is no "own quotation" to watch, and an empty id is not a uuid.
+    const quoteScope = viewer.isBuyer
+      ? { rfqId }
+      : viewer.companyId
+        ? { rfqId, supplierCompanyId: viewer.companyId }
+        : null;
+    const [rfq, quotes] = await Promise.all([
+      prisma.rfq.findUnique({
+        where: { id: rfqId },
+        select: { updatedAt: true, status: true, deadline: true },
+      }),
+      quoteScope
+        ? prisma.quotation.aggregate({
+            where: quoteScope,
+            _count: { _all: true },
+            _max: { updatedAt: true },
+          })
+        : Promise.resolve({ _count: { _all: 0 }, _max: { updatedAt: null } }),
+    ]);
+    if (!rfq) return "gone";
+    return [
+      rfq.updatedAt.toISOString(),
+      effectiveRfqStatus(rfq.status, rfq.deadline),
+      quotes._count._all,
+      quotes._max.updatedAt?.toISOString() ?? "",
+    ].join("|");
+  }
+
+  /** The supplier inbox, reduced the same way: a new RFQ for this company, any
+   *  change to one, or one passing its deadline. */
+  async inboxFingerprintFor(membership: Membership): Promise<() => Promise<string>> {
+    const myCategories = await prisma.listing.findMany({
+      where: { companyId: membership.companyId, status: "PUBLISHED" },
+      select: { categoryId: true },
+      distinct: ["categoryId"],
+    });
+    const where = {
+      targetCompanyType: membership.company.type,
+      buyerCompanyId: { not: membership.companyId },
+      OR: [{ categoryId: null }, { categoryId: { in: myCategories.map((l) => l.categoryId) } }],
+    } satisfies Prisma.RfqWhereInput;
+    return async () => {
+      const [all, open] = await Promise.all([
+        prisma.rfq.aggregate({ where, _count: { _all: true }, _max: { updatedAt: true } }),
+        prisma.rfq.count({ where: { ...where, status: "OPEN", deadline: { gt: new Date() } } }),
+      ]);
+      return `${all._count._all}|${all._max.updatedAt?.toISOString() ?? ""}|${open}`;
+    };
   }
 
   // ─── Quotations (US-403/404/405/406) ───────────────────────────────────────
@@ -349,6 +550,50 @@ export class RfqService {
       // US-604: WhatsApp for new quotations — short summary + link only, no details.
       whatsappText: `PharmaChain: ${updated ? "updated quotation" : "new quotation"} from ${supplierName} on RFQ ${rfq.refNo}. ${env.APP_URL}/rfqs/${rfq.id}`,
     });
+  }
+
+  /**
+   * The supplier's receipt (UNCITRAL Model Law art. 30(5)(c)): the date and time
+   * the quotation was received, its reference and version, and until when it can
+   * still be replaced. Not opt-out-able — it is their record of submission.
+   */
+  private async sendQuotationReceipt(
+    user: AuthUser,
+    quotation: {
+      id: string;
+      refNo: string;
+      version: number;
+      currency: string;
+      totalPrice: Prisma.Decimal;
+      createdAt: Date;
+    },
+    rfq: { id: string; refNo: string; title: string; deadline: Date; buyerCompanyId: string },
+  ): Promise<void> {
+    const receivedAt = formatNoticeTime(quotation.createdAt);
+    const body = `Quotation ${quotation.refNo} (version ${quotation.version}, ${quotation.currency} ${quotation.totalPrice.toString()} total) for RFQ ${rfq.refNo} — ${rfq.title} — was received ${receivedAt}. You can replace it until ${formatNoticeTime(rfq.deadline)}.`;
+    await notify({
+      userIds: [user.id],
+      type: "QUOTATION_RECEIPT",
+      title: `Quotation ${quotation.refNo} received`,
+      body,
+      href: `/rfqs/${rfq.id}`,
+      emailContent: genericEventEmail({
+        title: "Quotation received",
+        body,
+        url: `${env.APP_URL}/rfqs/${rfq.id}`,
+        cta: "View the RFQ",
+      }),
+    });
+    defer(
+      emitWebhookEvent([rfq.buyerCompanyId], "quotation.received", {
+        rfqId: rfq.id,
+        rfqRefNo: rfq.refNo,
+        quotationId: quotation.id,
+        quotationRefNo: quotation.refNo,
+        version: quotation.version,
+        receivedAt: quotation.createdAt.toISOString(),
+      }),
+    );
   }
 
   async submitQuotation(
@@ -428,6 +673,7 @@ export class RfqService {
 
     if (usage.crossesWarnThreshold) await this.usageWarning(membership.companyId, "QUOTATION");
     await this.notifyBuyerOfQuotation(rfq, membership.company.name, false);
+    await this.sendQuotationReceipt(user, quotation, rfq);
     return quotation;
   }
 
@@ -489,6 +735,7 @@ export class RfqService {
     });
 
     await this.notifyBuyerOfQuotation(current.rfq, membership.company.name, true);
+    await this.sendQuotationReceipt(user, quotation, current.rfq);
     return quotation;
   }
 

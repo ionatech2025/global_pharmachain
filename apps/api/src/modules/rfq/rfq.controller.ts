@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Sse } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
   COMPANY_TYPES,
@@ -9,7 +9,9 @@ import {
   paginationQuerySchema,
   type QuotationSubmit,
   quotationSubmitSchema,
+  type RfqAmend,
   type RfqCreate,
+  rfqAmendSchema,
   rfqCreateSchema,
 } from "@pharmachain/core";
 import type { FastifyRequest } from "fastify";
@@ -23,6 +25,7 @@ import {
   setAudit,
 } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
+import { changeFeed } from "../../lib/change-feed";
 import type { AuthUser, Membership } from "../../lib/context";
 import { RfqService } from "./rfq.service";
 
@@ -85,6 +88,16 @@ export class RfqController {
     return rfq;
   }
 
+  /** Live inbox (SSE): an event whenever an RFQ arrives for this company,
+   *  changes, or passes its deadline. See changeFeed. */
+  @RequirePermission("quotation:read")
+  @RequireVerified()
+  @Sse("inbox/stream")
+  async inboxStream(@CurrentMembership() membership: Membership, @Req() req: FastifyRequest) {
+    const fingerprint = await this.rfqService.inboxFingerprintFor(membership);
+    return changeFeed(fingerprint, lastEventId(req));
+  }
+
   @RequirePermission("quotation:read")
   @RequireVerified()
   @Get("inbox")
@@ -122,6 +135,47 @@ export class RfqController {
       newValues: { status: rfq.status },
     });
     return rfq;
+  }
+
+  @RequirePermission("rfq:write")
+  @HttpCode(200)
+  @Post(":id/amend")
+  async amend(
+    @CurrentUser() user: AuthUser,
+    @CurrentMembership() membership: Membership,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Body(zodPipe(rfqAmendSchema)) body: RfqAmend,
+    @Req() req: FastifyRequest,
+  ) {
+    const { amendment, recipients } = await this.rfqService.amendRfq(
+      user,
+      membership,
+      params.id,
+      body,
+    );
+    setAudit(req, {
+      action: "rfq.amend",
+      entityType: "Rfq",
+      entityId: params.id,
+      oldValues: { deadline: amendment.previousDeadline.toISOString() },
+      newValues: { deadline: amendment.newDeadline.toISOString(), recipients },
+      reason: body.note,
+    });
+    return { amendment, recipients };
+  }
+
+  /** Live RFQ page (SSE). Access is asserted before the stream opens (the same
+   *  rule as reading the RFQ); afterwards it only ever says "something changed". */
+  @Sse(":id/stream")
+  async stream(
+    @CurrentUser() user: AuthUser,
+    @OptionalMembership() membership: Membership | undefined,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const rfq = await this.rfqService.getRfq(user, membership, params.id);
+    const viewer = { companyId: membership?.companyId ?? null, isBuyer: rfq.viewerIsBuyer };
+    return changeFeed(() => this.rfqService.rfqFingerprint(params.id, viewer), lastEventId(req));
   }
 
   @RequirePermission("quotation:read")
@@ -234,4 +288,9 @@ export class QuotationController {
     });
     return order;
   }
+}
+
+function lastEventId(req: FastifyRequest): string | undefined {
+  const value = req.headers["last-event-id"];
+  return typeof value === "string" && value.length > 0 && value.length <= 200 ? value : undefined;
 }

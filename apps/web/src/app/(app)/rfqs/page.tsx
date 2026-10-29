@@ -14,7 +14,7 @@ import { PaginationNav } from "@/components/pagination-nav";
 import { RfqStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { Paginated, RfqRow } from "@/lib/api/types";
-import { fmtDate, fmtNumber } from "@/lib/format";
+import { fmtDeadline, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "My RFQs" };
 
@@ -74,7 +74,7 @@ export default async function RfqsPage({
                   <TableCell>
                     {fmtNumber(rfq.quantity)} {rfq.unit}
                   </TableCell>
-                  <TableCell>{fmtDate(rfq.deadline)}</TableCell>
+                  <TableCell>{fmtDeadline(rfq.deadline)}</TableCell>
                   <TableCell>{rfq._count.quotations}</TableCell>
                   <TableCell>
                     <RfqStatusBadge status={rfq.status} />

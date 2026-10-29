@@ -16,6 +16,17 @@ export const rfqCreateSchema = z.object({
 });
 export type RfqCreate = z.infer<typeof rfqCreateSchema>;
 
+/**
+ * An addendum to an open RFQ (UNCITRAL Model Law art. 28(2)) and, optionally, a
+ * later deadline (art. 30(2)-(3)). A deadline can only move later: shortening it
+ * would take time away from suppliers who are already preparing a response.
+ */
+export const rfqAmendSchema = z.object({
+  note: z.string().trim().min(10).max(2000),
+  newDeadline: futureDatetime.optional(),
+});
+export type RfqAmend = z.infer<typeof rfqAmendSchema>;
+
 export const quotationSubmitSchema = z.object({
   unitPrice: decimalString, // TC4: unit price mandatory
   currency: currencySchema,

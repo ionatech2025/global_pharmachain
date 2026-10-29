@@ -39,14 +39,18 @@ import type { z } from "zod";
 import { AttachmentPicker } from "@/components/attachment-picker";
 import { api } from "@/lib/api/browser";
 import { ApiClientError, errorMessage } from "@/lib/api/http";
+import { toLocalInputValue } from "@/lib/format";
 
 const DEFAULT_DEADLINE_DAYS = 14;
 /** Radix Select cannot hold an empty value, so "any category" needs a token. */
 const ANY_CATEGORY = "any";
 
+/** 23:59 in the buyer's own zone, DEFAULT_DEADLINE_DAYS from now. It used to be
+ *  23:59 UTC on a date, which is already the next morning in Kampala. */
 function defaultDeadline(): string {
   const d = new Date(Date.now() + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 10);
+  d.setHours(23, 59, 0, 0);
+  return d.toISOString();
 }
 
 export function RfqForm({
@@ -68,7 +72,7 @@ export function RfqForm({
       unit: prefill.unit ?? "kg",
       targetCompanyType: "RAW_MATERIAL_MANUFACTURER",
       categoryId: prefill.categoryId,
-      deadline: new Date(`${defaultDeadline()}T23:59:00Z`).toISOString(),
+      deadline: defaultDeadline(),
       attachmentDocumentIds: [],
       bomItemId: prefill.bomItemId,
     },
@@ -262,15 +266,20 @@ export function RfqForm({
                   <FormLabel>Response deadline</FormLabel>
                   <FormControl>
                     <Input
-                      type="date"
-                      min={new Date().toISOString().slice(0, 10)}
-                      defaultValue={field.value?.slice(0, 10)}
-                      onChange={(e) =>
-                        field.onChange(new Date(`${e.target.value}T23:59:00Z`).toISOString())
-                      }
+                      type="datetime-local"
+                      min={toLocalInputValue(new Date())}
+                      defaultValue={field.value ? toLocalInputValue(field.value) : undefined}
+                      onChange={(e) => {
+                        const at = new Date(e.target.value);
+                        field.onChange(Number.isFinite(at.getTime()) ? at.toISOString() : "");
+                      }}
                     />
                   </FormControl>
-                  <FormDescription>Past deadlines are rejected.</FormDescription>
+                  <FormDescription>
+                    A date and a time, in your time zone (
+                    {Intl.DateTimeFormat().resolvedOptions().timeZone}). Each supplier sees it in
+                    theirs. Past deadlines are rejected.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

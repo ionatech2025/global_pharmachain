@@ -92,7 +92,10 @@ export function notificationIconFor(
       return ShieldCheck;
     case "RFQ_STATUS_CHANGE":
     case "NEW_QUOTATION":
+    case "NEW_RFQ":
       return Inbox;
+    case "QUOTATION_RECEIPT":
+      return CheckCircle2;
     case "SHIPMENT_STATUS_CHANGE":
     case "SHIPMENT_DELAYED":
     case "CUSTOMS_ALERT":
