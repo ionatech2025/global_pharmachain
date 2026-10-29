@@ -494,6 +494,30 @@ run I started concurrently; passes on its own), and the new marketplace case, wh
 compared a five-minute-cached dropdown with a live read (rewritten to check behaviour:
 choosing a listed country filters to it; passes).
 
+### Release (2026-10-30), with the canonical-domain switch
+
+PRs #29 (this review) and #30 (canonical domain) merged; no schema change, no migration.
+Production `APP_URL` set to `https://www.pharmachainglobal.com` before the deploy (it builds
+every email link; variables bind at deployment). `scripts/deploy-vercel.sh` → `31ncr0rro`
+on the first attempt, public origin `https://www.pharmachainglobal.com`; rollback target
+`gzv5jo2la`.
+
+Verified with the Vercel CLI and on the live site:
+
+* `vercel inspect`: Ready, all four aliases, functions in `sin1`; logs since: every function
+  response 200, no errors or warnings.
+* Canonical signals name the custom domain on **both** hosts: `<link rel=canonical>`,
+  `og:url`, the sitemap, robots' `Sitemap:` and `security.txt` (`Canonical:` lists both).
+* **Email links**: the invitation (epic2 case 21) and password-reset (case 27) emails, read
+  from real mailboxes, now link to `https://www.pharmachainglobal.com` — asserted via
+  `E2E_CANONICAL_ORIGIN`; the same invitation check returned the vercel.app host before.
+* `e2e/client-review-2026-10-29.spec.ts` against www: **9/9** (its TC1 cases had failed on
+  the old code — Operations read `/finance/report` with 200).
+* **Full suite against https://www.pharmachainglobal.com: 116 passed, 0 failed, 12
+  skipped**, 1 flaky — epic2 case 28, which asks the platform admin to appoint a Company
+  Admin to a company that already has one; since 2026-10-22 that is correctly refused
+  (409). The test needs aligning with that rule.
+
 ## Needs the client / the operator
 
 1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,
