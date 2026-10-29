@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
+import { passkeyDomainHelp } from "@/lib/passkey-domain";
 
 interface PasskeyRow {
   id: string;
@@ -62,10 +63,12 @@ export function PasskeysCard({ isPlatformAdmin }: { isPlatformAdmin: boolean }) 
 
   async function add() {
     setBusy(true);
+    let rpId: string | undefined;
     try {
       const optionsJSON = await api.post<PublicKeyCredentialCreationOptionsJSON>(
         "/auth/passkeys/register/options",
       );
+      rpId = optionsJSON.rp.id;
       const { startRegistration } = await import("@simplewebauthn/browser");
       const response = await startRegistration({ optionsJSON });
       await api.post("/auth/passkeys/register/verify", {
@@ -79,7 +82,10 @@ export function PasskeysCard({ isPlatformAdmin }: { isPlatformAdmin: boolean }) 
       // The browser cancelling the prompt is not a server error; say so plainly.
       const cancelled =
         err instanceof Error && /NotAllowed|cancel|abort/i.test(err.name + err.message);
-      toast.error(cancelled ? "Passkey setup was cancelled." : errorMessage(err));
+      toast.error(
+        passkeyDomainHelp(err, rpId) ??
+          (cancelled ? "Passkey setup was cancelled." : errorMessage(err)),
+      );
     } finally {
       setBusy(false);
     }

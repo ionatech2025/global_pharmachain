@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import { safeCallbackUrl } from "@/lib/callback-url";
+import { PasskeyCeremonyError, passkeyDomainHelp } from "@/lib/passkey-domain";
 
 /**
  * Asks the server for a challenge (naming no account) and has the browser sign it. The
@@ -30,7 +31,11 @@ async function getPasskeyAssertion(): Promise<string> {
   const optionsJSON =
     await api.post<PublicKeyCredentialRequestOptionsJSON>("/auth/passkey/options");
   const { startAuthentication } = await import("@simplewebauthn/browser");
-  return JSON.stringify(await startAuthentication({ optionsJSON }));
+  try {
+    return JSON.stringify(await startAuthentication({ optionsJSON }));
+  } catch (err) {
+    throw new PasskeyCeremonyError(err, optionsJSON.rpId);
+  }
 }
 
 function LoginForm() {
@@ -78,9 +83,13 @@ function LoginForm() {
         let assertion: string;
         try {
           assertion = await getPasskeyAssertion();
-        } catch {
+        } catch (err) {
           setPasskeyFallback(true);
-          toast.error("Passkey sign-in was cancelled or is not available on this device.");
+          const domainHelp =
+            err instanceof PasskeyCeremonyError ? passkeyDomainHelp(err.cause, err.rpId) : null;
+          toast.error(
+            domainHelp ?? "Passkey sign-in was cancelled or is not available on this device.",
+          );
           return;
         }
         result = await attempt({ passkey: assertion });
