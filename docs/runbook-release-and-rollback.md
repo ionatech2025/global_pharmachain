@@ -2,8 +2,11 @@
 
 How a release goes out, how to prove it is live, and — the part that is easy to get wrong —
 when it can and cannot be undone. Written 2026-10-23 from the releases of 2026-10-11,
--22 and -23. `git push` does **not** deploy this project (`vercel.json` disables git
-deployments on purpose); the release is a prebuilt upload.
+-22 and -23 (updated 2026-10-30 for automated Actions deploys). Vercel's built-in Git
+integration is disabled (`vercel.json` sets `"git": { "deploymentEnabled": false }`)
+because the release is a prebuilt upload assembled by `scripts/deploy-vercel.sh`;
+`.github/workflows/deploy.yml` runs that script automatically whenever `CI` succeeds on
+`main` (and can also be dispatched manually or run locally).
 
 ## 1. Before releasing
 
@@ -30,10 +33,12 @@ GET). See `e2e/README.md`.
    and after (host masked). Migrations here are additive and idempotent.
    *Why first:* code that names a new column or enum value fails on a database that lacks
    it — the admin companies list compared against `DELETED` and would have returned 500s.
-2. **Deploy:** `scripts/deploy-vercel.sh`. It fails closed (functions pinned to `sin1`,
-   `nodejs24.x`, response streaming). On this machine the upload sometimes dies with
-   `fetch failed` — see `ipv6-blackhole` notes: force IPv4 and retry; a retry can leave a
-   duplicate, unaliased deployment (harmless).
+2. **Deploy:** `.github/workflows/deploy.yml` runs `scripts/deploy-vercel.sh` automatically
+   after `CI` passes on `main` (or via `gh workflow run deploy.yml`, or locally via
+   `scripts/deploy-vercel.sh`). It fails closed (functions pinned to `sin1`, `nodejs24.x`,
+   response streaming) and uploads with `--archive=tgz`. On this machine a local upload
+   sometimes dies with `fetch failed` — see `ipv6-blackhole` notes: force IPv4 and retry;
+   a retry can leave a duplicate, unaliased deployment (harmless).
 3. **Verify it is genuinely live** — a 200 proves nothing, a stale deploy returns 200:
    * `vercel ls --prod` — newest deployment is `Ready`; `vercel inspect <alias>` names it,
      target `production`, functions in `sin1`;

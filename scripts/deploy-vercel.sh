@@ -23,8 +23,17 @@ API_RUNTIME="nodejs24.x"
 # The client's own domain is canonical (2026-10-30): canonical URLs, the sitemap,
 # robots and social cards name it. The vercel.app host still serves the same build.
 export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-https://www.pharmachainglobal.com}"
+if command -v vercel >/dev/null 2>&1; then
+  VERCEL_CMD=(vercel)
+else
+  VERCEL_CMD=(bunx vercel@58.7.1)
+fi
 
 echo "== 1. Build the API serverless bundle =="
+if [ ! -d node_modules/.prisma/client ]; then
+  bun run db:generate >/tmp/db-gen.log 2>&1 \
+    || { echo "   PRISMA GENERATE FAILED:"; tail -20 /tmp/db-gen.log | sed 's/^/     /'; exit 1; }
+fi
 cd apps/api
 EXT="--external @prisma/client --external @node-rs/argon2 --external nodemailer --external @nestjs/microservices --external @nestjs/websockets --external @nestjs/platform-express --external class-validator --external class-transformer --external @fastify/view --external @fastify/static --external @apollo/server --external @as-integrations/fastify"
 rm -rf api && mkdir -p api
@@ -40,18 +49,31 @@ echo "== 2. Point the project at apps/web =="
 python3 - <<'PY'
 import json, os
 p = "apps/web/.vercel/project.json"
-d = json.load(open(p))
+if os.path.exists(p):
+    d = json.load(open(p))
+else:
+    d = {
+        "projectId": os.environ.get("VERCEL_PROJECT_ID", "prj_NGQTZoO7rPRF9YsPylYuITnmrWnI"),
+        "orgId": os.environ.get("VERCEL_ORG_ID", "team_6scESWZ4tyV13XFGBnliQEBC"),
+        "projectName": "global-pharmachain",
+    }
 d.setdefault("settings", {})
 d["settings"]["rootDirectory"] = "apps/web"
 d["settings"]["framework"] = "nextjs"
 os.makedirs(".vercel", exist_ok=True)
 json.dump(d, open(".vercel/project.json", "w"), indent=2)
+os.makedirs("apps/web/.vercel", exist_ok=True)
+if not os.path.exists(p):
+    json.dump(
+        {k: d[k] for k in ("projectId", "orgId", "projectName") if k in d},
+        open(p, "w"),
+    )
 print("   project", d["projectId"])
 PY
 
 echo "== 3. vercel build (web) =="
 rm -rf .vercel/output apps/web/.next apps/web/.vercel/output
-vercel build --prod >/tmp/vb.log 2>&1 || { tail -20 /tmp/vb.log; exit 1; }
+"${VERCEL_CMD[@]}" build --prod --yes >/tmp/vb.log 2>&1 || { tail -20 /tmp/vb.log; exit 1; }
 echo "   output: $(ls .vercel/output/functions | wc -l) functions"
 
 echo "== 4. Assemble the API function =="
@@ -84,34 +106,38 @@ json.dump(config, open(os.path.join(os.environ["FUNC"], ".vc-config.json"), "w")
 PY
 echo "   func: $(du -sh "$FUNC" | cut -f1)"
 
-echo "== 4b. Pin every Node function to $REGION =="
+echo "== 4b. Pin every Node function to $REGION ($API_RUNTIME) =="
 REGION="$REGION" API_RUNTIME="$API_RUNTIME" python3 - <<'PY'
 import glob, json, os, sys
 region = os.environ["REGION"]
+runtime = os.environ["API_RUNTIME"]
 pinned = skipped = 0
 for path in glob.glob(".vercel/output/functions/**/.vc-config.json", recursive=True):
     cfg = json.load(open(path))
     if not str(cfg.get("runtime", "")).startswith("nodejs"):
         skipped += 1  # the edge middleware runs everywhere by design
         continue
-    if cfg.get("regions") != [region]:
+    if cfg.get("regions") != [region] or cfg.get("runtime") != runtime:
         cfg["regions"] = [region]
+        cfg["runtime"] = runtime
         json.dump(cfg, open(path, "w"), indent=2)
     pinned += 1
-# Fail closed: a release with any Node function outside the region, or the
-# API on a runtime Vercel no longer deploys, must not go out.
+# Fail closed: a release with any Node function outside the region, or on a
+# runtime Vercel no longer deploys, must not go out.
 bad = []
 for path in glob.glob(".vercel/output/functions/**/.vc-config.json", recursive=True):
     cfg = json.load(open(path))
-    if str(cfg.get("runtime", "")).startswith("nodejs") and cfg.get("regions") != [region]:
+    if str(cfg.get("runtime", "")).startswith("nodejs") and (
+        cfg.get("regions") != [region] or cfg.get("runtime") != runtime
+    ):
         bad.append(path)
 api = json.load(open(".vercel/output/functions/api/backend.func/.vc-config.json"))
-if api.get("runtime") != os.environ["API_RUNTIME"] or not api.get("supportsResponseStreaming"):
+if api.get("runtime") != runtime or not api.get("supportsResponseStreaming"):
     bad.append("api/backend.func (runtime/streaming)")
 if bad:
     print("   REGION/RUNTIME CHECK FAILED:", *bad[:10], sep="\n     ")
     sys.exit(1)
-print(f"   pinned {pinned} Node function(s) to {region}; {skipped} edge function(s) left global")
+print(f"   pinned {pinned} Node function(s) to {region} ({runtime}); {skipped} edge function(s) left global")
 PY
 
 echo "== 4c. No development origin in the built output =="
@@ -146,7 +172,7 @@ echo "== 6. Deploy =="
 # the script exiting 0, so a deploy that never landed looked like a success.
 # Take vercel's own status from PIPESTATUS and fail loudly on it.
 set +e
-vercel deploy --prebuilt --prod 2>&1 | tee /tmp/vd.log
+"${VERCEL_CMD[@]}" deploy --prebuilt --prod --archive=tgz --yes 2>&1 | tee /tmp/vd.log
 status=${PIPESTATUS[0]}
 set -e
 grep -E 'Production|Aliased' /tmp/vd.log || true
