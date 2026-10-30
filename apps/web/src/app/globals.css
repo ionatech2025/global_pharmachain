@@ -436,8 +436,16 @@
     transform-origin: center;
     animation: orbit-spin 42s linear infinite;
   }
-  .animate-arc-dash {
-    animation: arc-dash 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  /* A light travelling each supply route: it rotates about the route arc's
+     centre (transform-origin and --route-sweep set inline per route). It
+     must be `transform: rotate()`: on SVG elements Chromium runs that off the
+     main thread, while the `rotate` property, a motion path or a
+     stroke-dashoffset sweep each cost ~200-300 ms of main thread a second
+     (measured 2026-10-30). Invisible at rest, so stopped motion leaves no
+     stray dot at a route's start. */
+  .animate-route-dot {
+    opacity: 0;
+    animation: route-dot 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   .animate-twinkle {
     animation: starfield-twinkle 3.5s ease-in-out infinite;
@@ -449,18 +457,16 @@
     transform-origin: center;
     animation: node-ping 2.8s ease-out infinite;
   }
-  /* 3D globe scene: perspective on the wrapper, a slow dimensional tilt on the
-     wireframe layer (kept off the blurred glass so the blur never re-samples
-     per frame), and a rotating sheen that reads as the lit surface turning. */
-  .globe-scene {
-    perspective: 1100px;
-  }
-  .animate-globe-tilt {
-    transform-style: preserve-3d;
-    animation: globe-tilt 18s ease-in-out infinite;
-  }
+  /* A rotating sheen that reads as the lit surface turning. (The globe once
+     also tilted in CSS 3D; drawing everything through a perspective transform
+     doubled the cost of every frame, so the scene stays flat.) */
   .animate-globe-sheen {
     animation: orbit-spin 20s linear infinite;
+  }
+  /* The globe's pause control (GlobeMotionToggle, WCAG 2.2.2). Specific
+     enough to beat the animate-* shorthands, which reset play-state. */
+  :root:has(.globe-pause:checked) .globe-scene * {
+    animation-play-state: paused;
   }
 
   /* ── Marketing surfaces (landing + auth) ─────────────────────────────
@@ -542,9 +548,9 @@
     transform: rotate(360deg);
   }
 }
-@keyframes arc-dash {
+@keyframes route-dot {
   0% {
-    stroke-dashoffset: 400;
+    transform: rotate(0deg);
     opacity: 0;
   }
   15% {
@@ -554,7 +560,7 @@
     opacity: 1;
   }
   100% {
-    stroke-dashoffset: 0;
+    transform: rotate(var(--route-sweep));
     opacity: 0;
   }
 }
@@ -576,15 +582,6 @@
   100% {
     transform: scale(2.8);
     opacity: 0;
-  }
-}
-@keyframes globe-tilt {
-  0%,
-  100% {
-    transform: rotateX(7deg) rotateY(-12deg);
-  }
-  50% {
-    transform: rotateX(3deg) rotateY(12deg);
   }
 }
 @keyframes float-y {

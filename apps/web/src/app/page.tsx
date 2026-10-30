@@ -18,7 +18,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChromeCube, ChromeSphere } from "@/components/chrome-motif";
 import { HeroMarketCards, HeroTickerRow } from "@/components/glass-panels";
-import { HeroGlobe } from "@/components/hero-globe";
+import { GlobeMotionToggle, HeroGlobe } from "@/components/hero-globe";
 import { Logo, LogoMark } from "@/components/logo";
 import { MallDirectoryGrid } from "@/components/mall-directory";
 import { RouteMarquee } from "@/components/route-marquee";
@@ -339,6 +339,9 @@ export default async function LandingPage() {
                   verifiedCompanies={stats?.verifiedCompanies}
                 />
               </div>
+              {/* Pause for the globe's motion (WCAG 2.2.2): shown where the globe
+                  is, and only while motion is on; outside its aria-hidden layer. */}
+              <GlobeMotionToggle className="absolute right-6 bottom-6 hidden lg:motion-safe:inline-flex" />
             </div>
           </section>
 

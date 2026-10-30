@@ -104,3 +104,65 @@ A critical second pass audited our own Phase 1–4 diff plus surrounding regulat
 - **Unit tests (`bun run test`)**: **251 passed, 0 failed** (`@pharmachain/core` 128, `@pharmachain/api` 92, `@pharmachain/email` 31).
 - **Axe-core 4.12 (`wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa, best-practice`)**: **42 / 42 route × theme (`light`, `dark`) × viewport (`320px`, `390px`, `1440px`) combinations clean (0 violations)**.
 - **Playwright E2E (`e2e/client-review.spec.ts`)**: **14 / 14 browser verification cases passed** (hero alignment at 4 widths, registration country detection, company types, password policy, heading hierarchy, `scroll-padding-top` WCAG 2.4.11, `320px`/`375px` reflow WCAG 1.4.10, zero emojis, zero dangling `aria-describedby` IDs, `role="alert"` form messages, Zod v4 `jitless` CSP verification, `/#compliance` anchor landing accuracy, and `MallDirectoryGrid` filter accessibility).
+
+---
+
+## 5. Follow-up (2026-10-30): the hero globe moves again
+
+**Why it was still.** Phase 4 above removed "continuous per-frame `backdrop-filter` /
+`feGaussianBlur` animations". In `hero-globe.tsx` that meant stripping *every* animation class
+from the markup (the keyframes and utilities stayed in `globals.css`, unused), and the same
+pass stopped the trade-lane marquee. The real costs were two blurs: the glass orb carried
+`backdrop-blur-md` inside the 3D-tilting layer, and the route arcs ran through an SVG glow
+filter, so both were re-rendered on every frame. The client asked why the globe no longer
+animated.
+
+**What came back, and what did not.** The meridian spin, the orbit ring, the rotating sheen,
+the hub pulses, the twinkling stars and a light travelling each supply route. Measurement
+ruled out four things, and each stays out with a comment saying why:
+
+| Kept out | Why (Chrome trace, landing page at 1440×900, DPR 2) |
+| --- | --- |
+| Backdrop blur on the orb; SVG glow filter on the routes | The original problem: re-rendered every frame. |
+| The CSS 3D tilt (perspective + `translateZ` layers) | Every frame drew the whole globe through a perspective transform: twice the compositing cost of the same motion flat. |
+| A `stroke-dashoffset` sweep along the routes | Repaints the route every frame: **~180–250 ms of main thread per second**. |
+| Moving the route light with a motion path (`offset-distance`) or the `rotate` property | Same problem on SVG elements: **~210 and ~280–320 ms/s**. `transform: rotate()` about the route arc's centre costs **~13 ms/s** — so each route is now the circular arc through the old curve's ends and midpoint, and its light rotates along it. |
+
+Main-thread cost of the globe with everything moving: **~32 ms per second** (about 3% of a
+core); paused: **0**. The spin, ring and sheen are ~1 ms/s each, the stars ~4, the hub pulses
+~9–15. Measured with `browser.startTracing` (top-level tasks summed per thread over a fixed
+idle window) on a local production build.
+
+One limit of this machine: headless Chrome without a GPU composites in software, and there
+*any* motion inside the globe — even only the stars — keeps the compositor thread near one
+core, because the whole globe area is redrawn through every layer stacked on it. Desktop
+browsers composite on the GPU, where that is routine work; a machine with GPU acceleration
+off would see a real cost, which is one more reason for the pause control below. The globe is
+`display: none` below the `lg` breakpoint, so phones never render it.
+
+**Stopping it (WCAG 2.2.2 Pause, Stop, Hide).** Motion that starts on its own, loops for more
+than five seconds and sits beside other content must be stoppable. `GlobeMotionToggle` is a
+native checkbox ("Pause the globe animation") in the hero's corner, outside the globe's
+`aria-hidden` layer; checking it pauses every animation in `.globe-scene` through `:has()`,
+with no script, so it works before hydration. It is shown only where the globe is and only
+while motion is on (`lg:motion-safe:`); `prefers-reduced-motion` already stops everything
+through the global kill switch, and the route lights and hub pulses are invisible at rest so
+a stopped globe looks like the still one. Loops use negative delays, so nothing shows its
+resting frame first.
+
+**Verified.** `e2e/hero-globe.spec.ts` (4 cases): the loops run and the meridians move; each
+route light stays on the globe and ends exactly on its route's end point (< 1.5 px); the pause
+control works from the keyboard and freezes every animation, and resumes; under reduced
+motion nothing runs and no control is offered; below `lg` neither shows. The motion and pause
+cases fail on the previous build, as they should. axe-core (WCAG 2.2 AA + best practice):
+0 violations, light and dark, 1440 and 390 px, playing and paused. Pause icon contrast 7.2:1
+(measured from pixels; axe has no non-text-contrast rule); focus ring visible in both themes;
+reached by Tab after the hero's own controls.
+
+Lighthouse 12.8.2 on the local build, runs interleaved so both variants see the same machine
+load (globe moving vs Chrome forced to `prefers-reduced-motion`, i.e. the still globe):
+desktop **100 / 100 / 99 / 100** moving vs **100 / 100 / 100** still (one still run errored),
+TBT 36–79 ms vs 41–60 ms; Speed Index ~50 ms higher with motion (median 523 vs 479 ms), no
+score effect; mobile 93–94 vs 90–91 (the globe is not rendered there). An earlier round taken
+while another project's test suite loaded this machine read 71–99 for *both* variants — check
+the load before trusting a Lighthouse number here.
