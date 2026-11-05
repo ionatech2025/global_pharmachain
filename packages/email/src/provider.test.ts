@@ -133,6 +133,17 @@ describe("emailConfigFromEnv", () => {
   test("reads the password from SMTP_PASSWORD", () => {
     expect(emailConfigFromEnv({ SMTP_PASSWORD: "s3cret" }).smtp?.password).toBe("s3cret");
   });
+
+  test("RESEND_API_KEY configures smtp.resend.com and pharmachainglobal.com sender by default", () => {
+    const config = emailConfigFromEnv({ RESEND_API_KEY: "re_test_key" });
+    expect(config.provider).toBe("smtp");
+    expect(config.from).toBe("Global PharmaChain <info@pharmachainglobal.com>");
+    expect(config.smtp?.host).toBe("smtp.resend.com");
+    expect(config.smtp?.port).toBe(587);
+    expect(config.smtp?.secure).toBe(false);
+    expect(config.smtp?.user).toBe("resend");
+    expect(config.smtp?.password).toBe("re_test_key");
+  });
 });
 
 describe("testRecipientFromEnv", () => {

@@ -181,6 +181,7 @@ export interface EmailProviderConfig {
 }
 
 const DEFAULT_FROM = "PharmaChain <no-reply@pharmachain.local>";
+const DEFAULT_RESEND_FROM = "Global PharmaChain <info@pharmachainglobal.com>";
 const DEFAULT_PORT = 587;
 /** The port that means implicit TLS, when SMTP_SECURE does not say. */
 const SMTPS_PORT = 465;
@@ -264,8 +265,9 @@ export function testRecipientFromEnv(
 export function emailConfigFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): EmailProviderConfig {
-  const host = env.SMTP_HOST || undefined;
-  const user = env.SMTP_USER || undefined;
+  const resendKey = env.RESEND_API_KEY || undefined;
+  const host = env.SMTP_HOST || (resendKey ? "smtp.resend.com" : undefined);
+  const user = env.SMTP_USER || (resendKey && host === "smtp.resend.com" ? "resend" : undefined);
   const parsedPort = Number(env.SMTP_PORT);
   const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : DEFAULT_PORT;
 
@@ -274,8 +276,11 @@ export function emailConfigFromEnv(
   if (env.EMAIL_PROVIDER === "console") provider = "console";
 
   // A relay almost always rejects a From it does not own, so the mailbox we
-  // authenticate as beats the dev placeholder when EMAIL_FROM is unset.
-  const configuredFrom = env.EMAIL_FROM || (user?.includes("@") ? user : DEFAULT_FROM);
+  // authenticate as beats the dev placeholder when EMAIL_FROM is unset. When
+  // authenticating via Resend (RESEND_API_KEY), default to the verified
+  // pharmachainglobal.com sender.
+  const defaultSender = resendKey ? DEFAULT_RESEND_FROM : DEFAULT_FROM;
+  const configuredFrom = env.EMAIL_FROM || (user?.includes("@") ? user : defaultSender);
   const rewritten =
     rewritesUnownedFrom(host, user, env.EMAIL_FROM_VERIFIED === "true") &&
     addressOf(configuredFrom) !== user;
@@ -297,7 +302,7 @@ export function emailConfigFromEnv(
       // from a bare host/port pair.
       secure: env.SMTP_SECURE ? env.SMTP_SECURE === "true" : port === SMTPS_PORT,
       user,
-      password: env.SMTP_PASSWORD || undefined,
+      password: env.SMTP_PASSWORD || resendKey || undefined,
     },
   };
 }
