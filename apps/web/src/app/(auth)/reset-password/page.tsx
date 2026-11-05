@@ -54,7 +54,7 @@ function ResetForm() {
             <PasswordInput
               id="password"
               required
-              minLength={8}
+              minLength={15}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

@@ -153,14 +153,21 @@ function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
+        <div
+          role="group"
+          aria-label="Sign-in method"
+          className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1 text-sm"
+        >
           {(["password", "otp"] as const).map((m) => (
             <button
               key={m}
               type="button"
+              aria-pressed={mode === m}
               onClick={() => setMode(m)}
-              className={`rounded-md px-3 py-1.5 transition-colors ${
-                mode === m ? "bg-background font-medium shadow-sm" : "text-muted-foreground"
+              className={`min-h-9 rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                mode === m
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {m === "password" ? "Password" : "Email code"}

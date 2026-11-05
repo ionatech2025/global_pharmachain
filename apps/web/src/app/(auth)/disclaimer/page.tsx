@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { AlertCircle, Scale } from "lucide-react";
-import { CONTACT_EMAIL } from "@/lib/contact";
+import { CONTACT_PHONES, INFO_EMAIL, SALES_EMAIL, SUPPORT_EMAIL, telHref } from "@/lib/contact";
 
 export const metadata = {
   title: "Legal Disclaimer & Regulatory Compliance · Global PharmaChain",
@@ -71,13 +71,39 @@ export default function LegalDisclaimerPage() {
 
         <div className="border-t pt-4 text-xs text-muted-foreground">
           <p>
-            For regulatory or compliance inquiries, contact the platform legal department at{" "}
+            For regulatory, compliance or general inquiries, contact{" "}
             <a
-              href={`mailto:${CONTACT_EMAIL}`}
+              href={`mailto:${INFO_EMAIL}`}
               className="text-primary underline hover:text-foreground"
             >
-              {CONTACT_EMAIL}
+              {INFO_EMAIL}
             </a>
+            . For commercial onboarding and enterprise sales, contact{" "}
+            <a
+              href={`mailto:${SALES_EMAIL}`}
+              className="text-primary underline hover:text-foreground"
+            >
+              {SALES_EMAIL}
+            </a>
+            . For technical assistance, contact{" "}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="text-primary underline hover:text-foreground"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+            {CONTACT_PHONES[0] && (
+              <>
+                {" "}
+                or call{" "}
+                <a
+                  href={telHref(CONTACT_PHONES[0])}
+                  className="text-primary underline hover:text-foreground"
+                >
+                  {CONTACT_PHONES[0]}
+                </a>
+              </>
+            )}
             .
           </p>
         </div>

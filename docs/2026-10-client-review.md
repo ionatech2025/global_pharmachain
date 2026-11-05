@@ -520,13 +520,13 @@ Verified with the Vercel CLI and on the live site:
 
 ## Needs the client / the operator
 
-1. **Contact details.** `contact@globalpharmachain.com` is printed in the footer,
-   legal page and `security.txt`, but the domain has an A record and **no MX
-   records**, so senders fall back to the web host's A record. Whether that host
-   accepts mail could not be confirmed from the test machine (outbound port 25 is
-   blocked), so treat the mailbox as unverified. The phone `+256 700 000 000` is an
-   obvious placeholder. Both are now `NEXT_PUBLIC_CONTACT_EMAIL` /
-   `NEXT_PUBLIC_CONTACT_PHONES`; real values are needed (a release applies them).
+1. **Contact details (resolved 2026-11-05).** Replaced `contact@globalpharmachain.com` and the
+   placeholder phones (`+256 700 000 000 / +254 700 000 000`) across the landing footer,
+   legal disclaimer, privacy policy, in-app footer, support dialog, email templates and
+   `security.txt` with the verified `pharmachainglobal.com` mailboxes (MX:
+   `mx1.spacemail.com`, `mx2.spacemail.com`) and phone number:
+   `sales@pharmachainglobal.com`, `info@pharmachainglobal.com`,
+   `support@pharmachainglobal.com`, and `+256 751 557058`.
 2. **Run `db-migrate` before releasing.** The migration only adds two enum values
    (additive, cannot be undone in PostgreSQL). Releasing first would 500 the admin
    companies list, which now compares against `DELETED`.

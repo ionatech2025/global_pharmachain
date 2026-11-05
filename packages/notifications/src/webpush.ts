@@ -45,7 +45,7 @@ function vapidJwt(audience: string, publicKey: string, privateKey: string): stri
       JSON.stringify({
         aud: audience,
         exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
-        sub: process.env.VAPID_SUBJECT ?? "mailto:no-reply@pharmachain.local",
+        sub: process.env.VAPID_SUBJECT ?? "mailto:support@pharmachainglobal.com",
       }),
     ),
   );

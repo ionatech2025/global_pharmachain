@@ -219,7 +219,7 @@ export function RegisterForm({
                 <FormItem>
                   <FormLabel>Contact phone</FormLabel>
                   <FormControl>
-                    <Input type="tel" autoComplete="tel" placeholder="+256 700 000000" {...field} />
+                    <Input type="tel" autoComplete="tel" placeholder="+256 751 557058" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

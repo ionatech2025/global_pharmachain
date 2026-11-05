@@ -32,7 +32,7 @@ function layout(title: string, bodyHtml: string): string {
   <tr><td style="font-size:18px;font-weight:bold;color:#00579a;padding-bottom:16px">Global PharmaChain</td></tr>
   <tr><td style="font-size:16px;font-weight:bold;color:#111827;padding-bottom:12px">${escapeHtml(title)}</td></tr>
   <tr><td style="font-size:14px;color:#374151;line-height:1.6">${bodyHtml}</td></tr>
-  <tr><td style="font-size:12px;color:#9ca3af;padding-top:24px">You receive this because you have a Global PharmaChain account. Manage notification preferences in Settings.</td></tr>
+  <tr><td style="font-size:12px;color:#9ca3af;padding-top:24px">You receive this because you have a Global PharmaChain account. Manage notification preferences in Settings.<br/>Contact: <a href="mailto:support@pharmachainglobal.com" style="color:#6b7280">support@pharmachainglobal.com</a> · <a href="mailto:sales@pharmachainglobal.com" style="color:#6b7280">sales@pharmachainglobal.com</a> · <a href="mailto:info@pharmachainglobal.com" style="color:#6b7280">info@pharmachainglobal.com</a> · <a href="tel:+256751557058" style="color:#6b7280">+256 751 557058</a></td></tr>
   </table></td></tr></table></body></html>`;
 }
 

@@ -61,5 +61,9 @@ describe("inviteEmail", () => {
     expect(approved.html).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
     expect(approved.text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
     expect(approved.text).toContain("Your company is verified");
+    expect(approved.html).toContain("support@pharmachainglobal.com");
+    expect(approved.html).toContain("sales@pharmachainglobal.com");
+    expect(approved.html).toContain("info@pharmachainglobal.com");
+    expect(approved.html).toContain("+256 751 557058");
   });
 });

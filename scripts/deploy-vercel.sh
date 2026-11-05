@@ -23,6 +23,11 @@ API_RUNTIME="nodejs24.x"
 # The client's own domain is canonical (2026-10-30): canonical URLs, the sitemap,
 # robots and social cards name it. The vercel.app host still serves the same build.
 export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-https://www.pharmachainglobal.com}"
+export NEXT_PUBLIC_SALES_EMAIL="${NEXT_PUBLIC_SALES_EMAIL:-sales@pharmachainglobal.com}"
+export NEXT_PUBLIC_INFO_EMAIL="${NEXT_PUBLIC_INFO_EMAIL:-info@pharmachainglobal.com}"
+export NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@pharmachainglobal.com}"
+export NEXT_PUBLIC_CONTACT_EMAIL="${NEXT_PUBLIC_CONTACT_EMAIL:-info@pharmachainglobal.com}"
+export NEXT_PUBLIC_CONTACT_PHONES="${NEXT_PUBLIC_CONTACT_PHONES:-+256 751 557058}"
 if command -v vercel >/dev/null 2>&1; then
   VERCEL_CMD=(vercel)
 else
@@ -140,14 +145,14 @@ if bad:
 print(f"   pinned {pinned} Node function(s) to {region} ({runtime}); {skipped} edge function(s) left global")
 PY
 
-echo "== 4c. No development origin in the built output =="
+echo "== 4c. No development origin or placeholder contacts in the built output =="
 # Prerendered HTML/RSC, sitemap.xml and robots.txt are fixed at build time;
-# a localhost origin in them is broken share cards and a wrong canonical URL
+# a localhost origin or retired placeholder contact in them is a broken release
 # on production. Grep the generated artefacts, not the bundled server code.
-leaks=$(grep -rIl --include='*.html' --include='*.rsc' --include='*.xml' --include='*.txt' \
-  --include='*.body' --include='*.meta' 'http://localhost:3000' .vercel/output 2>/dev/null | head -5 || true)
+leaks=$(grep -rIlE --include='*.html' --include='*.rsc' --include='*.xml' --include='*.txt' \
+  --include='*.body' --include='*.meta' 'http://localhost:3000|contact@globalpharmachain\.com|\+256 700 000 000' .vercel/output 2>/dev/null | head -5 || true)
 if [ -n "$leaks" ]; then
-  echo "   LOCALHOST ORIGIN IN BUILT OUTPUT — refusing to release:"
+  echo "   LOCALHOST ORIGIN OR PLACEHOLDER CONTACT IN BUILT OUTPUT — refusing to release:"
   echo "$leaks" | sed 's/^/     /'
   exit 1
 fi

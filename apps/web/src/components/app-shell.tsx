@@ -28,6 +28,7 @@ import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { PasskeyNudge } from "@/components/passkey-nudge";
+import { INFO_EMAIL, SALES_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 import { setViewerFormat } from "@/lib/format";
 import { AnnouncementBanner } from "./announcement-banner";
 import { CommandMenu } from "./command-menu";
@@ -368,6 +369,18 @@ export function AppShell({
           <Link href="/privacy" className="underline hover:text-foreground">
             Privacy policy
           </Link>
+          {" · "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-foreground">
+            {SUPPORT_EMAIL}
+          </a>
+          {" · "}
+          <a href={`mailto:${SALES_EMAIL}`} className="underline hover:text-foreground">
+            {SALES_EMAIL}
+          </a>
+          {" · "}
+          <a href={`mailto:${INFO_EMAIL}`} className="underline hover:text-foreground">
+            {INFO_EMAIL}
+          </a>
         </footer>
       </div>
       <IdleSession />

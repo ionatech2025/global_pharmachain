@@ -166,3 +166,19 @@ TBT 36–79 ms vs 41–60 ms; Speed Index ~50 ms higher with motion (median 523 
 score effect; mobile 93–94 vs 90–91 (the globe is not rendered there). An earlier round taken
 while another project's test suite loaded this machine read 71–99 for *both* variants — check
 the load before trusting a Lighthouse number here.
+
+---
+
+## 6. Follow-up (2026-11-05): Hercules Landing & Auth Refinement + Official Contacts
+
+Applied November 2026 Hercules UX/UI Design System and WCAG 2.2 AA/AAA research across the landing page (`/`), authentication shell (`(auth)/layout.tsx`, `/login`, `/register`, `/forgot-password`, `/reset-password`, `/invite`, `/disclaimer`, `/privacy`), and platform contact endpoints:
+
+1. **Font Styles, Weights & Optical Sizing (`globals.css`, `page.tsx`, `(auth)/layout.tsx`)**:
+   - Enabled `font-optical-sizing: auto`, `font-feature-settings: "cv02", "cv03", "cv04", "cv11"`, `text-rendering: optimizeLegibility`, and `p { text-wrap: pretty; }` across the base typography layer.
+   - Added fluid `rem + vw` display scales (`.text-display-hero`: `clamp(2.125rem, 1.45rem + 2.4vw, 3.65rem)`, `.text-display-section`: `clamp(1.75rem, 1.35rem + 1.4vw, 2.75rem)`, and auth `<CardTitle>`: `clamp(1.5rem, 1.25rem + 0.8vw, 1.875rem)`) so headings scale proportionally under 200%–400% browser zoom (WCAG 2.2 SC 1.4.4 & 1.4.10).
+   - Enforced a 4-weight hierarchy on `Geist`: `400` (`1.55–1.65` leading, `60ch–62ch` measure per WCAG 1.4.8) for prose and regulatory disclosures, `500` for interactive controls and labels, `600` for eyebrows (`0.6875rem`, `+0.16em` tracking) and `.figure` display numerals (`proportional-nums`, `-0.025em` tracking), and `700` for display headlines; paired with `Geist Mono` + `.num-col` (`tabular-nums slashed-zero`) on order/batch vignettes (`Order PC-2481`).
+2. **Calmness, Spatial Rhythm & Auth Landmark Hardening**:
+   - Upgraded `(auth)/layout.tsx` with a Skip-to-content link, a `56px` (`h-14`) `<header>` datum line matching the authenticated `AppShell`, a `max-w-lg` (`32rem`) `<main id="main" tabIndex={-1}>` landmark for multi-column `/register` and legal views, and a semantic `<footer>` separated from the `<AuthBrandPanel />` `<aside>`.
+   - Added `role="group" aria-label="Sign-in method"` and `aria-pressed` states to the `/login` mode toggle, aligned `/reset-password` and `/invite` `<PasswordInput minLength={15}>` with NIST SP 800-63B-4, replaced scale-bounce hover states with calm tonal elevation (`-translate-y-0.5`), and verified WCAG 2.2 SC 1.4.12 Text Spacing override resilience across `/`, `/login`, and `/register`.
+3. **Official `pharmachainglobal.com` Mailboxes & Phone**:
+   - Configured `sales@pharmachainglobal.com`, `info@pharmachainglobal.com`, `support@pharmachainglobal.com`, and `+256 751 557058` across `apps/web/src/lib/contact.ts`, landing footer, `/disclaimer`, `/privacy`, `AppShell` footer, `ReportIssueDialog`, `packages/email/src/templates.ts`, `packages/notifications/src/webpush.ts`, `/.well-known/security.txt`, `.env.example`, `scripts/deploy-vercel.sh`, and Vercel environment variables.

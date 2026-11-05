@@ -194,7 +194,7 @@ const TRADING_LANES: TradingLane[] = [
       },
       {
         name: "Institutional Procurement & Health Ministries",
-        desc: "National tender tenders, multilateral healthcare agency supply, and emergency health reserves.",
+        desc: "National ministry tenders, multilateral healthcare agency supply, and emergency health reserves.",
         tags: ["Tender Execution", "LC Settlement"],
       },
       {
@@ -245,10 +245,10 @@ export function MallDirectoryGrid() {
           >
             Interactive Mall Directory
           </Badge>
-          <h2 className="text-display text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+          <h2 className="text-display text-display-section font-bold text-foreground">
             Three Dedicated Trading Lanes
           </h2>
-          <p className="mt-3 text-base sm:text-lg text-muted-foreground">
+          <p className="mt-3 mx-auto max-w-[62ch] text-base sm:text-lg leading-[1.65] text-muted-foreground">
             A segregated, enterprise-grade directory mapping industrial inbound raw inputs,
             manufacturing capacity, and commercial outbound wholesale procurement.
           </p>
@@ -295,7 +295,7 @@ export function MallDirectoryGrid() {
             return (
               <div
                 key={lane.id}
-                className={`relative flex flex-col justify-between rounded-3xl border bg-card p-6 sm:p-7 transition-all duration-300 shadow-sm hover:shadow-xl hover:ring-2 hover:ring-primary/25 ${lane.colorTheme.border}`}
+                className={`relative flex flex-col justify-between rounded-3xl border bg-card p-6 sm:p-7 transition-[transform,box-shadow,border-color] duration-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md ${lane.colorTheme.border}`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-4">

@@ -1,4 +1,6 @@
-Contact: mailto:contact@globalpharmachain.com
+Contact: mailto:support@pharmachainglobal.com
+Contact: mailto:info@pharmachainglobal.com
+Contact: mailto:sales@pharmachainglobal.com
 Expires: 2027-10-11T00:00:00.000Z
 Preferred-Languages: en
 Canonical: https://www.pharmachainglobal.com/.well-known/security.txt

@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
+import { INFO_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 
 export const metadata = { title: "Privacy policy" };
 
@@ -37,6 +38,21 @@ export default function PrivacyPage() {
           <strong className="text-foreground">Notifications.</strong> Email and WhatsApp
           notifications are per-event opt-out in Settings; in-app notifications are always
           delivered. Data is owned by the uploading company and is never sold.
+        </p>
+        <p>
+          <strong className="text-foreground">Contact.</strong> For privacy or data-protection
+          inquiries, email{" "}
+          <a href={`mailto:${INFO_EMAIL}`} className="text-primary underline hover:text-foreground">
+            {INFO_EMAIL}
+          </a>{" "}
+          or{" "}
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="text-primary underline hover:text-foreground"
+          >
+            {SUPPORT_EMAIL}
+          </a>
+          .
         </p>
       </CardContent>
     </Card>
