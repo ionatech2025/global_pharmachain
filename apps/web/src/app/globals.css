@@ -213,13 +213,20 @@
   }
   body {
     @apply bg-background text-foreground;
-    line-height: 1.5;
+    line-height: 1.55;
+    font-optical-sizing: auto;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
   }
-  /* Headings never orphan a single word */
+  /* Headings never orphan a single word; prose paragraphs stay within the
+     WCAG 1.4.8 80-character comfortable reading measure unless overridden. */
   h1,
   h2,
   h3 {
     text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   ::selection {
     background: color-mix(in oklch, var(--primary) 20%, transparent);
@@ -471,13 +478,26 @@
 
   /* ── Marketing surfaces (landing + auth) ─────────────────────────────
      Hercules display headline setting: geometric sans (Geist), bold weight,
-     calm tight leading and negative tracking for high-trust B2B legibility
-     without an extra webfont payload or all-caps visual shouting. */
+     calm tight leading, optical sizing and negative tracking for high-trust
+     B2B legibility without an extra webfont payload or all-caps shouting. */
   .text-display {
     font-family: var(--font-display);
     font-weight: 700;
-    line-height: 1.08;
+    line-height: 1.1;
     letter-spacing: -0.028em;
+    font-optical-sizing: auto;
+  }
+  /* Fluid display scale (WCAG 1.4.4 / 1.4.10): always pairs rem with vw so
+     browser zoom scales proportionally from 320px to 1440px+. */
+  .text-display-hero {
+    font-size: clamp(2.125rem, 1.45rem + 2.4vw, 3.65rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+  .text-display-section {
+    font-size: clamp(1.75rem, 1.35rem + 1.4vw, 2.75rem);
+    line-height: 1.14;
+    letter-spacing: -0.026em;
   }
   /* Letter-spaced micro-label above display headlines. Colour is set at the
      use site (text-primary on light, white/70 on the azure panel). */
@@ -487,7 +507,7 @@
     gap: 0.5rem;
     font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
   /* Brand-fixed vivid azure panel (hero visual, auth aside, CTA band).

@@ -43,6 +43,7 @@ import { CreditStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { CreditRequestRow } from "@/lib/api/types";
+import { SALES_EMAIL } from "@/lib/contact";
 
 /** GET /billing/payment-methods — what this deployment can actually settle. */
 interface EnabledMethod {
@@ -331,7 +332,11 @@ function PayFeeDialog({ request }: { request: CreditRequestRow }) {
             </select>
             {methods?.length === 0 && (
               <p className="text-xs text-destructive">
-                No payment method is enabled on this deployment — contact the platform team.
+                No payment method is enabled on this deployment — contact the platform team at{" "}
+                <a href={`mailto:${SALES_EMAIL}`} className="underline">
+                  {SALES_EMAIL}
+                </a>
+                .
               </p>
             )}
           </div>

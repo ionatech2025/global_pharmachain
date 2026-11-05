@@ -25,7 +25,14 @@ import { RouteMarquee } from "@/components/route-marquee";
 import { ThemeOnlyProviders } from "@/components/theme-only-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { API_URL } from "@/env";
-import { CONTACT_EMAIL, CONTACT_PHONES, telHref } from "@/lib/contact";
+import {
+  CONTACT_EMAILS,
+  CONTACT_PHONES,
+  INFO_EMAIL,
+  SALES_EMAIL,
+  SUPPORT_EMAIL,
+  telHref,
+} from "@/lib/contact";
 import { LANE_LINKS } from "@/lib/lane-links";
 
 const SHARE_DESCRIPTION =
@@ -169,7 +176,9 @@ const FOOTER_GROUPS = [
   {
     heading: "Contact & Legal",
     links: [
-      { href: `mailto:${CONTACT_EMAIL}`, label: CONTACT_EMAIL },
+      { href: `mailto:${SALES_EMAIL}`, label: SALES_EMAIL },
+      { href: `mailto:${INFO_EMAIL}`, label: INFO_EMAIL },
+      { href: `mailto:${SUPPORT_EMAIL}`, label: SUPPORT_EMAIL },
       ...CONTACT_PHONES.slice(0, 1).map((phone) => ({ href: telHref(phone), label: phone })),
       { href: "/disclaimer", label: "Regulatory Disclaimer" },
       { href: "/privacy", label: "Privacy Policy" },
@@ -278,16 +287,22 @@ export default async function LandingPage() {
                   </div>
 
                   {/* Primary Hero Headline */}
-                  <h1 className="text-display mt-5 text-[2.4rem] leading-[1.12] text-balance sm:text-5xl xl:text-[3.8rem] font-bold text-foreground">
+                  <h1 className="text-display text-display-hero mt-5 text-balance font-bold text-foreground">
                     The Unified End-to-End B2B Pharma Ecosystem for Pharmaceutical Procurement
                   </h1>
 
                   {/* Subheadline: explicitly encompassing all 3 tiers */}
-                  <p className="mt-5 max-w-2xl text-base text-foreground/85 sm:text-lg leading-relaxed">
+                  <p className="mt-5 max-w-[62ch] text-base text-foreground/85 sm:text-lg leading-[1.65]">
                     Interlinking Manufacturers of Raw Materials and supplier verification across{" "}
-                    <strong>Upstream Inputs</strong>,{" "}
-                    <strong>Midstream Manufacturing Assets</strong>, and{" "}
-                    <strong>Downstream Wholesale Distribution</strong>.
+                    <strong className="font-semibold text-foreground">Upstream Inputs</strong>,{" "}
+                    <strong className="font-semibold text-foreground">
+                      Midstream Manufacturing Assets
+                    </strong>
+                    , and{" "}
+                    <strong className="font-semibold text-foreground">
+                      Downstream Wholesale Distribution
+                    </strong>
+                    .
                   </p>
 
                   {/* The 3-Button Action Matrix (Hero Section). Labels wrap instead of
@@ -299,7 +314,7 @@ export default async function LandingPage() {
                         key={action.href}
                         asChild
                         size="lg"
-                        className={`h-auto min-h-[4.5rem] w-full flex-col items-start justify-center gap-1 rounded-2xl px-4 py-3 text-left whitespace-normal text-white shadow-md transition-all hover:scale-[1.02] ${action.className}`}
+                        className={`h-auto min-h-[4.5rem] w-full flex-col items-start justify-center gap-1 rounded-2xl px-4 py-3 text-left whitespace-normal text-white shadow-md transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg ${action.className}`}
                       >
                         <Link href={action.href}>
                           <span className="text-sm leading-snug font-semibold text-balance">
@@ -347,13 +362,15 @@ export default async function LandingPage() {
 
           {/* Stat band — display numerals */}
           <section className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-10 pt-16 pb-6 lg:grid-cols-4">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-8 pt-14 pb-6 sm:grid-cols-2 lg:grid-cols-4">
               {STATS.map((stat) => (
                 <div key={stat.label} className="border-l-2 border-primary/25 pl-4">
-                  <dd className="text-display text-3xl font-bold tabular-nums sm:text-4xl text-foreground">
+                  <dd className="figure text-3xl font-bold sm:text-4xl text-foreground">
                     {stat.value}
                   </dd>
-                  <dt className="mt-2 text-xs sm:text-sm text-muted-foreground">{stat.label}</dt>
+                  <dt className="mt-2 max-w-[32ch] text-xs sm:text-sm leading-relaxed text-muted-foreground">
+                    {stat.label}
+                  </dt>
                 </div>
               ))}
             </dl>
@@ -379,10 +396,10 @@ export default async function LandingPage() {
               </div>
               <div className="relative mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
                 <p className="eyebrow text-primary">Enterprise Infrastructure</p>
-                <h2 className="text-display mt-4 max-w-2xl text-3xl sm:text-5xl font-bold">
+                <h2 className="text-display text-display-section mt-4 max-w-2xl font-bold">
                   Engineered Specifically for Complex Pharma Workflows
                 </h2>
-                <p className="mt-4 max-w-xl text-muted-foreground">
+                <p className="mt-4 max-w-[60ch] text-base leading-[1.65] text-muted-foreground">
                   An enterprise-grade B2B infrastructure layer — not generic e-commerce. Built to
                   enforce GMP compliance, traceable chain-of-custody, and pairwise confidential deal
                   structures.
@@ -415,7 +432,7 @@ export default async function LandingPage() {
             <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
               <div className="text-center">
                 <p className="eyebrow justify-center text-primary">How it works</p>
-                <h2 className="text-display mt-4 text-3xl sm:text-[2.6rem] font-bold">
+                <h2 className="text-display text-display-section mt-4 font-bold">
                   Corporate Onboarding to Delivery in Three Steps
                 </h2>
               </div>
@@ -561,12 +578,17 @@ export default async function LandingPage() {
 
               {/* Direct email & contact */}
               <div className="mt-5 space-y-2 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Mail className="size-3.5 text-primary shrink-0" />
-                  <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-foreground underline">
-                    {CONTACT_EMAIL}
-                  </a>
-                </div>
+                {CONTACT_EMAILS.map(({ label, email }) => (
+                  <div key={email} className="flex items-center gap-2">
+                    <Mail className="size-3.5 text-primary shrink-0" />
+                    <span>
+                      <span className="font-medium text-foreground/80">{label}:</span>{" "}
+                      <a href={`mailto:${email}`} className="hover:text-foreground underline">
+                        {email}
+                      </a>
+                    </span>
+                  </div>
+                ))}
                 {CONTACT_PHONES.length > 0 && (
                   <div className="flex items-center gap-2">
                     <Phone className="size-3.5 text-primary shrink-0" />

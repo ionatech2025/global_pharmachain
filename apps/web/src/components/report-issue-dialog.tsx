@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
 import type { SupportIssueRow } from "@/lib/api/types";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 export function ReportIssueDialog({
   trigger,
@@ -108,8 +109,15 @@ export function ReportIssueDialog({
             Raise a support issue
           </DialogTitle>
           <DialogDescription>
-            Report a bug, onboarding blocker, or feature request directly to the development team.
-            You’ll be notified as soon as we reply or resolve it.
+            Report a bug, onboarding blocker, or feature request directly to the development team,
+            or email{" "}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="text-primary underline hover:text-foreground"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+            . You’ll be notified as soon as we reply or resolve it.
           </DialogDescription>
         </DialogHeader>
 

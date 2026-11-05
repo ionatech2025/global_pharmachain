@@ -189,12 +189,12 @@ export function AuthBrandPanel() {
           {/* Product-screenshot vignette */}
           <div className="glass-card animate-float rounded-2xl p-5">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-semibold">Order PC-2481</p>
+              <p className="num-col font-mono text-sm font-semibold">Order PC-2481</p>
               <span className="rounded-full bg-info/12 px-2.5 py-0.5 text-[11px] font-semibold text-info">
                 In transit
               </span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="num-col mt-1 text-xs text-muted-foreground">
               Mumbai → Kampala · Amoxicillin API · 500 kg
             </p>
             <div className="mt-3 flex gap-1">
@@ -207,7 +207,7 @@ export function AuthBrandPanel() {
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Dispatched</span>
-              <span className="tabular-nums">ETA Thu · 14:00</span>
+              <span className="num-col">ETA Thu · 14:00</span>
             </div>
             <div className="mt-4 flex items-center gap-4 border-t pt-3 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">

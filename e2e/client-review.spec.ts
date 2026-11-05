@@ -327,6 +327,48 @@ test("the legal disclaimer is reachable from inside the signed-in app", async ({
   await page.context().close();
 });
 
+test("official pharmachainglobal.com contact emails and phone are published across public, legal and security endpoints", async ({
+  page,
+  request,
+}) => {
+  const expectedEmails = [
+    "sales@pharmachainglobal.com",
+    "info@pharmachainglobal.com",
+    "support@pharmachainglobal.com",
+  ];
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const footer = page.locator("footer");
+  for (const email of expectedEmails) {
+    await expect(footer.locator(`a[href="mailto:${email}"]`).first()).toBeVisible();
+  }
+  await expect(footer.locator('a[href="tel:+256751557058"]').first()).toContainText(
+    "+256 751 557058",
+  );
+  await expect(footer).not.toContainText("contact@globalpharmachain.com");
+  await expect(footer).not.toContainText("+256 700 000 000");
+
+  await page.goto("/disclaimer", { waitUntil: "domcontentloaded" });
+  for (const email of expectedEmails) {
+    await expect(page.locator(`a[href="mailto:${email}"]`).first()).toBeVisible();
+  }
+  await expect(page.locator('a[href="tel:+256751557058"]').first()).toBeVisible();
+
+  await page.goto("/privacy", { waitUntil: "domcontentloaded" });
+  await expect(page.locator('a[href="mailto:info@pharmachainglobal.com"]').first()).toBeVisible();
+  await expect(
+    page.locator('a[href="mailto:support@pharmachainglobal.com"]').first(),
+  ).toBeVisible();
+
+  const secRes = await request.get("/.well-known/security.txt");
+  expect(secRes.status()).toBe(200);
+  const secTxt = await secRes.text();
+  for (const email of expectedEmails) {
+    expect(secTxt).toContain(`Contact: mailto:${email}`);
+  }
+  expect(secTxt).not.toContain("contact@globalpharmachain.com");
+});
+
 // ── US-104 expiry on every verification document ─────────────────────────────
 
 test("US-104: a TIN upload offers an optional expiry date; a licence requires one", async ({
@@ -633,17 +675,37 @@ test.describe("QA, accessibility, reflow & Hercules design system (Oct 2026)", (
     }
   });
 
-  test("WCAG 2.4.11 Focus Not Obscured: scroll-padding-top and skip-to-content on landing", async ({
+  test("WCAG 2.4.11 Focus Not Obscured & 1.4.12 Text Spacing: skip-to-content and spacing override resilience on landing and auth", async ({
     page,
   }) => {
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    const scrollPad = await page.evaluate(() =>
-      Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
-    );
-    expect(scrollPad).toBeGreaterThanOrEqual(56);
-    const skip = page.getByRole("link", { name: "Skip to content" });
-    await expect(skip).toHaveAttribute("href", "#main");
-    await expect(page.locator("main#main")).toHaveAttribute("tabindex", "-1");
+    for (const path of ["/", "/login", "/register"]) {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      const scrollPad = await page.evaluate(() =>
+        Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+      );
+      expect(scrollPad).toBeGreaterThanOrEqual(56);
+      const skip = page.getByRole("link", { name: "Skip to content" });
+      await expect(skip).toHaveAttribute("href", "#main");
+      await expect(page.locator("main#main")).toHaveAttribute("tabindex", "-1");
+
+      // WCAG 2.2 SC 1.4.12 Text Spacing override: no horizontal overflow or clipped controls.
+      await page.addStyleTag({
+        content: `
+          * {
+            line-height: 1.5 !important;
+            letter-spacing: 0.12em !important;
+            word-spacing: 0.16em !important;
+          }
+          p {
+            margin-bottom: 2em !important;
+          }
+        `,
+      });
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `WCAG 1.4.12 text-spacing overflow on ${path}`).toBeLessThanOrEqual(0);
+    }
   });
 
   test("WCAG 1.4.10 Reflow at 320px and 375px: zero horizontal overflow and accessible directory filter", async ({
