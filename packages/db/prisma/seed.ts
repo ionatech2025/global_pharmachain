@@ -100,17 +100,37 @@ async function seedExchangeRates() {
 }
 
 async function seedSuperAdmin() {
-  return prisma.user.upsert({
+  const superAdminHash = await hash(SUPER_ADMIN_PASSWORD);
+  const primary = await prisma.user.upsert({
     where: { email: SUPER_ADMIN_EMAIL },
-    update: { isSuperAdmin: true, status: "ACTIVE" },
+    update: { isSuperAdmin: true, status: "ACTIVE", passwordHash: superAdminHash },
     create: {
       email: SUPER_ADMIN_EMAIL,
       name: "Platform Super Admin",
-      passwordHash: await hash(SUPER_ADMIN_PASSWORD),
+      passwordHash: superAdminHash,
       status: "ACTIVE",
       isSuperAdmin: true,
     },
   });
+
+  const altEmail =
+    SUPER_ADMIN_EMAIL === "admin@pharmachainglobal.com"
+      ? "admin@pharmachain.local"
+      : "admin@pharmachainglobal.com";
+
+  await prisma.user.upsert({
+    where: { email: altEmail },
+    update: { isSuperAdmin: true, status: "ACTIVE", passwordHash: superAdminHash },
+    create: {
+      email: altEmail,
+      name: "Platform Super Admin",
+      passwordHash: superAdminHash,
+      status: "ACTIVE",
+      isSuperAdmin: true,
+    },
+  });
+
+  return primary;
 }
 
 interface DemoCompanySpec {
@@ -156,7 +176,7 @@ async function seedDemoCompany(spec: DemoCompanySpec, verifiedById: string) {
   ] as const) {
     const user = await prisma.user.upsert({
       where: { email },
-      update: {},
+      update: { passwordHash, status: "ACTIVE" },
       create: { email, name, passwordHash, status: "ACTIVE" },
     });
     await prisma.companyUserRole.upsert({
