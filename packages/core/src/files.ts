@@ -127,6 +127,10 @@ export function formatFileSize(bytes: number): string {
  *  the number shown can never drift from the number enforced. */
 export const MAX_FILE_SIZE_LABEL = formatFileSize(MAX_FILE_SIZE_BYTES);
 
+/** The rule as US-602 TC3 states it ("4MB per file") — the cap applies to each
+ *  file separately, wherever several can be attached (client review, 2026-11-11). */
+export const MAX_FILE_SIZE_RULE = `${MAX_FILE_SIZE_LABEL} per file`;
+
 const ZIP = [0x50, 0x4b, 0x03, 0x04]; // DOCX and XLSX are ZIP containers
 const SIGNATURES: Record<string, number[]> = {
   "image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
@@ -169,9 +173,7 @@ export function validateUpload(
 ): string | null {
   if (file.size <= 0) return "That file is empty — choose a different file";
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return `That file is ${formatFileSize(file.size)} — the limit is ${formatFileSize(
-      MAX_FILE_SIZE_BYTES,
-    )}`;
+    return `That file is ${formatFileSize(file.size)} — the limit is ${MAX_FILE_SIZE_RULE}`;
   }
   if (!resolveUploadMime(kind, file.name, file.type)) {
     return `Unsupported file type — upload a ${describeAllowedTypes(kind)} file`;

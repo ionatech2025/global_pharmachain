@@ -4,10 +4,10 @@ import {
   can,
   contentMatchesType,
   DOCUMENT_KIND_LABELS,
-  formatFileSize,
   isAllowedMime,
   isVerificationKind,
   MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_RULE,
 } from "@pharmachain/core";
 import type { Document } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
@@ -148,7 +148,7 @@ export class DocumentService {
     // download contract are built on.
     if (body.byteLength === 0) throw badRequest("Uploaded file is empty");
     if (body.byteLength > MAX_FILE_SIZE_BYTES) {
-      throw badRequest(`File exceeds the ${formatFileSize(MAX_FILE_SIZE_BYTES)} limit`);
+      throw badRequest(`File exceeds the limit of ${MAX_FILE_SIZE_RULE}`);
     }
     if (body.byteLength !== document.size) {
       throw badRequest("Uploaded file does not match the declared size");

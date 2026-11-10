@@ -16,7 +16,7 @@ The earlier sections of the same PDF (October 20 – November 6) are covered by
 | # | Comment | Verdict | What changed |
 | --- | --- | --- | --- |
 | 1 | **US-407 TC3**: "attempt to submit a quotation against a CANCELLED RFQ → blocked" — *not possible since the RFQ disappears* (Figure 7: supplier inbox empty) | The block existed; the test could not be reached | A cancelled RFQ now stays in the supplier's inbox until its original deadline, marked **Cancelled — by the buyer, ‹time› — no quotation needed**, with **View** instead of **Quote**. The RFQ page opens on a **Quotations closed** notice that gives the reason; the form is disabled; the API refuses with the reason (409 *"The buyer cancelled this RFQ — it no longer accepts quotations"*). A quotation already sent on a cancelled RFQ is marked *RFQ Cancelled* under Quotations sent. |
-| 2 | **Oversized document**: US-602 TC3 says 10MB per file; the message says 4MB — choose one | **4MB per file**, unchanged | The 4MB cap and every message showing it come from one constant (`MAX_FILE_SIZE_BYTES`). The limit is set by the hosting platform: Vercel refuses any request body over 4.5MB before our code runs. 10MB would mean uploading straight to object storage, which needs a CORS rule on the R2 bucket. The one place that still said 10 MB, `docs/implementation-plan.md`, is corrected. **US-602 TC3 should read 4MB.** |
+| 2 | **Oversized document**: US-602 TC3 says 10MB per file; the message says 4MB — choose one | **4MB per file**, unchanged | The 4MB cap and every message showing it come from one constant (`MAX_FILE_SIZE_BYTES`). The limit is set by the hosting platform: Vercel refuses any request body over 4.5MB before our code runs. 10MB would mean uploading straight to object storage, which needs a CORS rule on the R2 bucket. The one place that still said 10 MB, `docs/implementation-plan.md`, is corrected. Every message and hint now says **"4MB per file"**, which is how US-602 TC3 should read. |
 | 3 | **US-603 TC-2**: five chat messages within two minutes — no email to the offline recipient | **Real defect** | The email throttle was one marker per *thread*, so a company's own message used up the window for messages sent *to* it. Now one window per thread **per recipient company**. See below. |
 | 4 | **US-604** WhatsApp: on by default but nothing arrives; no obvious place for the number; *"the code never comes — not integrated yet?"* (Figures 8–9) | **Yes — not integrated in production** | Production has no WhatsApp configuration. The fallback console provider wrote every code to the server log while the page said *"Verification code sent to your WhatsApp number"*. The channel is now **off** when it is not configured, and every screen says so. The Meta adapter has been rebuilt around approved templates, so it can work once the credentials exist. See below. |
 
@@ -97,7 +97,10 @@ old throttle.
 ## Needs the client
 
 1. **US-602 TC3:** change "10MB" to "4MB per file", or ask for direct-to-storage
-   uploads, which needs a CORS rule on the R2 bucket.
+   uploads, which needs a CORS rule on the R2 bucket. The app now states the
+   limit in exactly that wording. The rejection reads *"That file is 16.8MB — the
+   limit is 4MB per file"*, and the upload hints say *"max 4MB per file"*, all
+   from one constant, `MAX_FILE_SIZE_RULE` (follow-up release, 2026-11-10).
 2. **WhatsApp:** a Meta Business account, a WhatsApp Business phone number, a
    permanent token and two approved templates (`docs/runbook-whatsapp.md`).
    Until then WhatsApp is shown as unavailable.
