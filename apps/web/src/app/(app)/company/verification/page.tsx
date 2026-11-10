@@ -1,4 +1,4 @@
-import { DOCUMENT_KIND_LABELS, type DocumentKind, MAX_FILE_SIZE_LABEL } from "@pharmachain/core";
+import { DOCUMENT_KIND_LABELS, type DocumentKind, MAX_FILE_SIZE_RULE } from "@pharmachain/core";
 import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import {
@@ -120,7 +120,7 @@ export default async function VerificationPage() {
         <CardHeader>
           <CardTitle className="text-sm">Required documents</CardTitle>
           <CardDescription>
-            PDF, JPG or PNG, max {MAX_FILE_SIZE_LABEL}. Licences require an expiry date; add one to
+            PDF, JPG or PNG, max {MAX_FILE_SIZE_RULE}. Licences require an expiry date; add one to
             any other document that expires.
           </CardDescription>
         </CardHeader>

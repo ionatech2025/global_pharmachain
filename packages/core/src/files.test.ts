@@ -9,6 +9,7 @@ import {
   isAllowedMime,
   MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_LABEL,
+  MAX_FILE_SIZE_RULE,
   requiredVerificationKinds,
   resolveUploadMime,
   validateUpload,
@@ -72,7 +73,7 @@ describe("upload gate (US-102)", () => {
 
   test("rejects a 15MB file with a file-size error naming both sizes", () => {
     const message = validateUpload("TAX_ID", file("scan.pdf", "application/pdf", 15 * MB));
-    expect(message).toBe("That file is 15MB — the limit is 4MB");
+    expect(message).toBe("That file is 15MB — the limit is 4MB per file");
   });
 
   test("a file exactly on the limit is still accepted", () => {
@@ -125,6 +126,8 @@ describe("upload gate (US-102)", () => {
   test("sizes read the way a person would write them", () => {
     expect(formatFileSize(MAX_FILE_SIZE_BYTES)).toBe("4MB");
     expect(MAX_FILE_SIZE_LABEL).toBe("4MB");
+    // US-602 TC3 (client review 2026-11-11): one stated rule, per file.
+    expect(MAX_FILE_SIZE_RULE).toBe("4MB per file");
     expect(formatFileSize(15 * MB)).toBe("15MB");
     expect(formatFileSize(2.5 * MB)).toBe("2.5MB");
     expect(formatFileSize(400 * 1024)).toBe("400KB");

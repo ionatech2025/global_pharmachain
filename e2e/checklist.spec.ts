@@ -134,7 +134,8 @@ test.describe
         buffer: pdf(15 * 1024 * 1024),
       });
 
-      await expect(page.getByRole("alert")).toContainText(/15MB.*limit is \d+MB/i);
+      // US-602 TC3 states the cap per file (client review, 2026-11-11).
+      await expect(page.getByRole("alert")).toContainText(/15MB.*limit is \d+MB per file/i);
       await expect(submitButton()).toBeDisabled();
       expect(calls, "a partial record may have been created").toHaveLength(0);
       await page.keyboard.press("Escape");

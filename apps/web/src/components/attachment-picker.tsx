@@ -1,7 +1,7 @@
 "use client";
 
 import type { DocumentKind } from "@pharmachain/core";
-import { ALLOWED_MIMES, MAX_FILE_SIZE_LABEL, validateUpload } from "@pharmachain/core";
+import { ALLOWED_MIMES, MAX_FILE_SIZE_RULE, validateUpload } from "@pharmachain/core";
 import { Button } from "@pharmachain/ui/components/button";
 import { Input } from "@pharmachain/ui/components/input";
 import { AlertCircle, Loader2, Paperclip, X } from "lucide-react";
@@ -127,7 +127,7 @@ export function AttachmentPicker({
       <p className="text-xs text-muted-foreground">
         {busy
           ? "Uploading…"
-          : `Optional · up to ${MAX_ATTACHMENTS} files, max ${MAX_FILE_SIZE_LABEL} each`}
+          : `Optional · up to ${MAX_ATTACHMENTS} files, max ${MAX_FILE_SIZE_RULE}`}
       </p>
     </div>
   );
