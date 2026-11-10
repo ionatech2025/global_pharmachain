@@ -14,10 +14,10 @@ import { EmptyState } from "@/components/empty-state";
 import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
-import { QuotationStatusBadge } from "@/components/status-badge";
+import { QuotationStatusBadge, RfqStatusBadge } from "@/components/status-badge";
 import { apiServer } from "@/lib/api/server";
 import type { MyQuotationRow, Paginated, RfqInboxResponse } from "@/lib/api/types";
-import { fmtDate, fmtDeadline, fmtMoney, fmtNumber } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtDeadline, fmtMoney, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Quote inbox" };
 
@@ -46,7 +46,7 @@ export default async function QuotesPage({
         title="Quote inbox"
         description={
           view === "inbox"
-            ? "RFQs you can still quote on. Once you quote, an RFQ moves to Quotations sent; RFQs leave at their deadline."
+            ? "RFQs you can still quote on. Once you quote, an RFQ moves to Quotations sent. RFQs leave at their deadline — one the buyer cancels stays until then, marked cancelled."
             : "Quotations your company has sent, newest first."
         }
       />
@@ -154,41 +154,61 @@ async function InboxView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {result.items.map((rfq) => (
-            <TableRow key={rfq.id}>
-              <TableCell>
-                <Link href={`/rfqs/${rfq.id}`} className="font-medium text-primary hover:underline">
-                  {rfq.refNo}
-                </Link>
-                <p className="text-xs text-muted-foreground">{rfq.title}</p>
-              </TableCell>
-              <TableCell>
-                {rfq.buyerCompany.name}
-                <p className="text-xs text-muted-foreground">{rfq.buyerCompany.country}</p>
-              </TableCell>
-              <TableCell>
-                {fmtNumber(rfq.quantity)} {rfq.unit}
-              </TableCell>
-              <TableCell className="text-muted-foreground">{rfq.category?.name ?? "Any"}</TableCell>
-              <TableCell>{fmtDeadline(rfq.deadline)}</TableCell>
-              <TableCell className="text-right">
-                <Link
-                  href={`/rfqs/${rfq.id}`}
-                  className="text-sm font-medium text-primary hover:underline"
-                  aria-label={`Quote on ${rfq.refNo}`}
-                >
-                  Quote
-                </Link>
-              </TableCell>
-            </TableRow>
-          ))}
+          {result.items.map((rfq) => {
+            // US-407: a cancelled RFQ stays until its deadline so its
+            // disappearance is explained — and offers no way to quote.
+            const cancelled = rfq.status === "CANCELLED";
+            return (
+              <TableRow key={rfq.id} data-testid={`inbox-row-${rfq.refNo}`}>
+                <TableCell>
+                  <Link
+                    href={`/rfqs/${rfq.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {rfq.refNo}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">{rfq.title}</p>
+                  {cancelled && (
+                    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <RfqStatusBadge status={rfq.status} />
+                      {rfq.cancelledAt
+                        ? `by the buyer, ${fmtDateTime(rfq.cancelledAt)} — no quotation needed`
+                        : "by the buyer — no quotation needed"}
+                    </p>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {rfq.buyerCompany.name}
+                  <p className="text-xs text-muted-foreground">{rfq.buyerCompany.country}</p>
+                </TableCell>
+                <TableCell>
+                  {fmtNumber(rfq.quantity)} {rfq.unit}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {rfq.category?.name ?? "Any"}
+                </TableCell>
+                <TableCell className={cn(cancelled && "text-muted-foreground")}>
+                  {fmtDeadline(rfq.deadline)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Link
+                    href={`/rfqs/${rfq.id}`}
+                    className="text-sm font-medium text-primary hover:underline"
+                    aria-label={cancelled ? `View cancelled ${rfq.refNo}` : `Quote on ${rfq.refNo}`}
+                  >
+                    {cancelled ? "View" : "Quote"}
+                  </Link>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       <PaginationNav
         page={result.page}
         totalPages={result.totalPages}
         total={result.total}
-        noun="open RFQ(s)"
+        noun="RFQ(s)"
         basePath="/quotes"
       />
     </>
@@ -253,6 +273,13 @@ async function SentView({
                   <Badge variant="outline" className="ml-1.5">
                     v{q.version}
                   </Badge>
+                )}
+                {/* A quotation on a cancelled RFQ is still "Active" as a record,
+                    but there is nothing left to win — say so beside it. */}
+                {q.rfq.status === "CANCELLED" && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    RFQ <RfqStatusBadge status={q.rfq.status} />
+                  </p>
                 )}
               </TableCell>
             </TableRow>

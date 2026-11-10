@@ -158,9 +158,25 @@ interface Preference {
   whatsapp: boolean;
 }
 
-export function PreferencesPanel({ initial }: { initial: Preference[] }) {
+/**
+ * Per-event channel choices (US-606). The WhatsApp column used to show every
+ * event switched on whether or not WhatsApp could reach the user — or was set
+ * up on the platform at all (client review, 2026-11-11). Now: no column when
+ * the channel is off; switches shown off and locked, with the way to unlock
+ * them, until the user has a verified number.
+ */
+export function PreferencesPanel({
+  initial,
+  whatsappAvailable,
+  whatsappVerified,
+}: {
+  initial: Preference[];
+  whatsappAvailable: boolean;
+  whatsappVerified: boolean;
+}) {
   const [prefs, setPrefs] = useState<Preference[]>(initial);
   const [busy, setBusy] = useState(false);
+  const whatsappUsable = whatsappAvailable && whatsappVerified;
 
   function toggle(eventType: string, channel: "email" | "whatsapp") {
     setPrefs((prev) =>
@@ -184,21 +200,42 @@ export function PreferencesPanel({ initial }: { initial: Preference[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-sm">Channel preferences</CardTitle>
-        <CardDescription>
-          In-app notifications can't be disabled. WhatsApp requires a number on your account page.
+        <CardDescription data-testid="whatsapp-preference-note">
+          In-app notifications can&rsquo;t be disabled.{" "}
+          {!whatsappAvailable ? (
+            "WhatsApp delivery isn't available on Global PharmaChain yet."
+          ) : whatsappVerified ? (
+            "WhatsApp messages go to the verified number on your account."
+          ) : (
+            <>
+              WhatsApp needs a verified number —{" "}
+              <Link href="/account" className="font-medium text-primary underline">
+                add one on your account page
+              </Link>
+              ; until then nothing is sent by WhatsApp.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 gap-y-2 text-sm">
+        <div
+          className={
+            whatsappAvailable
+              ? "grid grid-cols-[1fr_auto_auto] items-center gap-x-6 gap-y-2 text-sm"
+              : "grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 text-sm"
+          }
+        >
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Event
           </span>
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Email
           </span>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            WhatsApp
-          </span>
+          {whatsappAvailable && (
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              WhatsApp
+            </span>
+          )}
           {PREFERENCE_EVENT_TYPES.map((eventType) => {
             const pref = prefs.find((p) => p.eventType === eventType);
             if (!pref) return null;
@@ -210,11 +247,14 @@ export function PreferencesPanel({ initial }: { initial: Preference[] }) {
                   checked={pref.email}
                   onCheckedChange={() => toggle(eventType, "email")}
                 />
-                <Switch
-                  aria-label={`WhatsApp for ${eventType}`}
-                  checked={pref.whatsapp}
-                  onCheckedChange={() => toggle(eventType, "whatsapp")}
-                />
+                {whatsappAvailable && (
+                  <Switch
+                    aria-label={`WhatsApp for ${eventType}`}
+                    checked={whatsappUsable && pref.whatsapp}
+                    disabled={!whatsappUsable}
+                    onCheckedChange={() => toggle(eventType, "whatsapp")}
+                  />
+                )}
               </div>
             );
           })}

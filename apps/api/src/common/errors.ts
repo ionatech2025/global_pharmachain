@@ -23,3 +23,9 @@ export const notFound = (message = "Not found") => new ApiException(404, "NOT_FO
 export const conflict = (message: string) => new ApiException(409, "CONFLICT", message);
 export const limitReached = (message: string, details?: unknown) =>
   new ApiException(403, "LIMIT_REACHED", message, details);
+/** A channel this deployment is not configured to deliver (e.g. WhatsApp). */
+export const channelUnavailable = (message: string) =>
+  new ApiException(409, "CHANNEL_UNAVAILABLE", message);
+/** An upstream delivery provider refused or failed the request. */
+export const deliveryFailed = (message: string) =>
+  new ApiException(502, "DELIVERY_FAILED", message);

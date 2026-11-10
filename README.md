@@ -18,6 +18,9 @@ a 2026-08 performance/loading/robustness audit and its remediation are traced in
 [`docs/performance-loading-robustness-audit.md`](docs/performance-loading-robustness-audit.md);
 the 2026-10 gap analysis — measured against production, including the
 compute/database region split — in [`docs/2026-10-gap-remediation.md`](docs/2026-10-gap-remediation.md).
+Client reviews are recorded in `docs/2026-10-client-review.md` and
+[`docs/2026-11-client-review.md`](docs/2026-11-client-review.md); architecture decisions
+since 2026-11 in [`docs/adr/`](docs/adr/README.md).
 
 ## Stack
 
@@ -44,7 +47,7 @@ packages/
   db/             Prisma schema (26 models), client singleton, seed
   auth/           Auth.js config factory + server-side JWT decode helper
   email/          Email providers (console for dev, SMTP) + templates
-  notifications/  Event fanout: in-app + email (preference-aware) + WhatsApp stub
+  notifications/  Event fanout: in-app + email (preference-aware) + WhatsApp (off until configured)
   ui/             shadcn/ui components, Tailwind 4 theme (dark mode)
   typescript-config/
 e2e/              Playwright suite (golden path, routes, endpoints, security)
@@ -108,7 +111,7 @@ flowchart LR
   DB[(PostgreSQL 18<br/>Prisma 6)]
   R2[(Cloudflare R2<br/>MinIO in dev<br/>server-side PUT · presigned GET)]
   MAIL[Email provider<br/>console / SMTP]
-  WA[WhatsApp stub]
+  WA[WhatsApp Cloud API — off until configured]
 
   UI -->|mutations| PROXY
   UI -->|login| AUTHJS
@@ -235,8 +238,9 @@ it) rather than Vercel's git-push builds. Required project env: `AUTH_SECRET`
 and non-default `R2_*` values (Cloudflare R2 — see `.env.example`). Feature env on top: `CRON_SECRET` (job
 dispatcher), `PAYMENT_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY` +
 `VAPID_PRIVATE_KEY` (web push), `PAYMENT_SANDBOX=1` to expose card/mobile
-money without a live Flutterwave key, and optional `WHATSAPP_*` / `SMTP_*`
-provider settings. In production the sandbox gateway accepts webhooks **only**
+money without a live Flutterwave key, and optional `WHATSAPP_*` (Meta Cloud API
+with approved templates — `docs/runbook-whatsapp.md`; WhatsApp is off without
+them) / `SMTP_*` provider settings. In production the sandbox gateway accepts webhooks **only**
 when `PAYMENT_WEBHOOK_SECRET` is set (its development stand-in is public, so
 it is refused there), and any provider can settle only the payments it
 initiated, for the amount and currency on record.

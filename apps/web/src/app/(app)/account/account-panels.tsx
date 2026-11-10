@@ -103,13 +103,38 @@ function ChangePasswordCard() {
   );
 }
 
-function WhatsappCard() {
+export interface WhatsappStatus {
+  available: boolean;
+  number: string | null;
+  verified: boolean;
+  pending: boolean;
+}
+
+function WhatsappCard({ status }: { status: WhatsappStatus }) {
+  const router = useRouter();
   const [number, setNumber] = useState("");
   const [busy, setBusy] = useState(false);
   // Challenge-response verification (US-604): a code arrives on the number
   // itself; notifications only flow once it's confirmed.
-  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(status.pending);
   const [code, setCode] = useState("");
+
+  // Client review 2026-11-11: with no WhatsApp provider configured the page
+  // still offered the form and announced a code that could never arrive.
+  if (!status.available) {
+    return (
+      <Card data-testid="whatsapp-card">
+        <CardHeader>
+          <CardTitle className="text-sm">WhatsApp notifications</CardTitle>
+          <CardDescription data-testid="whatsapp-unavailable">
+            Not available yet — WhatsApp delivery hasn&rsquo;t been switched on for Global
+            PharmaChain. Every notification still reaches you in-app and by email. You&rsquo;ll be
+            able to register a WhatsApp number here once it is.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,7 +142,8 @@ function WhatsappCard() {
     try {
       await api.put("/auth/me/whatsapp", { number });
       setAwaitingCode(true);
-      toast.success("Verification code sent to your WhatsApp number");
+      toast.success(`Code sent to ${number} on WhatsApp — it expires in 10 minutes`);
+      router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -134,6 +160,7 @@ function WhatsappCard() {
       setNumber("");
       setCode("");
       toast.success("Number verified — WhatsApp notifications are active");
+      router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -142,16 +169,23 @@ function WhatsappCard() {
   }
 
   return (
-    <Card>
+    <Card data-testid="whatsapp-card">
       <CardHeader>
         <CardTitle className="text-sm">WhatsApp notifications</CardTitle>
         <CardDescription>
           International format (e.g. +256700000000). A verification code is sent to the number;
-          notifications start once it's confirmed. Manage which events use it on the notifications
-          page.
+          notifications start once it&rsquo;s confirmed. Manage which events use it on the
+          notifications page.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {status.number && (
+          <p className="text-sm" data-testid="whatsapp-current">
+            {status.verified ? "Verified number: " : "Unverified number: "}
+            <span className="font-medium">{status.number}</span>
+            {!status.verified && " — enter the code sent to it, or save the number again."}
+          </p>
+        )}
         <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
           <div className="min-w-52 flex-1">
             <Input
@@ -259,17 +293,19 @@ export function AccountPanels({
   totpEnabled,
   isPlatformAdmin,
   savedTimeZone,
+  whatsapp,
 }: {
   totpEnabled: boolean;
   isPlatformAdmin: boolean;
   savedTimeZone: string | null;
+  whatsapp: WhatsappStatus;
 }) {
   return (
     <div className="space-y-4">
       <ChangePasswordCard />
       <PasskeysCard isPlatformAdmin={isPlatformAdmin} />
       <TotpCard initiallyEnabled={totpEnabled} />
-      <WhatsappCard />
+      <WhatsappCard status={whatsapp} />
       <TimeZoneCard savedTimeZone={savedTimeZone} />
       <DataPrivacyCard />
     </div>

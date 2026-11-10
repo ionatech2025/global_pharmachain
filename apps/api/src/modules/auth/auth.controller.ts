@@ -226,6 +226,13 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Get("me/whatsapp")
+  whatsappStatus(@CurrentUser() user: AuthUser) {
+    return this.authService.whatsappStatus(user.id);
+  }
+
+  // Each save sends a paid WhatsApp template message to the number given.
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @Put("me/whatsapp")
   async setWhatsapp(
     @CurrentUser() user: AuthUser,
@@ -237,6 +244,8 @@ export class AuthController {
     return { ok: true, verificationSent: true };
   }
 
+  // A 6-digit code: bounded guessing inside its 10-minute life.
+  @Throttle({ default: { limit: 10, ttl: 15 * 60 * 1000 } })
   @HttpCode(200)
   @Post("me/whatsapp/verify")
   async verifyWhatsapp(

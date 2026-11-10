@@ -1,6 +1,7 @@
 "use client";
 
 import { CURRENCIES } from "@pharmachain/core";
+import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -29,7 +30,7 @@ import {
   TableRow,
 } from "@pharmachain/ui/components/table";
 import { Textarea } from "@pharmachain/ui/components/textarea";
-import { MessageSquare } from "lucide-react";
+import { Ban, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -41,7 +42,7 @@ import { QuotationStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { ApiClientError, errorMessage } from "@/lib/api/http";
 import type { QuotationRow, RfqDetail } from "@/lib/api/types";
-import { fmtDate, fmtDeadline, fmtMoney, toLocalInputValue } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtDeadline, fmtMoney, toLocalInputValue } from "@/lib/format";
 
 export function CancelRfqButton({ rfqId }: { rfqId: string }) {
   const router = useRouter();
@@ -390,10 +391,24 @@ export function BuyerQuotations({
 
 // ─── Supplier: submit / resubmit / withdraw (US-403) ─────────────────────────
 
+/** Why a supplier can no longer quote, in words (US-407 TC3). A cancellation
+ *  used to read exactly like a missed deadline. */
+function quotingClosedReason(rfq: Pick<RfqDetail, "status" | "cancelledAt">): string {
+  switch (rfq.status) {
+    case "CANCELLED":
+      return `The buyer cancelled this RFQ${rfq.cancelledAt ? ` on ${fmtDateTime(rfq.cancelledAt)}` : ""}. It no longer accepts quotations — no offer is needed.`;
+    case "AWARDED":
+      return "This RFQ has been awarded. It no longer accepts quotations.";
+    default:
+      return "This RFQ's deadline has passed. It no longer accepts quotations.";
+  }
+}
+
 export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
   const router = useRouter();
   const existing = rfq.myQuotation;
   const open = rfq.status === "OPEN" && new Date(rfq.deadline) > new Date();
+  const closedReason = quotingClosedReason(rfq);
   const [unitPrice, setUnitPrice] = useState(existing?.unitPrice ?? "");
   const [currency, setCurrency] = useState(existing?.currency ?? "USD");
   const [leadTimeDays, setLeadTimeDays] = useState(String(existing?.leadTimeDays ?? 14));
@@ -436,6 +451,9 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
         });
       } else {
         toast.error(errorMessage(err));
+        // 409: the RFQ changed under the form (cancelled, awarded, deadline
+        // passed). Show the page as it now is, not the stale open form.
+        if (err instanceof ApiClientError && err.status === 409) router.refresh();
       }
     } finally {
       setBusy(false);
@@ -460,13 +478,15 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
           <CardTitle className="text-sm">
             {existing
               ? `Your company's quotation (v${existing.version})`
-              : "Submit your company's quotation"}
+              : open
+                ? "Submit your company's quotation"
+                : "No quotation submitted"}
           </CardTitle>
-          <CardDescription>
-            {open
-              ? `This is the offer your company sends ${rfq.buyerCompany.name}. Resubmitting before the deadline replaces your previous version.`
-              : "This RFQ is no longer accepting quotations."}
-          </CardDescription>
+          {open && (
+            <CardDescription>
+              {`This is the offer your company sends ${rfq.buyerCompany.name}. Resubmitting before the deadline replaces your previous version.`}
+            </CardDescription>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {existing && <QuotationStatusBadge status={existing.status} />}
@@ -475,7 +495,16 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* US-407 TC3: the reason quoting is closed is the first thing on the
+            panel, not small print under a title that still says "Submit". */}
+        {!open && (
+          <Alert variant="warning" role="status" data-testid="quote-panel-status">
+            <Ban />
+            <AlertTitle>Quotations closed</AlertTitle>
+            <AlertDescription>{closedReason}</AlertDescription>
+          </Alert>
+        )}
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-2">

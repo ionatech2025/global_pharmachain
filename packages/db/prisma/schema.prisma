@@ -353,20 +353,21 @@ model Company {
   rfqs                  Rfq[]
   rfqDistributions      RfqDistribution[]
   quotations            Quotation[]
-  ordersAsBuyer         Order[]               @relation("OrderBuyer")
-  ordersAsSeller        Order[]               @relation("OrderSeller")
-  threadsAsBuyer        MessageThread[]       @relation("ThreadBuyer")
-  threadsAsSupplier     MessageThread[]       @relation("ThreadSupplier")
+  ordersAsBuyer         Order[]                  @relation("OrderBuyer")
+  ordersAsSeller        Order[]                  @relation("OrderSeller")
+  threadsAsBuyer        MessageThread[]          @relation("ThreadBuyer")
+  threadsAsSupplier     MessageThread[]          @relation("ThreadSupplier")
+  threadEmailMarks      MessageThreadEmailMark[]
   creditRequests        CreditRequest[]
   announcementsTargeted Announcement[]
   shipmentAppointments  ShipmentAppointment[]
   disputesRaised        Dispute[]
   paymentsMade          Payment[]
-  invoicesIssued        Invoice[]             @relation("InvoiceIssuer")
-  invoicesReceived      Invoice[]             @relation("InvoiceRecipient")
+  invoicesIssued        Invoice[]                @relation("InvoiceIssuer")
+  invoicesReceived      Invoice[]                @relation("InvoiceRecipient")
   ledgerEntries         LedgerEntry[]
-  ratingsGiven          Rating[]              @relation("RatingsGiven")
-  ratingsReceived       Rating[]              @relation("RatingsReceived")
+  ratingsGiven          Rating[]                 @relation("RatingsGiven")
+  ratingsReceived       Rating[]                 @relation("RatingsReceived")
   webhooks              Webhook[]
   apiKeys               ApiKey[]
   supportIssues         SupportIssue[]
@@ -1283,21 +1284,39 @@ model MessageThread {
   rfqId               String?   @db.Uuid
   quotationId         String?   @unique @db.Uuid
   orderId             String?   @unique @db.Uuid
-  // Skip-throttle marker: max 1 email per thread per 10 minutes (US-603)
+  // Superseded 2026-11-11 by MessageThreadEmailMark (one marker per recipient
+  // company). No longer read or written; kept because builds still serving
+  // during a release select it — drop it in a later migration.
   lastEmailNotifiedAt DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  buyerCompany    Company    @relation("ThreadBuyer", fields: [buyerCompanyId], references: [id])
-  supplierCompany Company    @relation("ThreadSupplier", fields: [supplierCompanyId], references: [id])
-  rfq             Rfq?       @relation(fields: [rfqId], references: [id])
-  quotation       Quotation? @relation(fields: [quotationId], references: [id])
-  order           Order?     @relation(fields: [orderId], references: [id])
+  buyerCompany    Company                  @relation("ThreadBuyer", fields: [buyerCompanyId], references: [id])
+  supplierCompany Company                  @relation("ThreadSupplier", fields: [supplierCompanyId], references: [id])
+  rfq             Rfq?                     @relation(fields: [rfqId], references: [id])
+  quotation       Quotation?               @relation(fields: [quotationId], references: [id])
+  order           Order?                   @relation(fields: [orderId], references: [id])
   messages        Message[]
+  emailMarks      MessageThreadEmailMark[]
 
   @@unique([rfqId, supplierCompanyId])
   @@index([buyerCompanyId])
   @@index([supplierCompanyId])
+}
+
+/// When a company was last emailed about a thread (US-603: at most one email
+/// per thread per recipient per 10 minutes). Keyed by the RECIPIENT: a single
+/// per-thread marker let a party's own message use up the window, so the
+/// replies addressed to them were never emailed (client review, 2026-11-11).
+model MessageThreadEmailMark {
+  threadId      String   @db.Uuid
+  companyId     String   @db.Uuid
+  lastEmailedAt DateTime
+
+  thread  MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  company Company       @relation(fields: [companyId], references: [id])
+
+  @@id([threadId, companyId])
 }
 
 model Message {

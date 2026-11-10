@@ -7,7 +7,7 @@ import { Observable } from "rxjs";
 import { badRequest, forbidden, notFound } from "../../common/errors";
 import { env } from "../../env";
 import type { AuthUser, Membership } from "../../lib/context";
-import { shouldSendThreadEmail } from "./throttle";
+import { claimEmailWindows } from "./throttle";
 
 interface ThreadParties {
   buyerCompanyId: string;
@@ -251,9 +251,20 @@ export class MessagingService {
   ) {
     const thread = await this.loadThreadForMember(membership, threadId);
     const now = new Date();
-    const sendEmail = shouldSendThreadEmail(thread.lastEmailNotifiedAt, now);
 
-    const message = await prisma.$transaction(async (tx) => {
+    // Recipients: the other pairwise party — and on order threads, every
+    // appointed logistics company too (multi-party shipment conversation).
+    const recipientCompanyIds = new Set<string>([thread.buyerCompanyId, thread.supplierCompanyId]);
+    if (thread.orderId) {
+      const appointments = await prisma.shipmentAppointment.findMany({
+        where: { orderId: thread.orderId, status: "ACTIVE" },
+        select: { companyId: true },
+      });
+      for (const a of appointments) recipientCompanyIds.add(a.companyId);
+    }
+    recipientCompanyIds.delete(membership.companyId);
+
+    const { message, emailed } = await prisma.$transaction(async (tx) => {
       const message = await tx.message.create({
         data: {
           threadId,
@@ -277,51 +288,47 @@ export class MessagingService {
           throw badRequest("One or more attachments are invalid");
         }
       }
-      await tx.messageThread.update({
-        where: { id: threadId },
-        data: { updatedAt: now, ...(sendEmail ? { lastEmailNotifiedAt: now } : {}) },
-      });
-      return message;
+      await tx.messageThread.update({ where: { id: threadId }, data: { updatedAt: now } });
+      // US-603: claimed with the message, so a rolled-back post spends no window.
+      const emailed = await claimEmailWindows(tx, threadId, [...recipientCompanyIds], now);
+      return { message, emailed };
     });
 
-    // Recipients: the other pairwise party — and on order threads, every
-    // appointed logistics company too (multi-party shipment conversation).
-    const recipientCompanyIds = new Set<string>([thread.buyerCompanyId, thread.supplierCompanyId]);
-    if (thread.orderId) {
-      const appointments = await prisma.shipmentAppointment.findMany({
-        where: { orderId: thread.orderId, status: "ACTIVE" },
-        select: { companyId: true },
-      });
-      for (const a of appointments) recipientCompanyIds.add(a.companyId);
-    }
-    recipientCompanyIds.delete(membership.companyId);
     const recipients = await prisma.companyUserRole.findMany({
       where: { companyId: { in: [...recipientCompanyIds] }, user: { status: "ACTIVE" } },
-      select: { userId: true },
+      select: { userId: true, companyId: true },
     });
     const context =
       thread.order?.orderNo ?? thread.quotation?.refNo ?? thread.rfq?.refNo ?? "conversation";
     const excerpt = body.length > 140 ? `${body.slice(0, 140)}…` : body;
-
-    await notify({
-      userIds: recipients.map((r) => r.userId),
-      type: "NEW_MESSAGE",
+    const inApp = {
+      type: "NEW_MESSAGE" as const,
       title: `New message on ${context}`,
       body: `${user.name} (${membership.company.name}): ${excerpt}`,
       href: `/messages/${threadId}`,
-      // Skip-throttle: in-app always lands; email at most once per 10 minutes.
-      emailContent: sendEmail
-        ? genericEventEmail({
-            title: `New message on ${context}`,
-            body: `${user.name} (${membership.company.name}) wrote:\n"${excerpt}"`,
-            url: `${env.APP_URL}/messages/${threadId}`,
-            cta: "Reply",
+    };
+
+    // In-app always lands. Email (and WhatsApp) go to a recipient company at
+    // most once per conversation per 10 minutes — the first message after a
+    // quiet spell; the email says so, so nobody waits for one per message.
+    const toEmail = recipients.filter((r) => emailed.has(r.companyId)).map((r) => r.userId);
+    const inAppOnly = recipients.filter((r) => !emailed.has(r.companyId)).map((r) => r.userId);
+    await Promise.all([
+      toEmail.length > 0
+        ? notify({
+            ...inApp,
+            userIds: toEmail,
+            emailContent: genericEventEmail({
+              title: `New message on ${context}`,
+              body: `${user.name} (${membership.company.name}) wrote:\n"${excerpt}"\n\nFurther messages in this conversation over the next 10 minutes appear in Global PharmaChain without another email.`,
+              url: `${env.APP_URL}/messages/${threadId}`,
+              cta: "Reply",
+            }),
+            whatsappText: `PharmaChain: new message on ${context} from ${membership.company.name}. ${env.APP_URL}/messages/${threadId}`,
           })
         : undefined,
-      whatsappText: sendEmail
-        ? `PharmaChain: new message on ${context} from ${membership.company.name}. ${env.APP_URL}/messages/${threadId}`
-        : undefined,
-    });
+      inAppOnly.length > 0 ? notify({ ...inApp, userIds: inAppOnly }) : undefined,
+    ]);
 
     return message;
   }

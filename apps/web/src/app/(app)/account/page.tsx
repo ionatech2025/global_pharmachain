@@ -1,12 +1,15 @@
 import { COMPANY_ROLE_LABELS } from "@pharmachain/core";
 import { PageHeader } from "@/components/page-header";
-import { getViewer } from "@/lib/api/server";
-import { AccountPanels } from "./account-panels";
+import { apiServer, getViewer } from "@/lib/api/server";
+import { AccountPanels, type WhatsappStatus } from "./account-panels";
 
 export const metadata = { title: "Account" };
 
 export default async function AccountPage() {
-  const me = await getViewer();
+  const [me, whatsapp] = await Promise.all([
+    getViewer(),
+    apiServer().then((api) => api.get<WhatsappStatus>("/auth/me/whatsapp")),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -24,6 +27,7 @@ export default async function AccountPage() {
         totpEnabled={Boolean(me.totpEnabled)}
         isPlatformAdmin={Boolean(me.isSuperAdmin)}
         savedTimeZone={me.timeZone ?? null}
+        whatsapp={whatsapp}
       />
     </div>
   );
