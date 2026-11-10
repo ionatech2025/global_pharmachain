@@ -2,6 +2,7 @@ import { Controller, Get } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { prisma } from "@pharmachain/db";
 import { emailConfigFromEnv, testRecipientFromEnv } from "@pharmachain/email";
+import { whatsappConfigFromEnv } from "@pharmachain/notifications";
 import { Public } from "./common/decorators";
 import { ApiException } from "./common/errors";
 
@@ -31,12 +32,15 @@ export class AppController {
     // surfacing here rather than adding a live network call to a probe
     // that's meant to stay cheap and stable. emailTestRouting says whether
     // outgoing mail is being copied to a QA inbox — it must read false on
-    // production unless someone deliberately turned it on.
+    // production unless someone deliberately turned it on. whatsapp is
+    // "off" until the Meta Cloud API and its templates are configured — the
+    // channel used to "send" to the server log while saying it was delivered.
     return {
       ok: true,
       checks: {
         email: emailConfigFromEnv().provider,
         emailTestRouting: testRecipientFromEnv() !== undefined,
+        whatsapp: whatsappConfigFromEnv().mode,
       },
     };
   }

@@ -92,7 +92,8 @@ export type RfqRow = Jsonify<Rfq> & {
   _count: { quotations: number };
 };
 
-/** GET /rfqs/inbox — RFQs this company can still quote on (quoted ones are under Quotations sent). */
+/** GET /rfqs/inbox — RFQs this company can still quote on (quoted ones are under Quotations sent),
+ *  plus ones delivered to it that the buyer cancelled, until their deadline (`status: "CANCELLED"`). */
 export type RfqInboxRow = Jsonify<Rfq> & {
   buyerCompany: CompanyRef;
   category: { name: string } | null;

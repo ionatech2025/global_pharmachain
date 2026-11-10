@@ -194,6 +194,13 @@ export class RfqService {
    * this company is matched on. An RFQ naming another category reaches only the
    * suppliers listing it, and nothing used to tell a supplier why an RFQ for its
    * company type never appeared (the same review).
+   *
+   * An RFQ the buyer cancels stays listed — marked cancelled, with no way to
+   * quote — until its original deadline, for the suppliers it was delivered to.
+   * It used to vanish the moment it was cancelled, so a supplier preparing a
+   * quotation saw it disappear without a reason, and US-407 TC3 (quoting on a
+   * cancelled RFQ is blocked) could not even be attempted (client review,
+   * 2026-11-11).
    */
   async inbox(membership: Membership, query: PaginationQuery) {
     const myCategories = await prisma.listing.findMany({
@@ -205,11 +212,23 @@ export class RfqService {
       .map((l) => l.category)
       .sort((a, b) => a.name.localeCompare(b.name));
     const where = {
-      status: "OPEN",
       deadline: { gt: new Date() },
       targetCompanyType: membership.company.type,
       buyerCompanyId: { not: membership.companyId },
-      OR: [{ categoryId: null }, { categoryId: { in: categories.map((c) => c.id) } }],
+      OR: [
+        {
+          status: "OPEN",
+          OR: [{ categoryId: null }, { categoryId: { in: categories.map((c) => c.id) } }],
+        },
+        // Cancelled: only where it was delivered — the audience the
+        // cancellation notice went to (rfqAudience).
+        {
+          status: "CANCELLED",
+          distributions: {
+            some: { companyId: membership.companyId, deliveredAt: { not: null } },
+          },
+        },
+      ],
       // Any quotation it still has here (active, withdrawn, expired, accepted)
       // is one it cannot submit afresh — that RFQ is under Quotations sent.
       quotations: {
@@ -223,7 +242,9 @@ export class RfqService {
           buyerCompany: { select: { id: true, name: true, country: true } },
           category: { select: { name: true } },
         },
-        orderBy: { deadline: "asc" },
+        // Open RFQs first (RfqStatus declares OPEN before CANCELLED), soonest
+        // deadline first within each.
+        orderBy: [{ status: "asc" }, { deadline: "asc" }],
         ...skipTake(query),
       }),
       prisma.rfq.count({ where }),
@@ -539,9 +560,17 @@ export class RfqService {
 
   // ─── Quotations (US-403/404/405/406) ───────────────────────────────────────
 
+  /** US-407 TC3: says WHY quoting is closed — a supplier whose form was open
+   *  when the buyer cancelled used to get the same answer as a missed deadline. */
   private assertRfqOpenForQuoting(rfq: { status: string; deadline: Date }): void {
+    if (rfq.status === "CANCELLED") {
+      throw conflict("The buyer cancelled this RFQ — it no longer accepts quotations");
+    }
+    if (rfq.status === "AWARDED") {
+      throw conflict("This RFQ has been awarded — it no longer accepts quotations");
+    }
     if (rfq.status !== "OPEN" || rfq.deadline <= new Date()) {
-      throw conflict("This RFQ is no longer accepting quotations");
+      throw conflict("This RFQ's deadline has passed — it no longer accepts quotations");
     }
   }
 

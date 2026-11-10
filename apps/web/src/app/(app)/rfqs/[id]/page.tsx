@@ -45,7 +45,13 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
       <PageHeader
         backHref={rfq.viewerIsBuyer ? "/rfqs" : "/quotes"}
         backLabel={rfq.viewerIsBuyer ? "My RFQs" : "Quote inbox"}
-        eyebrow={rfq.viewerIsBuyer ? "RFQ you raised" : "RFQ you can quote on"}
+        eyebrow={
+          rfq.viewerIsBuyer
+            ? "RFQ you raised"
+            : rfq.status === "OPEN"
+              ? "RFQ you can quote on"
+              : "RFQ sent to you"
+        }
         title={`${rfq.refNo} — ${rfq.title}`}
         description={
           rfq.viewerIsBuyer

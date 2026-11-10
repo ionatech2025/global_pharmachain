@@ -3,9 +3,17 @@ import type { AuthenticatedUser } from "@pharmachain/auth";
 import { companyAccessBlocked, type RegisterInput } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { genericEventEmail, otpEmail, passwordResetEmail, welcomeEmail } from "@pharmachain/email";
-import { notificationProviders, notify } from "@pharmachain/notifications";
+import { notificationProviders, notify, whatsappAvailable } from "@pharmachain/notifications";
 import { recordAudit } from "../../common/audit";
-import { ApiException, badRequest, conflict, forbidden, unauthorized } from "../../common/errors";
+import {
+  ApiException,
+  badRequest,
+  channelUnavailable,
+  conflict,
+  deliveryFailed,
+  forbidden,
+  unauthorized,
+} from "../../common/errors";
 import { env } from "../../env";
 import { generateOtpCode, hashOtp, hashToken, randomToken } from "../../lib/crypto";
 import { defer } from "../../lib/defer";
@@ -659,12 +667,50 @@ export class AuthService {
     });
   }
 
+  /** What the account page shows about WhatsApp (US-604). */
+  async whatsappStatus(userId: string): Promise<{
+    available: boolean;
+    number: string | null;
+    verified: boolean;
+    pending: boolean;
+  }> {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { whatsappNumber: true, whatsappVerifiedAt: true, whatsappVerifyExpiresAt: true },
+    });
+    return {
+      available: whatsappAvailable(),
+      number: user.whatsappNumber,
+      verified: Boolean(user.whatsappNumber && user.whatsappVerifiedAt),
+      pending: Boolean(user.whatsappVerifyExpiresAt && user.whatsappVerifyExpiresAt > new Date()),
+    };
+  }
+
   async setWhatsappNumber(userId: string, number: string): Promise<void> {
     // US-604: saving a number starts a challenge — a 6-digit code sent over
     // the WhatsApp channel itself. The number counts as verified only after
     // verifyWhatsappNumber() checks the code, so notifications never go to a
     // number nobody proved they hold.
+    //
+    // Client review 2026-11-11: production had no WhatsApp provider, the code
+    // went to the server log, and the page still said it was sent. Now an
+    // unconfigured channel refuses, and a failed send is an error — the code
+    // is sent BEFORE anything is saved, so a failure leaves the account as it
+    // was (a verified number is not dropped for one that cannot be reached).
+    if (!whatsappAvailable()) {
+      throw channelUnavailable(
+        "WhatsApp notifications aren't available on Global PharmaChain yet. You'll still get every notification in-app and by email.",
+      );
+    }
     const code = generateOtpCode();
+    try {
+      await notificationProviders().whatsapp.sendCode(number, code);
+    } catch (err) {
+      console.error("[whatsapp-verify] challenge delivery failed:", err);
+      throw deliveryFailed(
+        "We couldn't send a code to that number on WhatsApp. Check it's a WhatsApp number in international format (e.g. +256700000000) and try again.",
+      );
+    }
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -674,16 +720,6 @@ export class AuthService {
         whatsappVerifyExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
-    try {
-      await notificationProviders().whatsapp.send(
-        number,
-        `PharmaChain verification code: ${code}. It expires in 10 minutes.`,
-      );
-    } catch (err) {
-      // The console provider never throws; a real provider failure leaves the
-      // challenge in place — the user can re-save the number to retry.
-      console.error("[whatsapp-verify] challenge delivery failed:", err);
-    }
   }
 
   async verifyWhatsappNumber(userId: string, code: string): Promise<void> {

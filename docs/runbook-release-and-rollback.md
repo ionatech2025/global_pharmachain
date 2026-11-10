@@ -60,6 +60,7 @@ does not know the newer shape. Whether the old code can still run depends on the
 | --- | --- | --- |
 | **2026-10-22** (company suspend / delete) | no company is `SUSPENDED` or `DELETED` — the older Prisma client cannot read those enum values and throws on the row | Admin → Companies → filters **Deactivated** and **Deleted** must both be empty |
 | **2026-10-23** (passkeys) | always safe for the code; but the older build ignores passkeys, so a platform admin could sign in with the password alone until the roll-forward | none needed — tell the admins |
+| **2026-11-11** (message email marks, WhatsApp off-when-unconfigured) | always safe — older builds ignore `MessageThreadEmailMark` and return to the per-thread email throttle (the US-603 defect) and the console WhatsApp fallback | none needed |
 
 Once a company has been suspended or deleted, **fix forward**: ship a corrected build
 rather than rolling back.

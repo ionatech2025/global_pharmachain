@@ -11,7 +11,12 @@ import {
 import { defer } from "./defer";
 import { deliverOutbox, type OutboxMessage, recordOutbox } from "./outbox";
 import { sendWebPush, vapidPublicKey } from "./webpush";
-import { createWhatsAppProvider, type WhatsAppProvider } from "./whatsapp";
+import {
+  createWhatsAppProvider,
+  type WhatsAppProvider,
+  whatsappAvailable,
+  whatsappConfigFromEnv,
+} from "./whatsapp";
 
 export * from "./outbox";
 export * from "./webpush";
@@ -26,7 +31,14 @@ function email(): EmailProvider {
 }
 
 function whatsapp(): WhatsAppProvider {
-  whatsappProvider ??= createWhatsAppProvider(process.env.WHATSAPP_PROVIDER);
+  if (!whatsappProvider) {
+    const config = whatsappConfigFromEnv();
+    if (config.mode === "off" && process.env.WHATSAPP_PROVIDER) {
+      // Someone meant to switch it on; say why it is still off.
+      console.warn(`[whatsapp] channel off: ${config.reason}`);
+    }
+    whatsappProvider = createWhatsAppProvider(config);
+  }
   return whatsappProvider;
 }
 
@@ -127,6 +139,9 @@ async function fanout(input: NotifyInput): Promise<void> {
     : [];
   const prefByUser = new Map(prefs.map((p) => [p.userId, p]));
 
+  // An unconfigured channel queues nothing: an outbox row "sent" to nowhere
+  // would read as delivered (client review, 2026-11-11).
+  const whatsappOn = Boolean(input.whatsappText) && whatsappAvailable();
   const messages: OutboxMessage[] = [];
   for (const user of users) {
     const pref = prefByUser.get(user.id);
@@ -137,7 +152,13 @@ async function fanout(input: NotifyInput): Promise<void> {
     }
     // US-604: silent fallback — WhatsApp only for verified numbers, and a
     // provider failure never surfaces to the user (email/in-app already sent).
-    if (input.whatsappText && whatsappEnabled && user.whatsappNumber && user.whatsappVerifiedAt) {
+    if (
+      whatsappOn &&
+      input.whatsappText &&
+      whatsappEnabled &&
+      user.whatsappNumber &&
+      user.whatsappVerifiedAt
+    ) {
       messages.push({
         channel: "WHATSAPP",
         recipient: user.whatsappNumber,
