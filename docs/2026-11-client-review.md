@@ -1,6 +1,7 @@
-# Client review of 2026-11-11 and 2026-11-12 — findings, fixes and verification
+# Client review of 2026-11-06, 2026-11-11 and 2026-11-12 — findings, fixes and verification
 
-The **November 12** section is [below](#november-12-2026--shipment-status-admin-follow-up-stage-13).
+The **November 12** section is [below](#november-12-2026--shipment-status-admin-follow-up-stage-13),
+followed by **November 6** ([below](#november-6-2026--marketplace-filters-apply-without-a-button)).
 
 Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx.pdf` (26 pages), the section
 headed **"November 11, 2026 — US-407 – TC3"** on pages 23–25. Most of it is
@@ -10,8 +11,9 @@ happened, against production's own records. The fixes were then run on a real
 PostgreSQL with a production build and a Playwright spec
 (`e2e/client-review-2026-11-11.spec.ts`).
 
-The earlier sections of the same PDF (October 20 – November 6) are covered by
-`docs/2026-10-client-review.md` or are not part of this change.
+The earlier sections of the same PDF (October 20 – October 29) are covered by
+`docs/2026-10-client-review.md`. The November 6 comment was missed at the time
+and is addressed in its own section at the end of this record.
 
 ## Comment → outcome
 
@@ -183,4 +185,31 @@ usual. Rolling back is safe.
    **Correct status**, then **Audit trail**.
 2. Stage 13 is the buyer's step. Please run it as the buyer, using **Confirm
    delivery** once the order shows *Delivered*.
+
+---
+
+## November 6, 2026 — marketplace filters apply without a button
+
+Source: the same PDF (`…CLIENT.docx-1.pdf`, 28 pages), section **"November 6,
+2026"**, page 23. It was missed when the November 11 section was worked on and
+found in a full audit of the PDF on 2026-11-12. Every other section of the PDF
+(general comments, October 20, 27 and 29) is recorded as addressed in
+`docs/2026-10-client-review.md`.
+
+| Comment | Verdict | What changed |
+| --- | --- | --- |
+| Marketplace screenshot: *"When a user filters, they have to click the 'Search' button to get the filtered results, yet the 'Search' button looks to be for the search field … label that button 'Search/Filter' with a tooltip … Better would be if the results from the filter come, even without pressing the button."* | **Real usability defect** | We took the client's preferred option: **there is no button any more.** Category, Listing type, Country of origin and Sort by apply the moment they change. The search box updates the results as you type, after a short pause, the same way as the admin lists. A line under the filters says *"Results update as you type or change a filter — no button to press"* and changes to *"Updating results…"* while results load. Other filters are kept when one changes, and the list goes back to page 1. Every result set is still a shareable link. The *Filters:* chips and **Clear all** still remove filters, and the dropdowns reset to match. |
+
+### Verification
+
+- `e2e/client-review-2026-11-06.spec.ts` checks the following, all on the same
+  page with no reload:
+  - the search panel has no button;
+  - choosing a listing type, then a sort order, applies each one immediately
+    and keeps the previous filter;
+  - typing in the search box applies the text and keeps the filters;
+  - removing a chip resets its dropdown.
+- The existing marketplace specs still pass on the local stack: the country
+  list and sort labels (2026-10-29), dropdown contrast in light and dark mode
+  (October 20/22), and the comparison tray (checklist cases 57 and 58).
 

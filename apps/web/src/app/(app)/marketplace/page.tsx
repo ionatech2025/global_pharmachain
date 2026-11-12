@@ -1,7 +1,4 @@
-import { MARKETPLACE_SORT_LABELS, MARKETPLACE_SORTS } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
-import { Button } from "@pharmachain/ui/components/button";
-import { Input } from "@pharmachain/ui/components/input";
 import { Skeleton } from "@pharmachain/ui/components/skeleton";
 import {
   Table,
@@ -24,6 +21,7 @@ import { getCategories, getExchangeRates, getOrigins } from "@/lib/api/reference
 import { apiServer, getViewer } from "@/lib/api/server";
 import type { CategoryRow, ExchangeRateRow, ListingRow, Paginated } from "@/lib/api/types";
 import { approxInPreferred, convertedPrices, fmtMoney } from "@/lib/format";
+import { MarketplaceFilters } from "./filters";
 
 export const metadata = { title: "Marketplace" };
 
@@ -66,73 +64,18 @@ export default async function MarketplacePage({
       />
 
       {/* One panel, visible labels, one row of filters under the search box
-          (client review, 2026-10-29: "not well organised"). A plain GET form,
-          so every search is a shareable, bookmarkable URL. */}
-      <form
-        action="/marketplace"
-        method="get"
-        className="panel space-y-3 p-4"
-        aria-label="Search the marketplace"
-      >
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <label className="sr-only" htmlFor="mp-q">
-            Search products
-          </label>
-          <Input
-            id="mp-q"
-            name="q"
-            placeholder="Product or chemical name, CAS number…"
-            defaultValue={params.q}
-            className="sm:flex-1"
-          />
-          <div className="flex gap-2">
-            <Button type="submit" className="flex-1 sm:flex-none">
-              Search
-            </Button>
-            {hasFilters(params) && (
-              <Button asChild variant="ghost" className="flex-1 sm:flex-none">
-                <Link href="/marketplace">Clear</Link>
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FilterSelect label="Category" name="categoryId" value={params.categoryId}>
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </FilterSelect>
-          <FilterSelect label="Listing type" name="kind" value={params.kind}>
-            <option value="">Raw materials & products</option>
-            <option value="RAW_MATERIAL">Raw materials</option>
-            <option value="FINISHED_PRODUCT">Finished products</option>
-          </FilterSelect>
-          <FilterSelect label="Country of origin" name="country" value={params.country}>
-            <option value="">Any country</option>
-            {/* A value from an older link that no listing carries any more still
-                shows as selected, rather than silently becoming "Any country". */}
-            {params.country &&
-              !origins.some((o) => o.toLowerCase() === params.country?.toLowerCase()) && (
-                <option value={params.country}>{params.country}</option>
-              )}
-            {origins.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </FilterSelect>
-          <FilterSelect label="Sort by" name="sort" value={params.sort ?? "relevance"}>
-            {MARKETPLACE_SORTS.map((sort) => (
-              <option key={sort} value={sort}>
-                {MARKETPLACE_SORT_LABELS[sort]}
-              </option>
-            ))}
-          </FilterSelect>
-        </div>
-      </form>
+          (client review, 2026-10-29: "not well organised"). Since 2026-11-06
+          every control applies as it changes — no Search button to press. */}
+      <MarketplaceFilters
+        values={{
+          categoryId: params.categoryId,
+          kind: params.kind,
+          country: params.country,
+          sort: params.sort,
+        }}
+        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        origins={origins}
+      />
 
       <FilterChips params={params} categories={categories} />
       <SavedSearches
@@ -373,43 +316,5 @@ function FilterChips({ params, categories }: { params: SearchParams; categories:
         Clear all
       </Link>
     </div>
-  );
-}
-
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-transparent px-3 text-sm transition-[border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50";
-
-/** A labelled filter: the label is visible, so the control's purpose survives a chosen value. */
-function FilterSelect({
-  label,
-  name,
-  value,
-  children,
-}: {
-  label: string;
-  name: string;
-  value: string | undefined;
-  children: React.ReactNode;
-}) {
-  const id = `mp-${name}`;
-  return (
-    <div className="grid gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-        {label}
-      </label>
-      <select id={id} name={name} defaultValue={value ?? ""} className={SELECT_CLASS}>
-        {children}
-      </select>
-    </div>
-  );
-}
-
-function hasFilters(params: SearchParams): boolean {
-  return Boolean(
-    params.q ||
-      params.categoryId ||
-      params.kind ||
-      params.country ||
-      (params.sort && params.sort !== "relevance"),
   );
 }
