@@ -102,6 +102,8 @@ export const auditLogQuerySchema = paginationQuerySchema.extend({
   actorUserId: optionalFilter(z.uuid()),
   actorEmail: optionalFilter(z.string().max(320)),
   entityType: optionalFilter(z.string().max(60)),
+  // One record's trail, e.g. an order's status corrections (US-701 TC4).
+  entityId: optionalFilter(z.string().max(64)),
   companyId: optionalFilter(z.uuid()),
   from: optionalFilter(z.iso.datetime()),
   to: optionalFilter(z.iso.datetime()),

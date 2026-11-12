@@ -33,6 +33,7 @@ export default async function AdminAuditPage({
   searchParams: Promise<{
     actorEmail?: string;
     entityType?: string;
+    entityId?: string;
     from?: string;
     to?: string;
     page?: string;
@@ -44,6 +45,7 @@ export default async function AdminAuditPage({
     query: {
       actorEmail: params.actorEmail || undefined,
       entityType: params.entityType || undefined,
+      entityId: params.entityId || undefined,
       from: safeIsoDate(params.from),
       to: safeIsoDate(params.to, true),
       page: params.page ?? 1,
@@ -72,6 +74,9 @@ export default async function AdminAuditPage({
           defaultValue={params.entityType}
           className="w-full sm:w-52"
         />
+        {/* One record's trail (e.g. an order's status corrections, US-701 TC4),
+            linked from that record's page; kept across filter changes. */}
+        {params.entityId && <input type="hidden" name="entityId" value={params.entityId} />}
         <Input
           name="from"
           type="date"
@@ -142,6 +147,7 @@ export default async function AdminAuditPage({
             params={{
               actorEmail: params.actorEmail,
               entityType: params.entityType,
+              entityId: params.entityId,
               from: params.from,
               to: params.to,
             }}

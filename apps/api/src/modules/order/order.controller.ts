@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query, Req, Sse } from "@nestjs/common";
 import {
   idParamSchema,
   optionalFilter,
@@ -9,6 +9,7 @@ import {
 } from "@pharmachain/core";
 import type { Prisma } from "@pharmachain/db";
 import { prisma } from "@pharmachain/db";
+import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
   CurrentMembership,
@@ -18,9 +19,11 @@ import {
 } from "../../common/decorators";
 import { notFound } from "../../common/errors";
 import { zodPipe } from "../../common/pipes/zod.pipe";
+import { changeFeed, lastEventId } from "../../lib/change-feed";
 import type { AuthUser, Membership } from "../../lib/context";
 import { resolveShipmentRole } from "../../lib/shipment-access";
 import { DocumentService } from "../document/document.service";
+import { orderFingerprint } from "./order-fingerprint";
 
 const orderListQuerySchema = paginationQuerySchema.extend({
   role: optionalFilter(z.enum(["buyer", "seller"])),
@@ -121,6 +124,27 @@ export class OrderController {
         present: presentKinds.has(kind),
       })),
     };
+  }
+
+  /** Live order page (SSE). Client review 2026-11-12: a stage change showed
+   *  only after a manual reload — for the party who made it and for everyone
+   *  else watching. Access is asserted once, before the stream opens, with the
+   *  same rule as reading the order; the stream only ever says "changed". */
+  @Sse(":id/stream")
+  async stream(
+    @CurrentUser() user: AuthUser,
+    @OptionalMembership() membership: Membership | undefined,
+    @Param(zodPipe(idParamSchema)) params: { id: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const order = await prisma.order.findUnique({
+      where: { id: params.id },
+      select: { id: true, buyerCompanyId: true, sellerCompanyId: true },
+    });
+    if (!order || !(await resolveShipmentRole(user, membership, order))) {
+      throw notFound("Order not found");
+    }
+    return changeFeed(() => orderFingerprint(order.id), lastEventId(req));
   }
 
   /** Order document space (US-501/502; super admins may inspect for disputes). */

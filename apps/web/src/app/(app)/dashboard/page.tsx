@@ -32,7 +32,6 @@ import {
   ShieldCheck,
   ShoppingCart,
   Truck,
-  Users,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -506,6 +505,7 @@ export default async function DashboardPage() {
             label="Orders"
             value={fmtNumber(p.ordersLast30d)}
             icon={ShoppingCart}
+            href="/admin/orders"
             delta={activity.deltas.orders}
             caption={vsPrevious(activity.deltas.orders, window)}
             spark={sparkFor(activity, "orders")}
@@ -598,16 +598,16 @@ export default async function DashboardPage() {
               icon: LifeBuoy,
             },
             {
+              href: "/admin/orders",
+              label: "Orders",
+              hint: "Follow up & correct stages",
+              icon: ShoppingCart,
+            },
+            {
               href: "/admin/disputes",
               label: "Disputes",
               hint: "Open and escalated",
               icon: ShieldAlert,
-            },
-            {
-              href: "/admin/logins",
-              label: "Login activity",
-              hint: "Access across the network",
-              icon: Users,
             },
           ]}
         />

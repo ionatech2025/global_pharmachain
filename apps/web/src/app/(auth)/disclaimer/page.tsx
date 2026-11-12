@@ -1,6 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@pharmachain/ui/components/card";
 import { AlertCircle, Scale } from "lucide-react";
-import { CONTACT_PHONES, INFO_EMAIL, SALES_EMAIL, SUPPORT_EMAIL, telHref } from "@/lib/contact";
+import {
+  CONTACT_PHONES,
+  INFO_EMAIL,
+  SALES_EMAIL,
+  SUPPORT_EMAIL,
+  telHref,
+  WHATSAPP_LABEL,
+  WHATSAPP_NUMBER,
+  whatsappHref,
+} from "@/lib/contact";
 
 export const metadata = {
   title: "Legal Disclaimer & Regulatory Compliance · Global PharmaChain",
@@ -101,6 +110,20 @@ export default function LegalDisclaimerPage() {
                   className="text-primary underline hover:text-foreground"
                 >
                   {CONTACT_PHONES[0]}
+                </a>
+              </>
+            )}
+            {WHATSAPP_NUMBER && (
+              <>
+                {", or message us on WhatsApp at "}
+                <a
+                  href={whatsappHref(WHATSAPP_NUMBER)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${WHATSAPP_LABEL} (${WHATSAPP_NUMBER})`}
+                  className="text-primary underline hover:text-foreground"
+                >
+                  {WHATSAPP_NUMBER}
                 </a>
               </>
             )}

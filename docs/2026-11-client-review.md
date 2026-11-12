@@ -1,4 +1,6 @@
-# Client review of 2026-11-11 — findings, fixes and verification
+# Client review of 2026-11-11 and 2026-11-12 — findings, fixes and verification
+
+The **November 12** section is [below](#november-12-2026--shipment-status-admin-follow-up-stage-13).
 
 Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx.pdf` (26 pages), the section
 headed **"November 11, 2026 — US-407 – TC3"** on pages 23–25. Most of it is
@@ -109,3 +111,76 @@ old throttle.
    repository. Rotate them and remove the defaults from the workflow.
 4. The demo accounts use `*.demo` addresses, which cannot receive mail. Test
    email delivery (US-603) with accounts on real mailboxes.
+
+---
+
+## November 12, 2026 — shipment status, admin follow-up, stage 13
+
+Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx-1.pdf` (28 pages), section
+**"November 12, 2026"**, pages 25–27 (Figures 10–13). The section is mostly
+screenshots, so the page images were read along with the text. Each comment was
+traced to code. The fixes were run on a real PostgreSQL with a production web
+build (`e2e/client-review-2026-11-12.spec.ts`). Decisions:
+[ADR-0004](adr/ADR-0004-shipment-stage-actions-and-admin-corrections.md) and
+[ADR-0005](adr/ADR-0005-live-order-page-change-feed.md).
+
+### Comment → outcome
+
+| # | Comment | Verdict | What changed |
+| --- | --- | --- | --- |
+| 1 | **Figure 10** (testing Epic 7): updating to *In transit* fails with *"Cannot move from Goods collected to Goods collected"*; *"this seems to update only after a manual page refresh … we should have it reload/update without manual refresh"* | **Real defect** (two parts) | **(a)** The status dialog stored its stage once, when the page first rendered. After one update the button said *Advance to In transit*, but the form still sent *Goods collected*, the stage the order was already at, so the API refused it until a reload. The dialog now takes the stage each time it opens. A genuine race now reads *"This order is already at ‹stage› — it was updated after your page loaded"*, and the page refreshes itself. **(b)** The order page now updates live for every party (buyer, supplier, logistics partners, platform admin): stage, ETA, history, documents, tracking, payments and disputes, within a few seconds and without a reload (ADR-0005). |
+| 2 | **US-701 TC4** (Figure 11): *"System Admin corrects a status set in error → recorded in the audit log with reason — WHERE AND HOW DOES THIS HAPPEN"*; *"they see the number of orders, but cannot open them or follow them up"* | **The capability existed; there was no way to reach it** | New **Platform admin → Orders** (`/admin/orders`), linked from the sidebar, the dashboard's Orders tile and the dashboard quick actions. It lists every order with search (order no., item, RFQ, buyer, supplier) and filters (*In progress*, *Past ETA*, *Awaiting buyer confirmation*, *Completed*, or an exact stage, applied as soon as it is picked). An order opens on its normal page, where the admin has **Correct status**: any stage, a **required reason** (at least 5 characters, also enforced by the API), every party notified. The **Audit trail** button opens the order's own entries in the audit log, where the correction appears as `order.status-correct` with the reason. |
+| 3 | **Figures 12–13**: *"Who completes step 13? Should it be the system admin? But how?"* | **The buyer**, but the page never said so, and it showed the supplier a button that failed | Stage 13 (*Delivery confirmed*) is the buyer's confirmation of receipt. It completes the order. When the order is *Delivered*, the buyer gets a **Confirm delivery** button ("this completes the order — stage 13 of 13; if something is wrong, raise a dispute instead"). The supplier used to see *Advance to Delivery confirmed*, which the API refused (403). Now no party is shown a stage action that it cannot take. Everyone reads **"Next: 13. Delivery confirmed — set by the buyer."** The tracker labels stage 13 *by the buyer*, and a completed order says who confirmed it and when. The platform admin does not confirm delivery on the buyer's behalf. If an order needs correcting, the admin uses the audited correction (row 2). |
+| 4 | *(By message, same day)* "Fix also the WhatsApp business number: *Message Pharmachain Global Enterprises on WhatsApp. https://wa.me/256784528651*" | **Added**: the site had no WhatsApp contact | The landing page's contact block and its *Contact & Legal* footer list, and the disclaimer's contact paragraph, now show **WhatsApp: +256 784 528651**. It links to `https://wa.me/256784528651`, labelled *Message Pharmachain Global Enterprises on WhatsApp*. The number is `NEXT_PUBLIC_WHATSAPP_NUMBER`, a build-time setting next to `NEXT_PUBLIC_CONTACT_PHONES` (a single space hides it). This is the public chat line only. WhatsApp **notifications** still need the Meta Cloud API setup (`docs/runbook-whatsapp.md`, which now explains the difference). |
+
+### Who sets each stage
+
+The page derives this text from the same rule the API enforces
+(`canActorSetStage`), so the two cannot disagree:
+
+| Stages | Set by |
+| --- | --- |
+| 2 Pickup scheduled · 4 In transit · 5 At port of origin · 8 At port of destination | the supplier or forwarder |
+| 3 Goods collected · 10 Inland transport · 11 Out for delivery · 12 Delivered | the supplier, forwarder or transporter |
+| 6 Customs (origin) · 7 Departed · 9 Customs (destination) | the supplier, forwarder or clearing agent |
+| 13 Delivery confirmed | the buyer |
+| any stage, out of sequence, with a reason | a platform admin (correction, audited) |
+
+Finance staff do not update shipments (US-204). The page no longer offers them
+the button, which the API already refused.
+
+The same stale-form flaw was found in two sibling dialogs on the order page.
+**Set/Update ETA** and **Freight details** kept the values from the page's first
+render. Now that the page follows the order live, reopening either after
+another party's change would have saved the old values back, silently undoing
+that change. Both now reload their fields from the current order each time they
+open.
+
+### Verification
+
+- Unit tests: core 148 (adds `stageSetBy`), API 110 (adds the order-feed
+  fingerprint and the stage-conflict messages), email 32, notifications 9.
+  Typecheck and lint are clean.
+- Local stack (embedded PostgreSQL 18, production web build): the new spec
+  passes 5/5. It covers two updates in a row without a reload, the buyer's open
+  page following the supplier's change, the admin flow from `/admin/orders`
+  through to the audit trail, stage 13 from both sides, and the WhatsApp link
+  on `/` and `/disclaimer`. `routes.spec.ts`, which now renders
+  `/admin/orders`, passes 13/13.
+- The previous order page was rebuilt and driven the same way. It reproduced
+  Figure 10 exactly: after the first update, the dialog showed **In transit**
+  but sent `{"status":"GOODS_COLLECTED"}`, and the API answered **409**. The new
+  spec's case fails on that build and passes on this one.
+
+### Release notes
+
+**No migration.** This release adds no schema change. Merge and deploy as
+usual. Rolling back is safe.
+
+### Needs the client
+
+1. Please re-run US-701 TC4 from **Platform admin → Orders**: open an order, use
+   **Correct status**, then **Audit trail**.
+2. Stage 13 is the buyer's step. Please run it as the buyer, using **Confirm
+   delivery** once the order shows *Delivered*.
+

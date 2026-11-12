@@ -11,6 +11,20 @@ message template approved in WhatsApp Manager. Free-form text is accepted only
 inside the 24-hour window after the user messages the business. A notification
 platform never has that window, so everything goes out as a template.
 
+## The public chat number is a different thing
+
+The site's **WhatsApp** contact link, *Message Pharmachain Global Enterprises on
+WhatsApp*, points to <https://wa.me/256784528651>. It is set with
+`NEXT_PUBLIC_WHATSAPP_NUMBER` (default `+256 784 528651`; build-time, so release
+after changing it). It only opens a chat with the company's WhatsApp Business
+app. It does not send any platform notifications.
+
+Platform notifications need the Cloud API setup below. To send them from the
+same number, that number must also be onboarded to the Cloud API in WhatsApp
+Manager. Check Meta's current terms for numbers that are already in use in the
+WhatsApp Business app. Either way, `WHATSAPP_PHONE_ID` is the **Phone number
+ID** that Meta assigns, never the number itself.
+
 ## 1. Meta side (the business owner)
 
 1. A Meta Business account (business verification raises the sending limits).

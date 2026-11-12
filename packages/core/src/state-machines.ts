@@ -76,6 +76,25 @@ export function canActorSetStage(actor: ShipmentActor, to: OrderStatus): boolean
   }
 }
 
+const ACTOR_NOUNS: ReadonlyArray<readonly [ShipmentActor, string]> = [
+  ["seller", "supplier"],
+  ["FORWARDER", "forwarder"],
+  ["TRANSPORTER", "transporter"],
+  ["CLEARING_AGENT", "clearing agent"],
+  ["buyer", "buyer"],
+];
+
+/** Who may move a shipment INTO `to`, in words ("the buyer", "the supplier,
+ *  forwarder or transporter") — derived from canActorSetStage so the hint a
+ *  waiting party reads can never disagree with what the API enforces.
+ *  Client review 2026-11-12: "Who completes step 13?" was not answerable
+ *  from the page. */
+export function stageSetBy(to: OrderStatus): string {
+  const nouns = ACTOR_NOUNS.filter(([actor]) => canActorSetStage(actor, to)).map(([, n]) => n);
+  if (nouns.length <= 1) return `the ${nouns[0] ?? "platform team"}`;
+  return `the ${nouns.slice(0, -1).join(", ")} or ${nouns[nouns.length - 1]}`;
+}
+
 // ─── Phase 2: shipment document checklist ────────────────────────────────────
 
 export interface ShipmentDocContext {

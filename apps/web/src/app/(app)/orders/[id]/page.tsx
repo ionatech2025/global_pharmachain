@@ -1,16 +1,20 @@
 import {
+  can,
   DOCUMENT_KIND_LABELS,
   type DocumentKind,
   FREIGHT_MODE_LABELS,
   LOGISTICS_ROLE_LABELS,
+  nextOrderStatus,
   ORDER_DOCUMENT_KINDS,
   ORDER_STATUS_LABELS,
   ORDER_STATUSES,
   orderStatusIndex,
   SHIPMENT_EXCEPTION_LABELS,
   type ShipmentException,
+  stageSetBy,
 } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
+import { Button } from "@pharmachain/ui/components/button";
 import {
   Card,
   CardContent,
@@ -19,10 +23,11 @@ import {
   CardTitle,
 } from "@pharmachain/ui/components/card";
 import { cn } from "@pharmachain/ui/lib/utils";
-import { Check, Snowflake } from "lucide-react";
+import { Check, CircleCheck, ScrollText, Snowflake } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DocumentChip } from "@/components/document-chip";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { RateEngagementButton } from "@/components/ratings";
 import { OrderStatusBadge } from "@/components/status-badge";
@@ -48,6 +53,7 @@ import {
   RevokeAppointmentButton,
 } from "./logistics-panels";
 import { EtaButton, MessageCounterpartyButton, StatusUpdateButton } from "./panels";
+import { statusModeFor } from "./status-mode";
 import { TraceCard } from "./trace-card";
 
 export const metadata = { title: "Order" };
@@ -102,8 +108,13 @@ function ShipmentTracker({
           >
             {ORDER_STATUS_LABELS[stage]}
           </span>
-          {reachedAt[stage] && (
+          {reachedAt[stage] ? (
             <span className="text-[10px] text-muted-foreground">{fmtDate(reachedAt[stage])}</span>
+          ) : (
+            stage === "DELIVERY_CONFIRMED" && (
+              // Client review 2026-11-12: "Who completes step 13?"
+              <span className="text-[10px] text-muted-foreground">by {stageSetBy(stage)}</span>
+            )
           )}
         </li>
       ))}
@@ -131,14 +142,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   ]);
   const role = order.viewerRole;
   // Phase 2 §1–3: seller + forwarder run the lifecycle; transporter and
-  // clearing agent drive their own legs; buyer confirms final receipt.
-  const canUpdateShipment =
-    role === "seller" ||
-    role === "admin" ||
-    role === "FORWARDER" ||
-    role === "TRANSPORTER" ||
-    role === "CLEARING_AGENT" ||
-    (role === "buyer" && order.status === "DELIVERED");
+  // clearing agent drive their own legs; buyer confirms final receipt; a super
+  // admin corrects (US-701 TC4). Only the party that may set the next stage
+  // gets the button — the rule is canActorSetStage, the same one the API
+  // enforces — and finance staff never drive shipments (US-204).
+  const statusMode =
+    me.membership && !can(me.membership.role, "order:update-status") ? null : statusModeFor(order);
+  const nextStage = nextOrderStatus(order.status);
   const canManageFreight = role === "seller" || role === "FORWARDER" || role === "admin";
   const canRecordLocation =
     role === "seller" || role === "FORWARDER" || role === "TRANSPORTER" || role === "admin";
@@ -148,6 +158,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     ["OUT_FOR_DELIVERY", "DELIVERED", "DELIVERY_CONFIRMED"].includes(order.status);
   const counterparty = order.viewerIsSeller ? order.buyerCompany : order.sellerCompany;
   const lastEvent = order.statusEvents[0];
+  // Newest first: the event that completed the order (buyer, or a correction).
+  const confirmedEvent = order.statusEvents.find(
+    (e) => e.status === "DELIVERY_CONFIRMED" && !e.exception,
+  );
   // Earliest event per stage = the date each checkpoint was reached.
   const reachedAt: Partial<Record<OrderDetail["status"], string>> = {};
   for (const event of [...order.statusEvents].reverse()) {
@@ -169,8 +183,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
+      {/* Every party's page follows the order live (client review 2026-11-12:
+          a stage change showed only after a manual reload). */}
+      <LiveRefresh stream={`/orders/${order.id}/stream`} />
       <PageHeader
-        backHref="/orders"
+        backHref={role === "admin" ? "/admin/orders" : "/orders"}
         backLabel="Orders"
         title={`Order ${order.orderNo}`}
         description={`${order.title} · from RFQ ${order.rfq.refNo}`}
@@ -198,6 +215,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 })),
               ]}
             />
+          )}
+          {role === "admin" && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/admin/audit?entityType=Order&entityId=${order.id}`}>
+                <ScrollText className="size-4" /> Audit trail
+              </Link>
+            </Button>
           )}
           {role !== "admin" && (
             <MessageCounterpartyButton
@@ -251,13 +275,39 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <EtaButton order={order} />
             )}
             {role !== "buyer" && role !== "admin" && <ExceptionButton orderId={order.id} />}
-            {canUpdateShipment && (
-              <StatusUpdateButton order={order} isSuperAdmin={me.isSuperAdmin} />
-            )}
+            {statusMode && <StatusUpdateButton order={order} />}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <ShipmentTracker status={order.status} reachedAt={reachedAt} />
+          <p className="flex items-center gap-1.5 border-t pt-3 text-sm text-muted-foreground">
+            {nextStage ? (
+              <span>
+                Next:{" "}
+                <span className="font-medium text-foreground">
+                  {orderStatusIndex(nextStage) + 1}. {ORDER_STATUS_LABELS[nextStage]}
+                </span>{" "}
+                — set by {stageSetBy(nextStage)}.
+                {role === "buyer" && nextStage !== "DELIVERY_CONFIRMED"
+                  ? " You confirm delivery as the last stage, once the order is marked Delivered."
+                  : ""}
+                {role === "admin"
+                  ? " As platform admin you can correct the stage; the reason is audited."
+                  : ""}
+              </span>
+            ) : (
+              <>
+                <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
+                <span>
+                  Completed — delivery confirmed
+                  {confirmedEvent
+                    ? ` by ${confirmedEvent.actor.name} on ${fmtDate(confirmedEvent.createdAt)}`
+                    : ""}
+                  .
+                </span>
+              </>
+            )}
+          </p>
         </CardContent>
       </Card>
 

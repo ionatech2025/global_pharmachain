@@ -5,6 +5,7 @@ import {
   Landmark,
   ListChecks,
   Mail,
+  MessageCircle,
   MessageSquare,
   Phone,
   Scale,
@@ -32,6 +33,9 @@ import {
   SALES_EMAIL,
   SUPPORT_EMAIL,
   telHref,
+  WHATSAPP_LABEL,
+  WHATSAPP_NUMBER,
+  whatsappHref,
 } from "@/lib/contact";
 import { LANE_LINKS } from "@/lib/lane-links";
 
@@ -180,6 +184,9 @@ const FOOTER_GROUPS = [
       { href: `mailto:${INFO_EMAIL}`, label: INFO_EMAIL },
       { href: `mailto:${SUPPORT_EMAIL}`, label: SUPPORT_EMAIL },
       ...CONTACT_PHONES.slice(0, 1).map((phone) => ({ href: telHref(phone), label: phone })),
+      ...(WHATSAPP_NUMBER
+        ? [{ href: whatsappHref(WHATSAPP_NUMBER), label: `WhatsApp ${WHATSAPP_NUMBER}` }]
+        : []),
       { href: "/disclaimer", label: "Regulatory Disclaimer" },
       { href: "/privacy", label: "Privacy Policy" },
     ],
@@ -601,6 +608,23 @@ export default async function LandingPage() {
                           </a>
                         </span>
                       ))}
+                    </span>
+                  </div>
+                )}
+                {WHATSAPP_NUMBER && (
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="size-3.5 text-primary shrink-0" />
+                    <span>
+                      <span className="font-medium text-foreground/80">WhatsApp:</span>{" "}
+                      <a
+                        href={whatsappHref(WHATSAPP_NUMBER)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${WHATSAPP_LABEL} (${WHATSAPP_NUMBER})`}
+                        className="hover:text-foreground underline"
+                      >
+                        {WHATSAPP_NUMBER}
+                      </a>
                     </span>
                   </div>
                 )}

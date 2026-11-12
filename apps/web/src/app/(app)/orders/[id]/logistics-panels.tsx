@@ -186,6 +186,19 @@ export function FreightButton({ order }: { order: OrderDetail }) {
   );
   const [busy, setBusy] = useState(false);
 
+  // Reseed from the order as it is now on every open. The page follows the
+  // order live (ADR-0005), so values captured at first render could be stale
+  // and saving them would silently undo the other party's change — the same
+  // stale-form class as the status dialog (client review 2026-11-12).
+  function onOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setMode(order.freightMode ?? "");
+      setColdChain(order.coldChain);
+      setDispatch(order.dispatchDate ? order.dispatchDate.slice(0, 10) : "");
+    }
+    setOpen(nextOpen);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -206,7 +219,7 @@ export function FreightButton({ order }: { order: OrderDetail }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
           <Ship className="size-4" /> Freight details
