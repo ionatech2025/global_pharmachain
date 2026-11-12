@@ -25,7 +25,7 @@ import {
   setAudit,
 } from "../../common/decorators";
 import { zodPipe } from "../../common/pipes/zod.pipe";
-import { changeFeed } from "../../lib/change-feed";
+import { changeFeed, lastEventId } from "../../lib/change-feed";
 import type { AuthUser, Membership } from "../../lib/context";
 import { RfqService } from "./rfq.service";
 
@@ -288,9 +288,4 @@ export class QuotationController {
     });
     return order;
   }
-}
-
-function lastEventId(req: FastifyRequest): string | undefined {
-  const value = req.headers["last-event-id"];
-  return typeof value === "string" && value.length > 0 && value.length <= 200 ? value : undefined;
 }

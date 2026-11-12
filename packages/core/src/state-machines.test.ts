@@ -6,6 +6,7 @@ import {
   canTransitionRfq,
   nextOrderStatus,
   requiredShipmentDocKinds,
+  stageSetBy,
 } from "./state-machines";
 
 describe("rfq transitions", () => {
@@ -78,6 +79,14 @@ describe("shipment actor scopes (Phase 2 §2–3)", () => {
     expect(canActorSetStage("TRANSPORTER", "CUSTOMS_ORIGIN")).toBe(false);
     expect(canActorSetStage("CLEARING_AGENT", "CUSTOMS_DESTINATION")).toBe(true);
     expect(canActorSetStage("CLEARING_AGENT", "OUT_FOR_DELIVERY")).toBe(false);
+  });
+
+  test("stageSetBy names who completes each stage (client review 2026-11-12)", () => {
+    // "Who completes step 13?" — the buyer, and only the buyer.
+    expect(stageSetBy("DELIVERY_CONFIRMED")).toBe("the buyer");
+    expect(stageSetBy("PICKUP_SCHEDULED")).toBe("the supplier or forwarder");
+    expect(stageSetBy("GOODS_COLLECTED")).toBe("the supplier, forwarder or transporter");
+    expect(stageSetBy("CUSTOMS_ORIGIN")).toBe("the supplier, forwarder or clearing agent");
   });
 });
 

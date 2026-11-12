@@ -15,6 +15,7 @@ import type { AuthUser, Membership } from "../../lib/context";
 import { defer } from "../../lib/defer";
 import { resolveShipmentRole, shipmentPartyUserIds } from "../../lib/shipment-access";
 import { emitWebhookEvent } from "../../lib/webhooks";
+import { stageConflictMessage } from "./stage-conflict";
 
 const EXCEPTION_NOTIFICATION = {
   DELAYED: "SHIPMENT_DELAYED",
@@ -56,9 +57,7 @@ export class ShipmentService {
       throw forbidden(`Your role cannot set the stage to ${ORDER_STATUS_LABELS[body.status]}`);
     }
     if (!canTransitionOrder(order.status, body.status, { isSuperAdmin: isCorrection })) {
-      throw conflict(
-        `Cannot move from ${ORDER_STATUS_LABELS[order.status]} to ${ORDER_STATUS_LABELS[body.status]}`,
-      );
+      throw conflict(stageConflictMessage(order.status, body.status));
     }
     // US-701 TC4: an out-of-sequence super-admin correction must say why —
     // the reason lands in the audit log's reason column via the controller.

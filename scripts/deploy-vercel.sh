@@ -28,6 +28,7 @@ export NEXT_PUBLIC_INFO_EMAIL="${NEXT_PUBLIC_INFO_EMAIL:-info@pharmachainglobal.
 export NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@pharmachainglobal.com}"
 export NEXT_PUBLIC_CONTACT_EMAIL="${NEXT_PUBLIC_CONTACT_EMAIL:-info@pharmachainglobal.com}"
 export NEXT_PUBLIC_CONTACT_PHONES="${NEXT_PUBLIC_CONTACT_PHONES:-+256 751 557058}"
+export NEXT_PUBLIC_WHATSAPP_NUMBER="${NEXT_PUBLIC_WHATSAPP_NUMBER:-+256 784 528651}"
 if command -v vercel >/dev/null 2>&1; then
   VERCEL_CMD=(vercel)
 else

@@ -205,6 +205,7 @@ test.describe("Super admin routes render platform data", () => {
     await visit(page, "/admin/audit?from=not-a-date", /audit/i);
     await visit(page, "/admin/data-requests", /deletion|data request|Former/i);
     await visit(page, "/admin/issues", /support|issue|ticket/i);
+    await visit(page, "/admin/orders", /orders|stage|buyer/i);
     const companyId = await firstId(page, "/admin/companies");
     if (companyId) await visit(page, `/admin/companies/${companyId}`, /verif|document|check|tier/i);
   });

@@ -49,6 +49,7 @@ export function navFor(me: AuthenticatedUser): NavSection[] {
           { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
           { href: "/admin/verification", label: "Verification queue", icon: ShieldCheck },
           { href: "/admin/companies", label: "Companies", icon: Building2 },
+          { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
           { href: "/admin/credits", label: "Credit requests", icon: Wallet },
           { href: "/admin/disputes", label: "Disputes", icon: ShieldAlert },
           { href: "/admin/issues", label: "Support issues", icon: LifeBuoy },

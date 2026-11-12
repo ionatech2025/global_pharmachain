@@ -144,6 +144,22 @@ export type OrderRow = Jsonify<Order> & {
   rfq: { refNo: string };
 };
 
+/** GET /admin/orders — every order on the platform (US-701 TC4). */
+export type AdminOrderRow = Pick<
+  OrderRow,
+  | "id"
+  | "orderNo"
+  | "title"
+  | "status"
+  | "eta"
+  | "totalAmount"
+  | "currency"
+  | "createdAt"
+  | "buyerCompany"
+  | "sellerCompany"
+  | "rfq"
+> & { lastUpdateAt: string };
+
 export type ShipmentViewerRole =
   | "buyer"
   | "seller"

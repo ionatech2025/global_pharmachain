@@ -23,6 +23,7 @@ import {
   creditDecisionSchema,
   exchangeRateUpsertSchema,
   idParamSchema,
+  ORDER_STATUSES,
   optionalFilter,
   PARAM_DEFINITIONS,
   paginate,
@@ -61,6 +62,31 @@ const loginActivityQuerySchema = paginationQuerySchema.extend({
   email: optionalFilter(z.string().max(200)),
 });
 type LoginActivityQuery = z.infer<typeof loginActivityQuerySchema>;
+
+// US-701 TC4 / client review 2026-11-12: the platform team follows up on
+// orders from here. "OPEN" = not yet delivery-confirmed, "LATE" = past its ETA
+// and not delivered, "COMPLETE" = delivery confirmed; or one exact stage.
+const ADMIN_ORDER_FILTERS = ["OPEN", "LATE", "COMPLETE", ...ORDER_STATUSES] as const;
+const adminOrdersQuerySchema = paginationQuerySchema.extend({
+  status: optionalFilter(z.enum(ADMIN_ORDER_FILTERS)),
+  q: optionalFilter(z.string().trim().max(120)),
+});
+type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
+
+function adminOrderStatusWhere(status: AdminOrdersQuery["status"]): Prisma.OrderWhereInput {
+  switch (status) {
+    case undefined:
+      return {};
+    case "OPEN":
+      return { status: { not: "DELIVERY_CONFIRMED" } };
+    case "COMPLETE":
+      return { status: "DELIVERY_CONFIRMED" };
+    case "LATE":
+      return { eta: { lt: new Date() }, status: { notIn: ["DELIVERED", "DELIVERY_CONFIRMED"] } };
+    default:
+      return { status };
+  }
+}
 
 const verificationDecisionBody = z.object({
   decision: z.enum(["APPROVE", "REJECT"]),
@@ -127,6 +153,64 @@ export class AdminController {
       prisma.company.count({ where }),
     ]);
     return paginate(items, total, query);
+  }
+
+  // ── Orders (US-701 TC4) ────────────────────────────────────────────────────
+
+  /** Every order on the platform, for follow-up and audited status
+   *  corrections. Each row opens the order page, where a super admin gets the
+   *  "Correct status" action (ShipmentService.updateStatus, role "admin"). */
+  @Get("orders")
+  async orders(@Query(zodPipe(adminOrdersQuerySchema)) query: AdminOrdersQuery) {
+    const q = query.q;
+    const where: Prisma.OrderWhereInput = {
+      ...adminOrderStatusWhere(query.status),
+      ...(q
+        ? {
+            OR: [
+              { orderNo: { contains: q, mode: "insensitive" } },
+              { title: { contains: q, mode: "insensitive" } },
+              { rfq: { refNo: { contains: q, mode: "insensitive" } } },
+              { buyerCompany: { name: { contains: q, mode: "insensitive" } } },
+              { sellerCompany: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await prisma.$transaction([
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        ...skipTake(query),
+        select: {
+          id: true,
+          orderNo: true,
+          title: true,
+          status: true,
+          eta: true,
+          totalAmount: true,
+          currency: true,
+          createdAt: true,
+          buyerCompany: { select: { id: true, name: true } },
+          sellerCompany: { select: { id: true, name: true } },
+          rfq: { select: { refNo: true } },
+          statusEvents: {
+            select: { createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+    return paginate(
+      items.map(({ statusEvents, ...order }) => ({
+        ...order,
+        lastUpdateAt: statusEvents[0]?.createdAt ?? order.createdAt,
+      })),
+      total,
+      query,
+    );
   }
 
   @Get("companies/:id")
@@ -410,6 +494,7 @@ export class AdminController {
         ? { actorEmail: { contains: query.actorEmail, mode: "insensitive" } }
         : {}),
       ...(query.entityType ? { entityType: query.entityType } : {}),
+      ...(query.entityId ? { entityId: query.entityId } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.from || query.to
         ? {

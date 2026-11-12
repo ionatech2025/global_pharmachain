@@ -1,5 +1,12 @@
 import type { MessageEvent } from "@nestjs/common";
+import type { FastifyRequest } from "fastify";
 import { Observable } from "rxjs";
+
+/** The id of the last event an EventSource saw, sent back on reconnect. */
+export function lastEventId(req: FastifyRequest): string | undefined {
+  const value = req.headers["last-event-id"];
+  return typeof value === "string" && value.length > 0 && value.length <= 200 ? value : undefined;
+}
 
 /**
  * A server-sent change feed: emits a bare "changed" event whenever the
