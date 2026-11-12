@@ -3,8 +3,10 @@ import helmet from "@fastify/helmet";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { ALLOWED_MIMES, MAX_FILE_SIZE_BYTES } from "@pharmachain/core";
+import type { FastifyInstance } from "fastify";
 import { AppModule } from "./app.module";
 import { env } from "./env";
+import { registerRequestLogging } from "./lib/request-log";
 
 // Every MIME type an upload may legitimately carry (packages/core owns the
 // per-kind lists). Fastify parses only JSON and urlencoded out of the box, so
@@ -22,6 +24,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
     new FastifyAdapter({ trustProxy: true }),
     { logger: ["error", "warn"] },
   );
+
+  // Before Nest registers any route (that happens at init), so every route —
+  // and the not-found handler — gets the request id and the log line.
+  registerRequestLogging(app.getHttpAdapter().getInstance() as unknown as FastifyInstance);
 
   // Hand file bodies to controllers as a Buffer, untouched.
   app

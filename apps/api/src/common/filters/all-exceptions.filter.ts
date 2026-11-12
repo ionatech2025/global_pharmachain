@@ -102,6 +102,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     logger.error("unhandled error", {
+      requestId: request.requestId,
       path: request.url,
       error: exception instanceof Error ? exception.message : String(exception),
       stack: exception instanceof Error ? exception.stack : undefined,

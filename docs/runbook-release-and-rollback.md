@@ -43,9 +43,13 @@ GET). See `e2e/README.md`.
    * `vercel ls --prod` — newest deployment is `Ready`; `vercel inspect <alias>` names it,
      target `production`, functions in `sin1`;
    * a marker from the change in what is served (an API answer, a CSS token, a string);
-   * `vercel logs --environment production --since 25m --json` — no 5xx, no errors. (The
-     API log's `status` is the status *before* the error handler runs, so a failed request
-     can read `201`; trust Vercel's own request log for the HTTP status.)
+   * `vercel logs --environment production --since 25m --json` — no 5xx, no errors. The
+     API writes one `"message":"request"` line per request, with the `status` the client
+     received. That includes requests refused by authentication or permission checks
+     (401/403/429) and unknown routes (404), all logged since ADR-0006. To follow one
+     request, send it with `x-request-id: <your-id>` and search the logs for that id.
+     The API echoes the id in its response; ids that are not 1–128 characters of
+     `A-Z a-z 0-9 . _ : -` are replaced with a UUID.
    * the production e2e suite (`SEED_DEMO_PASSWORD`, `SEED_SUPER_ADMIN_PASSWORD`).
 
 ## 3. Rolling back

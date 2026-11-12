@@ -10,7 +10,6 @@ import { ClientIpThrottlerGuard } from "./common/guards/client-ip-throttler.guar
 import { MembershipGuard } from "./common/guards/membership.guard";
 import { PolicyGuard } from "./common/guards/policy.guard";
 import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
-import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { HybridThrottlerStorage } from "./common/throttler-storage";
 import { env } from "./env";
 import { JobsModule } from "./jobs/jobs.module";
@@ -79,7 +78,6 @@ import { SavedSearchModule } from "./modules/saved-search/saved-search.module";
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: MembershipGuard },
     { provide: APP_GUARD, useClass: PolicyGuard },
-    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
