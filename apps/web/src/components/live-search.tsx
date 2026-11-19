@@ -56,10 +56,14 @@ function LiveSearchField({
   const [value, setValue] = useState(urlValue);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  // What this box last put in the URL. Its own search can land after more has
+  // been typed (client review 2026-11-19); taking that value back would erase it.
+  const sent = useRef(urlValue);
 
   // Keep in step when the URL changes from elsewhere (a filter chip, Back).
   useEffect(() => {
-    setValue(urlValue);
+    if (urlValue !== sent.current) setValue(urlValue);
+    sent.current = urlValue;
   }, [urlValue]);
 
   useEffect(() => {
@@ -72,6 +76,7 @@ function LiveSearchField({
       // lands on a page that no longer exists and looks empty.
       next.delete("page");
       const qs = next.toString();
+      sent.current = value;
       startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
     }, debounceMs);
     return () => clearTimeout(timer);
