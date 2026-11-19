@@ -22,6 +22,12 @@ Fastify, so bumping `fastify` alone left the vulnerable copy serving; the root `
 force a single patched version. After changing dependencies, `rm -rf node_modules &&
 bun install` and look at the **on-disk** tree, not only the audit output.
 
+On 2026-11-20 Next.js went from 16.4.2 to 16.4.6 for two `'use cache'` advisories
+(GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8; the app does not use `'use cache'`). Next
+still accepts the vulnerable `baseline-browser-mapping` 2.10, so `overrides` forces
+2.11.38. The one advisory left is the Prisma CLI's `deepmerge-ts`, which runs only at
+build time.
+
 Run the e2e suite against a **production build** (never `next dev`: its HMR needs `eval`,
 the per-request CSP forbids it, React never hydrates, and every form silently submits as a
 GET). See `e2e/README.md`.
