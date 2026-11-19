@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@pharmachain/ui/components/table";
+import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PaginationNav } from "@/components/pagination-nav";
@@ -40,6 +41,16 @@ export default async function AdminAuditPage({
   }>;
 }) {
   const params = await searchParams;
+  const filterParams = {
+    actorEmail: params.actorEmail,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    from: params.from,
+    to: params.to,
+  };
+  const filters = new URLSearchParams(
+    Object.entries(filterParams).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
   const api = await apiServer();
   const logs = await api.get<Paginated<AuditLogRow>>("/admin/audit-logs", {
     query: {
@@ -59,7 +70,14 @@ export default async function AdminAuditPage({
         description="Immutable record of every mutation — who, what, old/new values and reason."
       />
 
-      <form method="GET" action="/admin/audit" className="flex flex-wrap items-end gap-2">
+      {/* Keyed by the applied filters so Clear filters also empties whatever
+          was typed but not applied. */}
+      <form
+        key={filters}
+        method="GET"
+        action="/admin/audit"
+        className="flex flex-wrap items-end gap-2"
+      >
         <Input
           name="actorEmail"
           aria-label="Actor email"
@@ -97,6 +115,14 @@ export default async function AdminAuditPage({
         >
           Filter
         </button>
+        {filters && (
+          <Link
+            href="/admin/audit"
+            className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Clear filters
+          </Link>
+        )}
       </form>
 
       {logs.items.length === 0 ? (
@@ -144,13 +170,7 @@ export default async function AdminAuditPage({
             total={logs.total}
             noun="entr(ies)"
             basePath="/admin/audit"
-            params={{
-              actorEmail: params.actorEmail,
-              entityType: params.entityType,
-              entityId: params.entityId,
-              from: params.from,
-              to: params.to,
-            }}
+            params={filterParams}
           />
         </>
       )}

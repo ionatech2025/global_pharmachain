@@ -1,7 +1,8 @@
-# Client review of 2026-11-06, 2026-11-11 and 2026-11-12 — findings, fixes and verification
+# Client review of 2026-11-06, 2026-11-11, 2026-11-12 and 2026-11-19 — findings, fixes and verification
 
 The **November 12** section is [below](#november-12-2026--shipment-status-admin-follow-up-stage-13),
-followed by **November 6** ([below](#november-6-2026--marketplace-filters-apply-without-a-button)).
+followed by **November 6** ([below](#november-6-2026--marketplace-filters-apply-without-a-button))
+and **November 19** ([below](#november-19-2026--audit-log-filters-search-while-typing)).
 
 Source: `COMMENTS ON PHARMACHAIN WEBSITE_CLIENT.docx.pdf` (26 pages), the section
 headed **"November 11, 2026 — US-407 – TC3"** on pages 23–25. Most of it is
@@ -213,3 +214,36 @@ found in a full audit of the PDF on 2026-11-12. Every other section of the PDF
   list and sort labels (2026-10-29), dropdown contrast in light and dark mode
   (October 20/22), and the comparison tray (checklist cases 57 and 58).
 
+
+## November 19, 2026 — audit log filters, search while typing
+
+Source: Figures 14 and 15, sent as one screenshot on 2026-11-19. They follow
+the November 12 section's Figures 10–13. Each was reproduced on a production
+web build before it was fixed (`e2e/client-review-2026-11-19.spec.ts`).
+
+| Figure | Comment | Verdict | What changed |
+| --- | --- | --- | --- |
+| 14 | Audit logs: *"The admin can filter audit logs, but has no way of clearing the current filters, except till when they move off the audit logs page, and come back."* | **Real usability gap** | A **Clear filters** link now sits beside **Filter** whenever a filter is applied. It removes every filter on the same page: actor email, entity type, both dates, and the single-record filter that **Audit trail** applies from an order page. That last filter has no field of its own, so before this change, leaving the page was the only way to remove it. Clear also empties anything typed but not applied yet. To filter by something else, the admin types the new values and presses **Filter**, as before. |
+| 15 | Companies search: *"There's an inconsistent behavior when typing out the name/text of something when searching"* | **Real defect** | Typed letters could disappear. The box searches about 0.3 s after you stop typing. When those results arrived, the box copied the URL's search text back into itself, including after you had typed more. Anything typed while results were loading was erased, and no search was sent for it. A slow connection makes the wait longer, so it happened more often. Example: type *Ni*, pause, type *l* as the *Ni* results arrive, and the box shows *Ni* again. Now, when its own search's results arrive, the box shows them but keeps what you typed instead of copying the older search text back. It still takes a new value from the URL when something else changes it, such as a removed filter chip. The same search box is used on the marketplace, admin Orders, admin Support tickets and Support issues, so the fix covers all of them. |
+
+### Verification
+
+- `e2e/client-review-2026-11-19.spec.ts` runs against a production web build
+  on a real PostgreSQL:
+  - **Audit logs:** apply four filters, edit one without applying it, then
+    **Clear filters**. The URL is `/admin/audit` and every field is empty. Then
+    open a record's audit trail (`entityType` + `entityId`) and clear it.
+  - **Search:** a slow connection is simulated by holding each search's
+    results and controlling when the typing pause ends. The test types *Ni*,
+    then *l*, and only then lets the *Ni* results arrive. The box must still
+    show *Nil*, and the next search must be *Nil*, which lists Nile Pharma
+    Industries.
+- On the code before this change, both tests fail. The audit test finds no
+  Clear control. The search test fails 3 times out of 3 with
+  `Expected: "Nil"`, `Received: "Ni"`. With this change, both pass 3 times
+  out of 3.
+- A build without the form's `key` left a typed but unapplied actor email in
+  place after **Clear filters**, so the key stays.
+- Related specs still pass, 19 of 19: the November 6 marketplace search and
+  filters, the November 12 order cases (including `/admin/orders` search), and
+  `routes.spec.ts`.
