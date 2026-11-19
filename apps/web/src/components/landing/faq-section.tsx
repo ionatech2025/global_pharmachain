@@ -42,7 +42,7 @@ const FAQS: { question: string; answer: ReactNode }[] = [
   {
     question: "Who can see my quotations and messages?",
     answer:
-      "Only the buyer and the supplier. Once there is an order, the logistics companies appointed to it also join that order's thread. Competing suppliers never see each other's quotations.",
+      "Your quotation goes to the buyer and is never shown to competing suppliers. Messages stay between the buyer and the supplier. Once there is an order, the logistics companies the buyer appoints to it can see that order, including its price, and join its thread.",
   },
   {
     question: "What does it cost to start?",

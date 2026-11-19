@@ -65,7 +65,7 @@ const SUPPLIER_STEPS: RoleStep[] = [
   {
     title: "Quote on RFQs",
     body: "Quote on the RFQs aimed at your company type.",
-    trust: "Your quotation is visible only to that buyer.",
+    trust: "Competing suppliers never see your quotation.",
   },
   {
     title: "Ship and update",
