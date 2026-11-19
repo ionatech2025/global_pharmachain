@@ -721,6 +721,11 @@ test.describe("QA, accessibility, reflow & Hercules design system (Oct 2026)", (
         );
         expect(overflow, `horizontal overflow on ${path} at ${width}px`).toBeLessThanOrEqual(0);
       }
+      // The landing clips overflow, so a header control pushed off-screen never shows up as scroll.
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      const cta = page.getByRole("banner").getByRole("link", { name: /get started/i });
+      const right = await cta.evaluate((el) => el.getBoundingClientRect().right);
+      expect(right, `header "Get started" cut off at ${width}px`).toBeLessThanOrEqual(width);
       await ctx.close();
     }
   });

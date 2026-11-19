@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import { Input } from "@pharmachain/ui/components/input";
 import {
@@ -235,20 +234,15 @@ export function MallDirectoryGrid() {
     <section
       id="mall-directory"
       aria-label="Interactive Trading Lanes Mall Directory"
-      className="scroll-mt-20 py-16 sm:py-24 bg-muted/15 border-y border-border/60"
+      className="scroll-mt-20 py-20 sm:py-24"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <Badge
-            variant="outline"
-            className="mb-3 px-3 py-1 font-medium bg-primary/5 text-primary border-primary/20"
-          >
-            Interactive Mall Directory
-          </Badge>
-          <h2 className="text-display text-display-section font-bold text-foreground">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <span className="landing-pill">Choose your lane</span>
+          <h2 className="text-display text-display-section mt-4 text-foreground">
             Three Dedicated Trading Lanes
           </h2>
-          <p className="mt-3 mx-auto max-w-[62ch] text-base sm:text-lg leading-[1.65] text-muted-foreground">
+          <p className="mt-4 mx-auto max-w-[62ch] text-base sm:text-lg leading-relaxed text-muted-foreground">
             A segregated, enterprise-grade directory mapping industrial inbound raw inputs,
             manufacturing capacity, and commercial outbound wholesale procurement.
           </p>
@@ -265,7 +259,7 @@ export function MallDirectoryGrid() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter storefronts (e.g. APIs, CDMO, sterile vials, WHO-GMP)…"
               aria-label="Filter directory storefronts and trading lanes"
-              className="pl-9 pr-9 h-11 rounded-full border-border/80 bg-background/90 text-sm shadow-sm"
+              className="pl-9 pr-9 h-11 rounded-xl border-border/80 bg-card text-sm shadow-sm"
             />
             {searchQuery && (
               <button
@@ -295,7 +289,7 @@ export function MallDirectoryGrid() {
             return (
               <div
                 key={lane.id}
-                className={`relative flex flex-col justify-between rounded-3xl border bg-card p-6 sm:p-7 transition-[transform,box-shadow,border-color] duration-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md ${lane.colorTheme.border}`}
+                className={`relative flex flex-col justify-between rounded-2xl border bg-card p-6 shadow-[var(--shadow-panel)] transition-[transform,border-color] duration-200 hover:-translate-y-0.5 sm:p-7 ${lane.colorTheme.border}`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-4">
@@ -354,7 +348,7 @@ export function MallDirectoryGrid() {
                         return (
                           <div
                             key={store.name}
-                            className="rounded-xl border border-border/60 bg-background/80 p-3 transition-colors hover:bg-background/95"
+                            className="rounded-xl bg-muted/60 p-3 transition-colors hover:bg-muted"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-medium text-foreground">
@@ -419,7 +413,7 @@ export function MallDirectoryGrid() {
         </div>
 
         {/* Audit & Compliance Assurance Strip */}
-        <div className="mt-12 rounded-2xl border border-border/80 bg-card p-4 sm:p-6">
+        <div className="landing-card mt-8 p-4 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="size-5 text-success shrink-0" />
