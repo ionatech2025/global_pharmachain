@@ -24,7 +24,7 @@ const DOCUMENTS = (
 const EXPLAINERS = [
   {
     title: "Choose a verified supplier",
-    body: "Storefronts show each company's verification status before you send it an RFQ.",
+    body: "Storefronts show each company's verification status before you trade with it.",
     state: "Verified · GMP certificate on file · Upstream lane",
   },
   {

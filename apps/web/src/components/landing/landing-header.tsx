@@ -33,7 +33,7 @@ export function LandingHeader() {
 
       <header className="sticky top-0 z-40 border-b border-border/60 bg-card/70 backdrop-blur-md dark:bg-background/70">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="Global PharmaChain home" className="shrink-0">
+          <Link href="/" aria-label="Global PharmaChain home">
             <Logo markClassName="size-7 sm:size-8" wordClassName="text-base sm:text-xl" />
           </Link>
           <nav className="hidden items-center lg:flex" aria-label="Landing sections">

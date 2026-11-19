@@ -30,8 +30,8 @@ interface RoleStep {
 const BUYER_STEPS: RoleStep[] = [
   {
     title: "Publish an RFQ",
-    body: "Target it at the company types that can supply what you need.",
-    trust: "Only the companies you target see the RFQ.",
+    body: "Target it at the company type that can supply what you need.",
+    trust: "Only verified companies of that type see the RFQ.",
   },
   {
     title: "Compare quotations",
@@ -65,7 +65,7 @@ const SUPPLIER_STEPS: RoleStep[] = [
   {
     title: "Quote on RFQs",
     body: "Quote on the RFQs aimed at your company type.",
-    trust: "Your price is visible only to that buyer.",
+    trust: "Your quotation is visible only to that buyer.",
   },
   {
     title: "Ship and update",
