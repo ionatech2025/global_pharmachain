@@ -17,6 +17,23 @@ export function lastMonths(n: number, now = new Date()): string[] {
   return out;
 }
 
+/**
+ * The last n months that have ended. Published prices and deal values come
+ * only from closed periods: a figure that moves while you watch shows the
+ * value of whatever single record moved it.
+ */
+export function completedMonths(n: number, now = new Date()): string[] {
+  return lastMonths(n, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)));
+}
+
+/** The last calendar quarter that has ended, as [from, to) in UTC. */
+export function lastCompletedQuarter(now = new Date()): { from: Date; to: Date; label: string } {
+  const q = Math.floor(now.getUTCMonth() / 3);
+  const to = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 1));
+  const from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() - 3, 1));
+  return { from, to, label: `${from.getUTCFullYear()}-Q${from.getUTCMonth() / 3 + 1}` };
+}
+
 /** Events per month across the window; anything outside it is not counted. */
 export function monthlyCounts(dates: readonly Date[], months: readonly string[]): number[] {
   const byMonth = new Map<string, number>(months.map((m) => [m, 0]));
@@ -128,6 +145,147 @@ export function monthlyPriceSeries(
 /** A trend needs at least two priced months; one month is a single price. */
 export const MIN_PRICED_MONTHS = 2;
 
+/** One figure inside a published sum or average. */
+export interface Contribution {
+  /** Whose figure must stay hidden: the quoting supplier, or one deal. */
+  key: string;
+  /** Companies that already know the figure: its owner and counterparties. */
+  parties: readonly string[];
+}
+
+/**
+ * Whether a sum or average over these figures may be shown to other companies.
+ * Any viewer can take out the figures it already knows; what remains must
+ * still blend at least two contributors (or nothing), otherwise the viewer has
+ * read one competitor's price or one deal's value off the aggregate.
+ */
+export function isAnonymous(contributions: readonly Contribution[]): boolean {
+  const blended = (rest: readonly Contribution[]) => new Set(rest.map((c) => c.key)).size;
+  if (blended(contributions) < 2) return false;
+  for (const party of new Set(contributions.flatMap((c) => c.parties))) {
+    const left = blended(contributions.filter((c) => !c.parties.includes(party)));
+    if (left === 1) return false;
+  }
+  return true;
+}
+
+/**
+ * A quotation as the published price figures see it. Who can ever know a
+ * price must be settled before it is blended, so only losing quotations on
+ * RFQs whose award is decided count: the winning price becomes the order's
+ * price, which the buyer's logistics partners read, and an undecided RFQ may
+ * still make any quote a winner.
+ */
+export type PartiedQuote = PricedQuote & {
+  supplierCompanyId: string;
+  buyerCompanyId: string;
+  /** The RFQ is awarded or cancelled, or closed with no quote left that could still win. */
+  rfqSettled: boolean;
+  /** This quotation, or another version from the same supplier, won the RFQ. */
+  accepted: boolean;
+};
+
+/** What the published figures need to know about one quotation and its RFQ. */
+export interface QuoteStandingInput {
+  status: string;
+  supplierCompanyId: string;
+  rfq: {
+    status: string;
+    /** Some quotation on the RFQ is ACTIVE and inside its validity, so it could still be awarded. */
+    hasLiveQuote: boolean;
+    /** The seller on the order created from the RFQ, if it was awarded. */
+    winnerCompanyId: string | null;
+  };
+}
+
+/**
+ * Whether a quotation counts as won, and whether its RFQ's award is settled.
+ * Every version from the winner counts as won: an earlier one often carries
+ * the order's price, which the buyer's logistics partners read. An RFQ is
+ * settled once awarded or cancelled, or closed with no quote left that could
+ * still win (an award needs an ACTIVE quote inside its validity).
+ */
+export function quoteStanding(
+  q: QuoteStandingInput,
+): Pick<PartiedQuote, "accepted" | "rfqSettled"> {
+  return {
+    accepted: q.status === "ACCEPTED" || q.rfq.winnerCompanyId === q.supplierCompanyId,
+    rfqSettled:
+      q.rfq.status === "AWARDED" ||
+      q.rfq.status === "CANCELLED" ||
+      (q.rfq.status === "CLOSED" && !q.rfq.hasLiveQuote),
+  };
+}
+
+/**
+ * The quotations behind every unit/currency month the price figures may show.
+ * A month waits until every RFQ quoted in it is settled, so it never changes
+ * once shown; then its losing quotations are published only if no company can
+ * isolate one supplier's price from their average (isAnonymous).
+ */
+export function publishableQuotes<Q extends PartiedQuote>(quotes: readonly Q[]): Q[] {
+  const buckets = new Map<string, Q[]>();
+  for (const q of quotes) {
+    const key = `${q.currency}|${unitKey(q.unit)}|${monthKey(q.createdAt)}`;
+    buckets.set(key, [...(buckets.get(key) ?? []), q]);
+  }
+  return [...buckets.values()]
+    .filter((bucket) => bucket.every((q) => q.rfqSettled))
+    .map((bucket) => bucket.filter((q) => !q.accepted))
+    .filter((losing) =>
+      isAnonymous(
+        losing.map((q) => ({
+          key: q.supplierCompanyId,
+          parties: [q.supplierCompanyId, q.buyerCompanyId],
+        })),
+      ),
+    )
+    .flat();
+}
+
+/**
+ * One average over the same months the chart may show, in their most-quoted
+ * unit and currency: built only from publishable months, so comparing it with
+ * the chart cannot recover a month the chart withholds.
+ */
+export function publishedAverage(
+  quotes: readonly PartiedQuote[],
+  months: readonly string[],
+): { average: number; currency: string; unit: string | null; quotations: number } | null {
+  const window = new Set(months);
+  const shown = publishableQuotes(quotes.filter((q) => window.has(monthKey(q.createdAt))));
+  const { currency, unit } = monthlyPriceSeries(shown, months);
+  const inPair = shown.filter((q) => q.currency === currency && unitKey(q.unit) === (unit ?? ""));
+  if (currency === null || inPair.length === 0) return null;
+  const total = inPair.reduce(
+    (t, q) => t + (typeof q.unitPrice === "number" ? q.unitPrice : q.unitPrice.toNumber()),
+    0,
+  );
+  return {
+    average: Math.round((total / inPair.length) * 100) / 100,
+    currency,
+    unit,
+    quotations: inPair.length,
+  };
+}
+
+/** One deal inside a published total. */
+export interface Deal {
+  id: string;
+  value: number;
+  /** Delivery confirmed: nobody new can be appointed to it, so who knows its value is final. */
+  settled: boolean;
+  /** Buyer, seller and every company ever appointed to it. */
+  parties: readonly string[];
+}
+
+/** The total of these deals, or null while it could expose one deal's value. */
+export function dealTotal(deals: readonly Deal[]): number | null {
+  if (!deals.every((d) => d.settled)) return null;
+  if (!isAnonymous(deals.map((d) => ({ key: d.id, parties: d.parties })))) return null;
+  return Math.round(deals.reduce((t, d) => t + d.value, 0) * 100) / 100;
+}
+
 export interface CategoryRef {
   id: string;
   name: string;
@@ -156,16 +314,18 @@ export interface CategoryPriceTrends {
  * like-for-like (one unit, one currency — see monthlyPriceSeries); an average
  * over every product on the platform is not a price of anything. Quotations
  * on RFQs raised for any category mix products and units, so they are counted
- * in `coverage` and priced nowhere.
+ * in `coverage` and priced nowhere. A month that would expose one supplier's
+ * price (see isAnonymous) is a gap, though its quotations still count in
+ * `coverage`.
  */
 export function categoryPriceTrends(
-  quotes: ReadonlyArray<PricedQuote & { category: CategoryRef | null }>,
+  quotes: ReadonlyArray<PartiedQuote & { category: CategoryRef | null }>,
   months: readonly string[],
 ): CategoryPriceTrends {
   const window = new Set(months);
   const inWindow = quotes.filter((q) => window.has(monthKey(q.createdAt)));
 
-  const byCategory = new Map<string, { category: CategoryRef; quotes: PricedQuote[] }>();
+  const byCategory = new Map<string, { category: CategoryRef; quotes: PartiedQuote[] }>();
   for (const q of inWindow) {
     if (!q.category) continue;
     const entry = byCategory.get(q.category.id) ?? { category: q.category, quotes: [] };
@@ -174,7 +334,10 @@ export function categoryPriceTrends(
   }
 
   const categories = [...byCategory.values()]
-    .map(({ category, quotes: own }) => ({ category, ...monthlyPriceSeries(own, months) }))
+    .map(({ category, quotes: own }) => ({
+      category,
+      ...monthlyPriceSeries(publishableQuotes(own), months),
+    }))
     .filter((t) => t.series.filter((v) => v !== null).length >= MIN_PRICED_MONTHS)
     .sort((a, b) => b.sampleSize - a.sampleSize || a.category.name.localeCompare(b.category.name));
 

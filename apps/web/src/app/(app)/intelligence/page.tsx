@@ -305,7 +305,7 @@ export default async function IntelligencePage() {
         <Panel>
           <PanelHeader
             title="Market data insights"
-            description="Anonymised category-level pricing, demand and trade-volume report — a subscription data product."
+            description="Anonymised category-level quoted prices and RFQ activity for the last completed quarter — a subscription data product."
           />
           <PanelBody className="space-y-3">
             {insights ? (

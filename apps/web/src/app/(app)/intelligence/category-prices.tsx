@@ -51,14 +51,15 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
   const named = coverage.byCategory
     .map((c) => `${c.category.name} (${fmtNumber(c.quotations)})`)
     .join(", ");
-  const coverageLine = `${fmtNumber(coverage.categorised)} of ${fmtNumber(coverage.quotations)} quotation(s) in the last 12 months are on RFQs that name a category${named ? ` — ${named}` : ""}. Quotations on RFQs raised for any category mix products and units, so they are not priced here.`;
+  const coverageLine = `${fmtNumber(coverage.categorised)} of ${fmtNumber(coverage.quotations)} quotation(s) in the last 12 completed months are on RFQs that name a category${named ? ` — ${named}` : ""}. Quotations on RFQs raised for any category mix products and units, so they are not priced here.`;
 
   if (categories.length === 0) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          No category has a price trend yet — a trend needs quotations in at least two months, in
-          one unit and currency.
+          No category has a price trend yet. A month is shown once every RFQ quoted in it is
+          settled, and only if enough suppliers quoted in one unit and currency that no company can
+          work out another&apos;s price. A trend needs two such months.
         </p>
         <Provenance>
           {coverageLine} Choosing a material category when raising an RFQ is what puts its quotes
@@ -67,6 +68,15 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
       </div>
     );
   }
+
+  /** Months between a category's first and last priced month that show no price. */
+  const blankWithin = (row: CategoryPriceTrend) => {
+    const first = row.series.findIndex((v) => v !== null);
+    const last = row.series.findLastIndex((v) => v !== null);
+    return first < 0
+      ? []
+      : row.series.slice(first, last + 1).flatMap((v, i) => (v === null ? [first + i] : []));
+  };
 
   const monthOf = (row: CategoryPriceTrend, which: "first" | "last") => {
     const i =
@@ -91,6 +101,8 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
                 {monthOf(row, "last")}
                 {row.otherQuotes > 0 &&
                   ` · ${fmtNumber(row.otherQuotes)} in another unit or currency left out`}
+                {blankWithin(row).length > 0 &&
+                  ` · ${fmtNumber(blankWithin(row).length)} month(s) in between not shown`}
               </p>
             </div>
             <Sparkline
@@ -135,7 +147,7 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
         <tbody>
           {categories.flatMap((row) =>
             row.series.flatMap((value, i) =>
-              value === null
+              value === null && !blankWithin(row).includes(i)
                 ? []
                 : [
                     <tr
@@ -150,8 +162,14 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
                       </th>
                       <td className="py-1.5 pr-4 text-muted-foreground">{labels[i]}</td>
                       <td className="num-col py-1.5 pl-4 text-right">
-                        {price(value, row.currency)}
-                        {row.unit ? ` / ${row.unit}` : ""}
+                        {value === null ? (
+                          <span className="text-muted-foreground">Not shown</span>
+                        ) : (
+                          <>
+                            {price(value, row.currency)}
+                            {row.unit ? ` / ${row.unit}` : ""}
+                          </>
+                        )}
                       </td>
                     </tr>,
                   ],
@@ -162,7 +180,11 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
 
       <Provenance>
         Each category in its most-quoted unit and currency; other units and currencies are left out,
-        never converted. Months without a quotation are gaps. {coverageLine}
+        never converted. Only quotations that did not win count, once their RFQ is awarded or
+        cancelled, or closed with no quote left that could still win: a winning price becomes an
+        order that logistics partners see. A month is not shown until then, and unless enough
+        suppliers quoted that no company can work out another&apos;s price from the average. The
+        month in progress is not shown. {coverageLine}
       </Provenance>
     </div>
   );

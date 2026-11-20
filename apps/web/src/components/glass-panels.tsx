@@ -82,7 +82,9 @@ export function HeroMarketCards({
           <p className="text-2xl font-semibold tracking-tight tabular-nums">$4.82</p>
           <Sparkline className="text-success" />
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">Marketplace median · 30 days</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Example · marketplace median, 30 days
+        </p>
       </div>
 
       {/* Verified-network card */}
@@ -110,7 +112,9 @@ export function HeroMarketCards({
           <p className="text-xl font-semibold tracking-tight tabular-nums">98.4%</p>
           <Sparkline className="text-success" />
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">On-time deliveries · 30 days</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Example · on-time deliveries, 30 days
+        </p>
       </div>
 
       {/* Cold-chain chip */}
@@ -148,7 +152,7 @@ export function HeroTickerRow({
       <div className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
         <div>
           <p className="text-lg leading-none font-semibold tracking-tight tabular-nums">98.4%</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">On-time · 30 days</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Example · on-time, 30 days</p>
         </div>
         <Sparkline className="text-success" />
       </div>

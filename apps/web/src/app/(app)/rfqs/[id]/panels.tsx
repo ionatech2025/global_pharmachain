@@ -1,6 +1,6 @@
 "use client";
 
-import { CURRENCIES } from "@pharmachain/core";
+import { CURRENCIES, REVISABLE_QUOTATION_STATUSES } from "@pharmachain/core";
 import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
@@ -408,6 +408,9 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
   const router = useRouter();
   const existing = rfq.myQuotation;
   const open = rfq.status === "OPEN" && new Date(rfq.deadline) > new Date();
+  // An expired or withdrawn quote is replaced by a new version; a fresh submission would be refused.
+  const revisable =
+    !!existing && (REVISABLE_QUOTATION_STATUSES as readonly string[]).includes(existing.status);
   const closedReason = quotingClosedReason(rfq);
   const [unitPrice, setUnitPrice] = useState(existing?.unitPrice ?? "");
   const [currency, setCurrency] = useState(existing?.currency ?? "USD");
@@ -429,7 +432,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
       attachmentDocumentIds: attachmentIds,
     };
     try {
-      if (existing && existing.status === "ACTIVE") {
+      if (existing && revisable) {
         await api.post(`/quotations/${existing.id}/resubmit`, payload);
         toast.success("Quotation updated — the buyer sees your latest version");
       } else {
@@ -504,6 +507,14 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
             <AlertTitle>Quotations closed</AlertTitle>
             <AlertDescription>{closedReason}</AlertDescription>
           </Alert>
+        )}
+        {open && existing && revisable && existing.status !== "ACTIVE" && (
+          <p className="text-sm text-muted-foreground" data-testid="quote-panel-revise-note">
+            {existing.status === "EXPIRED"
+              ? `Your quotation expired on ${fmtDateTime(existing.validUntil)}.`
+              : "You withdrew your quotation."}{" "}
+            Submit a new version to quote again before the deadline.
+          </p>
         )}
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -598,7 +609,9 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
                 ? "Sending…"
                 : existing?.status === "ACTIVE"
                   ? "Resubmit quotation"
-                  : "Submit quotation"}
+                  : revisable
+                    ? "Submit a new version"
+                    : "Submit quotation"}
             </Button>
             {existing?.status === "ACTIVE" && open && (
               <ConfirmDialog

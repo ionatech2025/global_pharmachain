@@ -321,12 +321,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 Appointed by the buyer; each partner sees exactly this shipment.
               </CardDescription>
             </div>
-            {order.viewerIsBuyer && <AppointPartnerButton orderId={order.id} />}
+            {/* The API refuses new partners once delivery has been confirmed (ADR-0007). */}
+            {order.viewerIsBuyer &&
+              (order.status === "DELIVERY_CONFIRMED" || order.deliveryConfirmedAt ? (
+                <p className="max-w-[16rem] text-right text-xs text-muted-foreground">
+                  Delivery is confirmed, so no new partner can be appointed.
+                </p>
+              ) : (
+                <AppointPartnerButton orderId={order.id} />
+              ))}
           </CardHeader>
           <CardContent>
             {order.appointments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No forwarder, clearing agent or transporter appointed yet.
+                {order.deliveryConfirmedAt
+                  ? "No forwarder, clearing agent or transporter was appointed."
+                  : "No forwarder, clearing agent or transporter appointed yet."}
               </p>
             ) : (
               <ul className="space-y-2">

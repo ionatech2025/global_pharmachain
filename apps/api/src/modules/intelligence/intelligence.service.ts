@@ -1,12 +1,81 @@
 import { Injectable } from "@nestjs/common";
 import type { PdfTable } from "@pharmachain/core";
 import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
-import { prisma } from "@pharmachain/db";
+import { type Prisma, prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
-import { categoryPriceTrends, lastMonths, monthlyCounts } from "./series";
+import {
+  categoryPriceTrends,
+  completedMonths,
+  dealTotal,
+  lastCompletedQuarter,
+  lastMonths,
+  monthlyCounts,
+  publishedAverage,
+  quoteStanding,
+} from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
+const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+
+/** Quotations as the published price figures see them: see PartiedQuote in series.ts. */
+async function partiedQuotes(where: Prisma.QuotationWhereInput) {
+  const now = new Date();
+  // One snapshot: the RFQ, its order and its live quotes are read by separate statements,
+  // and an award landing between them could show a winning quote as a settled loss.
+  // Interactive on purpose: Prisma runs a one-query batch $transaction([...]) as a plain
+  // query, with no transaction and no isolation level.
+  const rows = await prisma.$transaction(
+    (tx) =>
+      tx.quotation.findMany({
+        // A replaced version can no longer move a published month (it is replaced only while
+        // its RFQ is open), so leave it out rather than let old offers skew the average.
+        where: { ...where, status: { not: "SUPERSEDED" } },
+        select: {
+          createdAt: true,
+          unitPrice: true,
+          currency: true,
+          status: true,
+          supplierCompanyId: true,
+          rfq: {
+            select: {
+              unit: true,
+              status: true,
+              buyerCompanyId: true,
+              category: { select: { id: true, name: true, slug: true } },
+              order: { select: { sellerCompanyId: true } },
+              // A closed RFQ can still be awarded while a quote on it is live.
+              quotations: {
+                where: { status: "ACTIVE", validUntil: { gt: now } },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
+    // maxWait matches the pool's own wait, so this read is not the first to fail under load.
+    { isolationLevel: "RepeatableRead", timeout: 15_000, maxWait: 10_000 },
+  );
+  return rows.map((q) => ({
+    createdAt: q.createdAt,
+    unitPrice: q.unitPrice,
+    currency: q.currency,
+    unit: q.rfq.unit,
+    category: q.rfq.category,
+    supplierCompanyId: q.supplierCompanyId,
+    buyerCompanyId: q.rfq.buyerCompanyId,
+    ...quoteStanding({
+      status: q.status,
+      supplierCompanyId: q.supplierCompanyId,
+      rfq: {
+        status: q.rfq.status,
+        hasLiveQuote: q.rfq.quotations.length > 0,
+        winnerCompanyId: q.rfq.order?.sellerCompanyId ?? null,
+      },
+    }),
+  }));
+}
 
 /**
  * Intelligence engine (Phase 5 §1): transparent statistics over live
@@ -46,36 +115,17 @@ export class IntelligenceService {
 
   /**
    * Quoted-price trends per category, each in its most-quoted unit and
-   * currency — see categoryPriceTrends. One query for the whole window.
+   * currency — see categoryPriceTrends. One query for the whole window, over
+   * completed months only; which quotations count, and when a month may be
+   * shown, is publishableQuotes's rule (ADR-0007).
    */
   async priceTrends(categoryId?: string) {
-    const months = lastMonths(12);
-    const quotes = await prisma.quotation.findMany({
-      where: {
-        createdAt: { gte: new Date(Date.now() - 366 * DAY) },
-        status: { not: "SUPERSEDED" },
-        ...(categoryId ? { rfq: { categoryId } } : {}),
-      },
-      select: {
-        createdAt: true,
-        unitPrice: true,
-        currency: true,
-        rfq: { select: { unit: true, category: { select: { id: true, name: true, slug: true } } } },
-      },
+    const months = completedMonths(12);
+    const quotes = await partiedQuotes({
+      createdAt: { gte: new Date(`${months[0]}-01T00:00:00Z`), lt: monthStart(new Date()) },
+      ...(categoryId ? { rfq: { categoryId } } : {}),
     });
-    return {
-      months,
-      ...categoryPriceTrends(
-        quotes.map((q) => ({
-          createdAt: q.createdAt,
-          unitPrice: q.unitPrice,
-          currency: q.currency,
-          unit: q.rfq.unit,
-          category: q.rfq.category,
-        })),
-        months,
-      ),
-    };
+    return { months, ...categoryPriceTrends(quotes, months) };
   }
 
   /** Delay risk on active shipments from historical stage timing. */
@@ -272,64 +322,105 @@ export class IntelligenceService {
         "Market data insights require an active subscription — purchase it under Usage & credits",
       );
     }
-    const categories = await prisma.category.findMany({ select: { id: true, name: true } });
+    // A closed quarter: two downloads either match or cover different quarters,
+    // so no single new record can be read off their difference.
+    const period = lastCompletedQuarter();
+    const createdAt = { gte: period.from, lt: period.to };
+    const months = lastMonths(3, new Date(period.to.getTime() - 1));
+    const [categories, rfqCounts, quotes, orders] = await Promise.all([
+      prisma.category.findMany({ select: { id: true, name: true } }),
+      prisma.rfq.groupBy({
+        by: ["categoryId"],
+        where: { createdAt, categoryId: { not: null } },
+        _count: true,
+      }),
+      partiedQuotes({ createdAt }),
+      prisma.order.findMany({
+        where: { createdAt },
+        select: {
+          id: true,
+          currency: true,
+          totalAmount: true,
+          status: true,
+          buyerCompanyId: true,
+          sellerCompanyId: true,
+          appointments: { select: { companyId: true } },
+        },
+      }),
+    ]);
+
     const rows = [];
     for (const category of categories) {
-      const [demand, price] = await Promise.all([
-        prisma.rfq.aggregate({
-          where: { categoryId: category.id, createdAt: { gte: new Date(Date.now() - 90 * DAY) } },
-          _sum: { quantity: true },
-          _count: true,
-        }),
-        prisma.quotation.aggregate({
-          where: {
-            rfq: { categoryId: category.id },
-            createdAt: { gte: new Date(Date.now() - 90 * DAY) },
-          },
-          _avg: { unitPrice: true },
-          _count: true,
-        }),
-      ]);
-      if (demand._count === 0 && price._count === 0) continue;
+      const rfqCount = rfqCounts.find((r) => r.categoryId === category.id)?._count ?? 0;
+      const own = quotes.filter((q) => q.category?.id === category.id);
+      if (rfqCount === 0 && own.length === 0) continue;
+      const price = publishedAverage(own, months);
+      // The *90d names predate the quarterly period; kept so subscribers' parsers still work.
       rows.push({
         category: category.name,
-        rfqCount90d: demand._count,
-        demandVolume90d: String(demand._sum.quantity ?? 0),
-        avgQuotedUnitPrice: price._avg.unitPrice
-          ? Math.round(Number(price._avg.unitPrice) * 100) / 100
-          : null,
-        quoteCount90d: price._count,
+        rfqCount90d: rfqCount,
+        // Withheld: quantities carry free-text units, so their sum is no quantity, and
+        // every supplier of the targeted type sees each one.
+        demandVolume90d: null,
+        avgQuotedUnitPrice: price?.average ?? null,
+        currency: price?.currency ?? null,
+        unit: price?.unit ?? null,
+        /** The quotations behind avgQuotedUnitPrice; quoteCount90d counts every one. */
+        pricedQuoteCount: price?.quotations ?? 0,
+        quoteCount90d: own.length,
       });
     }
-    const lanes = await prisma.order.groupBy({
-      by: ["currency"],
-      _count: true,
-      _sum: { totalAmount: true },
-      orderBy: { currency: "asc" },
-    });
+
+    const byCurrency = new Map<string, typeof orders>();
+    for (const order of orders) {
+      byCurrency.set(order.currency, [...(byCurrency.get(order.currency) ?? []), order]);
+    }
     return {
       generatedAt: new Date().toISOString(),
+      period: {
+        label: period.label,
+        from: period.from.toISOString(),
+        to: period.to.toISOString(),
+      },
       anonymisation:
-        "Category-level aggregates only; no company identities or per-deal values are included.",
+        "Category-level aggregates only; no company identities or per-deal values are included. Figures cover the last completed quarter. Prices come only from quotations that did not win, once their RFQs are settled; a figure that would let any one company work out another company's price or deal value is withheld.",
       categories: rows,
-      tradeVolumes: lanes.map((l) => ({
-        currency: l.currency,
-        orders: l._count,
-        totalValue: String(l._sum?.totalAmount ?? 0),
-      })),
+      tradeVolumes: [...byCurrency.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([currency, list]) => {
+          const total = dealTotal(
+            list.map((o) => ({
+              id: o.id,
+              value: o.totalAmount.toNumber(),
+              settled: o.status === "DELIVERY_CONFIRMED",
+              parties: [
+                o.buyerCompanyId,
+                o.sellerCompanyId,
+                ...o.appointments.map((a) => a.companyId),
+              ],
+            })),
+          );
+          return {
+            currency,
+            orders: list.length,
+            totalValue: total === null ? null : String(total),
+          };
+        }),
     };
   }
 
   marketReportTable(report: Awaited<ReturnType<IntelligenceService["marketReport"]>>): PdfTable {
     return {
       title: "Global PharmaChain market intelligence",
-      subtitle: `Generated ${report.generatedAt} · ${report.anonymisation}`,
-      columns: ["Category", "RFQs (90d)", "Demand volume", "Avg quoted price", "Quotes (90d)"],
+      subtitle: `${report.period.label} · generated ${report.generatedAt} · ${report.anonymisation}`,
+      columns: ["Category", "RFQs", "Avg quoted price", "Priced from", "Quotes"],
       rows: report.categories.map((c) => [
         c.category,
         String(c.rfqCount90d),
-        c.demandVolume90d,
-        c.avgQuotedUnitPrice === null ? "—" : String(c.avgQuotedUnitPrice),
+        c.avgQuotedUnitPrice === null
+          ? "—"
+          : `${c.avgQuotedUnitPrice} ${c.currency}${c.unit ? `/${c.unit}` : ""}`,
+        String(c.pricedQuoteCount),
         String(c.quoteCount90d),
       ]),
     };

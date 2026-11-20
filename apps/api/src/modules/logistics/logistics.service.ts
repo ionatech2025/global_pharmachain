@@ -50,8 +50,10 @@ export class LogisticsService {
     if (order.buyerCompanyId !== membership.companyId) {
       throw forbidden("Only the buyer appoints logistics partners");
     }
-    if (order.status === "DELIVERY_CONFIRMED") {
-      throw conflict("This shipment is already complete");
+    // Once confirmed, never again: an admin may correct the stage back, but the
+    // published deal figures rely on who could know this order's value staying fixed.
+    if (order.status === "DELIVERY_CONFIRMED" || order.deliveryConfirmedAt) {
+      throw conflict("This shipment was confirmed delivered, so no new partner can be appointed");
     }
     const company = await prisma.company.findUnique({
       where: { id: body.companyId },
@@ -63,8 +65,28 @@ export class LogisticsService {
     if (company.verificationStatus !== "VERIFIED") {
       throw badRequest("This company has not passed verification yet");
     }
+    // Appointees read the order's awarded terms, so a rival bidder on its RFQ may not be one.
+    const quotedOnRfq =
+      company.id !== order.sellerCompanyId &&
+      (await prisma.quotation.findFirst({
+        where: { rfqId: order.rfqId, supplierCompanyId: company.id },
+        select: { id: true },
+      })) !== null;
+    if (quotedOnRfq) {
+      throw badRequest(
+        `${company.name} quoted on this order's RFQ and was not awarded it, so it cannot be appointed: it would see the winning terms. Pick another ${LOGISTICS_ROLE_LABELS[body.role].toLowerCase()}.`,
+      );
+    }
 
     const appointment = await prisma.$transaction(async (tx) => {
+      // Holds the order row, so a delivery confirmation cannot land between this check and the insert.
+      const open = await tx.order.updateMany({
+        where: { id: orderId, status: { not: "DELIVERY_CONFIRMED" }, deliveryConfirmedAt: null },
+        data: { updatedAt: new Date() },
+      });
+      if (open.count === 0) {
+        throw conflict("This shipment was confirmed delivered, so no new partner can be appointed");
+      }
       await tx.shipmentAppointment.updateMany({
         where: { orderId, role: body.role, status: "ACTIVE" },
         data: { status: "REVOKED", revokedAt: new Date() },
