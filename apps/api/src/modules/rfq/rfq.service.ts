@@ -896,7 +896,14 @@ export class RfqService {
         data: { status: "AWARDED", awardedAt: new Date() },
       });
       if (rfqUpdate.count === 0) throw conflict("This RFQ was already awarded");
-      await tx.quotation.update({ where: { id: quotation.id }, data: { status: "ACCEPTED" } });
+      // Conditional too: a withdrawal or expiry since the checks above must not be accepted.
+      const accepted = await tx.quotation.updateMany({
+        where: { id: quotation.id, status: "ACTIVE", validUntil: { gt: new Date() } },
+        data: { status: "ACCEPTED" },
+      });
+      if (accepted.count === 0) {
+        throw conflict("This quotation was withdrawn or expired while it was being accepted");
+      }
       const order = await tx.order.create({
         data: {
           orderNo: generateRefNo("ORD"),

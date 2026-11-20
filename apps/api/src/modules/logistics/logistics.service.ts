@@ -50,8 +50,10 @@ export class LogisticsService {
     if (order.buyerCompanyId !== membership.companyId) {
       throw forbidden("Only the buyer appoints logistics partners");
     }
-    if (order.status === "DELIVERY_CONFIRMED") {
-      throw conflict("This shipment is already complete");
+    // Once confirmed, never again: an admin may correct the stage back, but the
+    // published deal figures rely on who could know this order's value staying fixed.
+    if (order.status === "DELIVERY_CONFIRMED" || order.deliveryConfirmedAt) {
+      throw conflict("This shipment was confirmed delivered, so no new partner can be appointed");
     }
     const company = await prisma.company.findUnique({
       where: { id: body.companyId },
@@ -77,6 +79,14 @@ export class LogisticsService {
     }
 
     const appointment = await prisma.$transaction(async (tx) => {
+      // Holds the order row, so a delivery confirmation cannot land between this check and the insert.
+      const open = await tx.order.updateMany({
+        where: { id: orderId, status: { not: "DELIVERY_CONFIRMED" }, deliveryConfirmedAt: null },
+        data: { updatedAt: new Date() },
+      });
+      if (open.count === 0) {
+        throw conflict("This shipment was confirmed delivered, so no new partner can be appointed");
+      }
       await tx.shipmentAppointment.updateMany({
         where: { orderId, role: body.role, status: "ACTIVE" },
         data: { status: "REVOKED", revokedAt: new Date() },

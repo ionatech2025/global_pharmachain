@@ -163,10 +163,11 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
 
       <Provenance>
         Each category in its most-quoted unit and currency; other units and currencies are left out,
-        never converted. Only quotations that did not win count, once their RFQ is awarded,
-        cancelled or closed: a winning price becomes an order that logistics partners see. A month
-        stays a gap until then, and unless enough suppliers quoted that no company can work out
-        another&apos;s price from the average. The month in progress is not shown. {coverageLine}
+        never converted. Only quotations that did not win count, once their RFQ is awarded or
+        cancelled, or closed with no quote left that could still win: a winning price becomes an
+        order that logistics partners see. A month stays a gap until then, and unless enough
+        suppliers quoted that no company can work out another&apos;s price from the average. The
+        month in progress is not shown. {coverageLine}
       </Provenance>
     </div>
   );

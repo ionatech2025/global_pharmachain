@@ -185,6 +185,38 @@ export type PartiedQuote = PricedQuote & {
   accepted: boolean;
 };
 
+/** What the published figures need to know about one quotation and its RFQ. */
+export interface QuoteStandingInput {
+  status: string;
+  supplierCompanyId: string;
+  rfq: {
+    status: string;
+    /** Some quotation on the RFQ is ACTIVE and inside its validity, so it could still be awarded. */
+    hasLiveQuote: boolean;
+    /** The seller on the order created from the RFQ, if it was awarded. */
+    winnerCompanyId: string | null;
+  };
+}
+
+/**
+ * Whether a quotation counts as won, and whether its RFQ's award is settled.
+ * Every version from the winner counts as won: an earlier one often carries
+ * the order's price, which the buyer's logistics partners read. An RFQ is
+ * settled once awarded or cancelled, or closed with no quote left that could
+ * still win (an award needs an ACTIVE quote inside its validity).
+ */
+export function quoteStanding(
+  q: QuoteStandingInput,
+): Pick<PartiedQuote, "accepted" | "rfqSettled"> {
+  return {
+    accepted: q.status === "ACCEPTED" || q.rfq.winnerCompanyId === q.supplierCompanyId,
+    rfqSettled:
+      q.rfq.status === "AWARDED" ||
+      q.rfq.status === "CANCELLED" ||
+      (q.rfq.status === "CLOSED" && !q.rfq.hasLiveQuote),
+  };
+}
+
 /**
  * The quotations behind every unit/currency month the price figures may show.
  * A month waits until every RFQ quoted in it is settled, so it never changes

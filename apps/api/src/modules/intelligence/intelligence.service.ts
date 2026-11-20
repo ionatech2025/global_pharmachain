@@ -12,6 +12,7 @@ import {
   lastMonths,
   monthlyCounts,
   publishedAverage,
+  quoteStanding,
 } from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -21,7 +22,9 @@ const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMo
 async function partiedQuotes(where: Prisma.QuotationWhereInput) {
   const now = new Date();
   const rows = await prisma.quotation.findMany({
-    where,
+    // A replaced version can no longer move a published month (it is replaced only while
+    // its RFQ is open), so leave it out rather than let old offers skew the average.
+    where: { ...where, status: { not: "SUPERSEDED" } },
     select: {
       createdAt: true,
       unitPrice: true,
@@ -53,12 +56,15 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
     category: q.rfq.category,
     supplierCompanyId: q.supplierCompanyId,
     buyerCompanyId: q.rfq.buyerCompanyId,
-    // Every version from the winner counts as won: an earlier one may carry the order's price.
-    accepted: q.status === "ACCEPTED" || q.rfq.order?.sellerCompanyId === q.supplierCompanyId,
-    rfqSettled:
-      q.rfq.status === "AWARDED" ||
-      q.rfq.status === "CANCELLED" ||
-      (q.rfq.status === "CLOSED" && q.rfq.quotations.length === 0),
+    ...quoteStanding({
+      status: q.status,
+      supplierCompanyId: q.supplierCompanyId,
+      rfq: {
+        status: q.rfq.status,
+        hasLiveQuote: q.rfq.quotations.length > 0,
+        winnerCompanyId: q.rfq.order?.sellerCompanyId ?? null,
+      },
+    }),
   }));
 }
 
@@ -350,6 +356,8 @@ export class IntelligenceService {
         avgQuotedUnitPrice: price?.average ?? null,
         currency: price?.currency ?? null,
         unit: price?.unit ?? null,
+        /** The quotations behind avgQuotedUnitPrice; quoteCount90d counts every one. */
+        pricedQuoteCount: price?.quotations ?? 0,
         quoteCount90d: own.length,
       });
     }
@@ -396,13 +404,14 @@ export class IntelligenceService {
     return {
       title: "Global PharmaChain market intelligence",
       subtitle: `${report.period.label} · generated ${report.generatedAt} · ${report.anonymisation}`,
-      columns: ["Category", "RFQs", "Avg quoted price", "Quotes"],
+      columns: ["Category", "RFQs", "Avg quoted price", "Priced from", "Quotes"],
       rows: report.categories.map((c) => [
         c.category,
         String(c.rfqCount90d),
         c.avgQuotedUnitPrice === null
           ? "—"
           : `${c.avgQuotedUnitPrice} ${c.currency}${c.unit ? `/${c.unit}` : ""}`,
+        String(c.pricedQuoteCount),
         String(c.quoteCount90d),
       ]),
     };

@@ -9,6 +9,7 @@ import {
   monthlyCounts,
   monthlyPriceSeries,
   publishedAverage,
+  quoteStanding,
 } from "./series";
 
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -329,6 +330,37 @@ describe("who can ever know a price", () => {
 
   test("nothing publishable, no average", () => {
     expect(publishedAverage([q("2026-07-01", 12, "s1", "b1")], months)).toBeNull();
+  });
+});
+
+describe("quoteStanding", () => {
+  const standing = (
+    status: string,
+    rfqStatus: string,
+    opts: { live?: boolean; winner?: string | null; supplier?: string } = {},
+  ) =>
+    quoteStanding({
+      status,
+      supplierCompanyId: opts.supplier ?? "s1",
+      rfq: {
+        status: rfqStatus,
+        hasLiveQuote: opts.live ?? false,
+        winnerCompanyId: opts.winner ?? null,
+      },
+    });
+
+  test("every version from the winning supplier counts as won, not only the accepted row", () => {
+    expect(standing("ACCEPTED", "AWARDED", { winner: "s1" }).accepted).toBe(true);
+    expect(standing("SUPERSEDED", "AWARDED", { winner: "s1" }).accepted).toBe(true);
+    expect(standing("ACTIVE", "AWARDED", { winner: "s2" }).accepted).toBe(false);
+  });
+
+  test("an RFQ is settled once awarded or cancelled, or closed with no quote that could still win", () => {
+    expect(standing("ACTIVE", "OPEN").rfqSettled).toBe(false);
+    expect(standing("ACTIVE", "CLOSED", { live: true }).rfqSettled).toBe(false);
+    expect(standing("EXPIRED", "CLOSED", { live: false }).rfqSettled).toBe(true);
+    expect(standing("ACTIVE", "AWARDED", { winner: "s2" }).rfqSettled).toBe(true);
+    expect(standing("WITHDRAWN", "CANCELLED").rfqSettled).toBe(true);
   });
 });
 
