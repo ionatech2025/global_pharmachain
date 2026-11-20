@@ -181,7 +181,7 @@ export type PartiedQuote = PricedQuote & {
   buyerCompanyId: string;
   /** The RFQ is awarded or cancelled, or closed with no quote left that could still win. */
   rfqSettled: boolean;
-  /** This quotation won the RFQ. */
+  /** This quotation, or another version from the same supplier, won the RFQ. */
   accepted: boolean;
 };
 

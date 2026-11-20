@@ -34,6 +34,7 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
           status: true,
           buyerCompanyId: true,
           category: { select: { id: true, name: true, slug: true } },
+          order: { select: { sellerCompanyId: true } },
           // A closed RFQ can still be awarded while a quote on it is live.
           quotations: {
             where: { status: "ACTIVE", validUntil: { gt: now } },
@@ -52,7 +53,8 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
     category: q.rfq.category,
     supplierCompanyId: q.supplierCompanyId,
     buyerCompanyId: q.rfq.buyerCompanyId,
-    accepted: q.status === "ACCEPTED",
+    // Every version from the winner counts as won: an earlier one may carry the order's price.
+    accepted: q.status === "ACCEPTED" || q.rfq.order?.sellerCompanyId === q.supplierCompanyId,
     rfqSettled:
       q.rfq.status === "AWARDED" ||
       q.rfq.status === "CANCELLED" ||
