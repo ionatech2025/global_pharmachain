@@ -163,6 +163,18 @@ grow, over closed periods**, plus a guard on appointments.
   settlement) found no published figure from which one price could be solved.
   A control that injects a differencing pair finds thousands, so the check
   detects leaks.
+* Real Postgres 18 (local), measured:
+  * The resubmission's `FOR SHARE` and the award's, close's and cancel's
+    updates block each other in both orders, and two resubmissions do not.
+    A rival's resubmission leaves `Rfq.updatedAt` and every other supplier's
+    feed fingerprint unchanged.
+  * The statement log shows `/intelligence/prices` and the market report
+    reading quotes, RFQs, categories, orders and live quotes inside one
+    `BEGIN` / `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` / `COMMIT` on
+    one backend.
+  * An award committed between the reader's RFQ and later reads gives a
+    consistent view at RepeatableRead. At read committed, or in a one-query
+    batch, it shows the winner as a settled loss.
 * Local API: appointing the losing bidder returns 400 "... quoted on this
   order's RFQ and was not awarded it ..."; a forwarder that never bid is still
   appointed (201).
