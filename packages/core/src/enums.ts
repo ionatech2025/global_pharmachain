@@ -227,6 +227,12 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
 // Full 13-stage shipment lifecycle (Phase 2). The Phase 1 six-stage data
 // migrated losslessly: AT_PORT → AT_PORT_OF_DESTINATION (the stage it sat
 // between IN_TRANSIT and DELIVERED), everything else 1:1.
+/**
+ * Quotation versions a supplier may replace with a new one while the RFQ is
+ * open (an expired or withdrawn quote still blocks a fresh submission).
+ */
+export const REVISABLE_QUOTATION_STATUSES = ["ACTIVE", "EXPIRED", "WITHDRAWN"] as const;
+
 export const ORDER_STATUSES = [
   "ORDER_CONFIRMED",
   "PICKUP_SCHEDULED",

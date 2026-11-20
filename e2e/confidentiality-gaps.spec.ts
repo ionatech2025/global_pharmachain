@@ -41,6 +41,9 @@ test("intelligence publishes closed periods only and says which quotes count", a
   const report = await res.json();
   expect(report.period.label, "a whole calendar quarter").toMatch(/^\d{4}-Q[1-4]$/);
   expect(new Date(report.period.to).getTime()).toBeLessThanOrEqual(Date.now());
+  test
+    .info()
+    .annotations.push({ type: "categories", description: String(report.categories.length) });
   for (const row of report.categories) {
     expect(row.demandVolume90d, `${row.category}: demand volume is withheld`).toBeNull();
     expect(typeof row.pricedQuoteCount).toBe("number");
@@ -64,7 +67,7 @@ test("intelligence publishes closed periods only and says which quotes count", a
   await buyer.context().close();
 });
 
-test("a quote is revised, withdrawn and revised again while open; never after the award", async ({
+test("a quote is revised, withdrawn and revised again while open; its order then takes no partner once delivered", async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -74,7 +77,7 @@ test("a quote is revised, withdrawn and revised again while open; never after th
   test.skip(target === null, QUIET_TARGET_SKIP);
   await topUpCredits(browser, [
     { email: "admin@nilepharma.demo", kind: "RFQ", count: 1 },
-    { email: "admin@kampalafinechem.demo", kind: "QUOTATION", count: 3 },
+    { email: "admin@kampalafinechem.demo", kind: "QUOTATION", count: 1 },
   ]);
 
   const raised = await buyer.request.post(`${API_PATH}/rfqs`, {
@@ -112,7 +115,7 @@ test("a quote is revised, withdrawn and revised again while open; never after th
 
   // The page offers a new version rather than a fresh submission the API would refuse.
   await supplier.goto(`/rfqs/${rfq.id}`);
-  await expect(supplier.getByRole("button", { name: "Submit a new version" })).toBeVisible();
+  await expect(supplier.getByRole("button", { name: "Submit a new version" })).toBeEnabled();
 
   const v3 = await supplier.request.post(
     `${API_PATH}/quotations/${second.id}/resubmit`,
@@ -131,32 +134,37 @@ test("a quote is revised, withdrawn and revised again while open; never after th
   expect(late.status(), "no revision once awarded").toBe(409);
   const pull = await supplier.request.post(`${API_PATH}/quotations/${third.id}/withdraw`);
   expect(pull.status(), "an accepted quote cannot be withdrawn").toBe(409);
-  await buyer.context().close();
-  await supplier.context().close();
-});
 
-test("a delivered order takes no new logistics partner, and the page does not offer one", async ({
-  browser,
-}) => {
-  test.setTimeout(120_000);
-  const buyer = await signIn(browser, BUYER);
-  const list = await (await buyer.request.get(`${API_PATH}/orders?role=buyer&pageSize=100`)).json();
-  const delivered = (list.items as Array<{ id: string; status: string }>).find(
-    (o) => o.status === "DELIVERY_CONFIRMED",
-  );
-  test.skip(!delivered, "the demo buyer has no delivery-confirmed order on this stack");
-  const orderId = (delivered as { id: string }).id;
-
-  const res = await buyer.request.post(`${API_PATH}/orders/${orderId}/appointments`, {
-    data: { role: "FORWARDER", companyId: "00000000-0000-7000-8000-000000000000" },
-  });
-  expect(res.status()).toBe(409);
-  expect(await res.text()).toContain("confirmed delivered");
-
-  await buyer.goto(`/orders/${orderId}`);
+  // The award created an order. Delivered, it takes no new logistics partner, and a later
+  // admin correction of its stage does not reopen appointments (ADR-0007).
+  const order = await award.json();
+  const admin = await signIn(browser, SUPER_ADMIN, ADMIN_PASSWORD);
+  const correct = (status: string) =>
+    admin.request.post(`${API_PATH}/orders/${order.id}/status`, {
+      data: { status, note: `E2E ADR-0007 check: set to ${status}` },
+    });
+  const delivered = await correct("DELIVERY_CONFIRMED");
+  expect(delivered.ok(), await delivered.text()).toBeTruthy();
+  const appoint = () =>
+    buyer.request.post(`${API_PATH}/orders/${order.id}/appointments`, {
+      data: { role: "FORWARDER", companyId: "00000000-0000-7000-8000-000000000000" },
+    });
+  const refused = await appoint();
+  expect(refused.status()).toBe(409);
+  expect(await refused.text()).toContain("confirmed delivered");
+  await buyer.goto(`/orders/${order.id}`);
   await expect(buyer.getByText("Logistics partners")).toBeVisible();
   await expect(buyer.getByRole("button", { name: /Appoint partner/ })).toHaveCount(0);
+
+  const reopened = await correct("OUT_FOR_DELIVERY");
+  expect(reopened.ok(), await reopened.text()).toBeTruthy();
+  const stillRefused = await appoint();
+  expect(stillRefused.status(), "a corrected stage does not reopen appointments").toBe(409);
+  await buyer.reload();
+  await expect(buyer.getByRole("button", { name: /Appoint partner/ })).toHaveCount(0);
+  await admin.context().close();
   await buyer.context().close();
+  await supplier.context().close();
 });
 
 test("the landing makes only claims the API enforces", async ({ page }) => {

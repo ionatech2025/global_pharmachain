@@ -109,7 +109,10 @@ grow, over closed periods**, plus a guard on appointments.
   (`order.appointment-revoked-rival-bidder`). Revoking is safe: a company quotes
   only on RFQs aimed at its own type, and only logistics companies can be
   appointed, so such a row is a losing bidder placed on the logistics contract
-  its rival won.
+  its rival won. Its timestamps are written in UTC, like the app's. It changes
+  no schema, so release it **after** the deploy (merge, then `db-migrate`): run
+  first, it would miss any rival appointment made in the minutes before the
+  guard went live.
 * **Quote state changes are atomic.** `acceptQuotation` marks the quote
   `ACCEPTED` only if it is still `ACTIVE` and inside its validity, in the same
   transaction that awards the RFQ. `resubmitQuotation` re-checks inside its
@@ -185,9 +188,11 @@ grow, over closed periods**, plus a guard on appointments.
     consistent view at RepeatableRead. At read committed, or in a one-query
     batch, it shows the winner as a settled loss.
 * `e2e/confidentiality-gaps.spec.ts` (Playwright): closed periods and withheld
-  fields on both endpoints, the quote lifecycle (revise, withdraw, revise again,
-  refused after award), a delivered order refusing a new partner with no button
-  on its page, and the landing's claims. Its withdrawn-quote revision failed on
+  fields on both endpoints, and the quote lifecycle (revise, withdraw, revise
+  again, refused after award). The order that award creates is then
+  delivery-confirmed by an admin correction: it refuses a new partner and its
+  page shows no button, and correcting its stage back does not reopen
+  appointments. The spec also covers the landing's claims. Its withdrawn-quote revision failed on
   the code before `3a2f148` (409) and passes after.
 * Local API: appointing the losing bidder returns 400 "... quoted on this
   order's RFQ and was not awarded it ..."; a forwarder that never bid is still

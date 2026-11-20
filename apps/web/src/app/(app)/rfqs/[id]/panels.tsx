@@ -1,6 +1,6 @@
 "use client";
 
-import { CURRENCIES } from "@pharmachain/core";
+import { CURRENCIES, REVISABLE_QUOTATION_STATUSES } from "@pharmachain/core";
 import { Alert, AlertDescription, AlertTitle } from "@pharmachain/ui/components/alert";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
@@ -410,9 +410,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
   const open = rfq.status === "OPEN" && new Date(rfq.deadline) > new Date();
   // An expired or withdrawn quote is replaced by a new version; a fresh submission would be refused.
   const revisable =
-    existing !== null &&
-    existing !== undefined &&
-    ["ACTIVE", "EXPIRED", "WITHDRAWN"].includes(existing.status);
+    !!existing && (REVISABLE_QUOTATION_STATUSES as readonly string[]).includes(existing.status);
   const closedReason = quotingClosedReason(rfq);
   const [unitPrice, setUnitPrice] = useState(existing?.unitPrice ?? "");
   const [currency, setCurrency] = useState(existing?.currency ?? "USD");
