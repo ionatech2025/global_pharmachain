@@ -69,6 +69,15 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
     );
   }
 
+  /** Months between a category's first and last priced month that show no price. */
+  const blankWithin = (row: CategoryPriceTrend) => {
+    const first = row.series.findIndex((v) => v !== null);
+    const last = row.series.findLastIndex((v) => v !== null);
+    return first < 0
+      ? []
+      : row.series.slice(first, last + 1).flatMap((v, i) => (v === null ? [first + i] : []));
+  };
+
   const monthOf = (row: CategoryPriceTrend, which: "first" | "last") => {
     const i =
       which === "first"
@@ -92,6 +101,8 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
                 {monthOf(row, "last")}
                 {row.otherQuotes > 0 &&
                   ` · ${fmtNumber(row.otherQuotes)} in another unit or currency left out`}
+                {blankWithin(row).length > 0 &&
+                  ` · ${fmtNumber(blankWithin(row).length)} month(s) in between not shown`}
               </p>
             </div>
             <Sparkline
@@ -136,7 +147,7 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
         <tbody>
           {categories.flatMap((row) =>
             row.series.flatMap((value, i) =>
-              value === null
+              value === null && !blankWithin(row).includes(i)
                 ? []
                 : [
                     <tr
@@ -151,8 +162,14 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
                       </th>
                       <td className="py-1.5 pr-4 text-muted-foreground">{labels[i]}</td>
                       <td className="num-col py-1.5 pl-4 text-right">
-                        {price(value, row.currency)}
-                        {row.unit ? ` / ${row.unit}` : ""}
+                        {value === null ? (
+                          <span className="text-muted-foreground">Not shown</span>
+                        ) : (
+                          <>
+                            {price(value, row.currency)}
+                            {row.unit ? ` / ${row.unit}` : ""}
+                          </>
+                        )}
                       </td>
                     </tr>,
                   ],
@@ -165,7 +182,7 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
         Each category in its most-quoted unit and currency; other units and currencies are left out,
         never converted. Only quotations that did not win count, once their RFQ is awarded or
         cancelled, or closed with no quote left that could still win: a winning price becomes an
-        order that logistics partners see. A month stays a gap until then, and unless enough
+        order that logistics partners see. A month is not shown until then, and unless enough
         suppliers quoted that no company can work out another&apos;s price from the average. The
         month in progress is not shown. {coverageLine}
       </Provenance>

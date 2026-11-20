@@ -116,6 +116,9 @@ test("a quote is revised, withdrawn and revised again while open; its order then
   // The page offers a new version rather than a fresh submission the API would refuse.
   await supplier.goto(`/rfqs/${rfq.id}`);
   await expect(supplier.getByRole("button", { name: "Submit a new version" })).toBeEnabled();
+  await expect(supplier.getByTestId("quote-panel-revise-note")).toHaveText(
+    "You withdrew your quotation. Submit a new version to quote again before the deadline.",
+  );
 
   const v3 = await supplier.request.post(
     `${API_PATH}/quotations/${second.id}/resubmit`,
@@ -152,9 +155,11 @@ test("a quote is revised, withdrawn and revised again while open; its order then
   const refused = await appoint();
   expect(refused.status()).toBe(409);
   expect(await refused.text()).toContain("confirmed delivered");
+  const closedNote = buyer.getByText("Delivery is confirmed, so no new partner can be appointed.");
   await buyer.goto(`/orders/${order.id}`);
   await expect(buyer.getByText("Logistics partners")).toBeVisible();
   await expect(buyer.getByRole("button", { name: /Appoint partner/ })).toHaveCount(0);
+  await expect(closedNote).toBeVisible();
 
   const reopened = await correct("OUT_FOR_DELIVERY");
   expect(reopened.ok(), await reopened.text()).toBeTruthy();
@@ -162,6 +167,7 @@ test("a quote is revised, withdrawn and revised again while open; its order then
   expect(stillRefused.status(), "a corrected stage does not reopen appointments").toBe(409);
   await buyer.reload();
   await expect(buyer.getByRole("button", { name: /Appoint partner/ })).toHaveCount(0);
+  await expect(closedNote).toBeVisible();
   await admin.context().close();
   await buyer.context().close();
   await supplier.context().close();

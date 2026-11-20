@@ -323,8 +323,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
             {/* The API refuses new partners once delivery has been confirmed (ADR-0007). */}
             {order.viewerIsBuyer &&
-              order.status !== "DELIVERY_CONFIRMED" &&
-              !order.deliveryConfirmedAt && <AppointPartnerButton orderId={order.id} />}
+              (order.status === "DELIVERY_CONFIRMED" || order.deliveryConfirmedAt ? (
+                <p className="max-w-[16rem] text-right text-xs text-muted-foreground">
+                  Delivery is confirmed, so no new partner can be appointed.
+                </p>
+              ) : (
+                <AppointPartnerButton orderId={order.id} />
+              ))}
           </CardHeader>
           <CardContent>
             {order.appointments.length === 0 ? (

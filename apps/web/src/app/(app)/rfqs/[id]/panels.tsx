@@ -508,6 +508,14 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
             <AlertDescription>{closedReason}</AlertDescription>
           </Alert>
         )}
+        {open && existing && revisable && existing.status !== "ACTIVE" && (
+          <p className="text-sm text-muted-foreground" data-testid="quote-panel-revise-note">
+            {existing.status === "EXPIRED"
+              ? `Your quotation expired on ${fmtDateTime(existing.validUntil)}.`
+              : "You withdrew your quotation."}{" "}
+            Submit a new version to quote again before the deadline.
+          </p>
+        )}
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
