@@ -1,8 +1,8 @@
 /**
- * Live-lane ticker: a horizontally scrolling strip of illustrative trade
- * lanes, echoing The Drop's marquee. Content is duplicated once so the
- * -50% keyframe loops seamlessly; the whole strip pauses on hover and stops
- * under prefers-reduced-motion. Decorative — hidden from assistive tech.
+ * Lane strip: a still row of illustrative trade lanes, echoing The Drop's
+ * route ticker. It does not scroll (the Oct 2026 accessibility pass stopped
+ * it; moving content would need its own pause control, WCAG 2.2.2), and the
+ * row fades out at both ends. Decorative — hidden from assistive tech.
  */
 const LANES = [
   { route: "Mumbai → Kampala", note: "Excipients · 2 t", state: "at port" },
@@ -24,14 +24,12 @@ const STATE_TONE: Record<string, string> = {
 };
 
 export function RouteMarquee() {
-  const items = [...LANES, ...LANES];
   return (
     <div aria-hidden className="overflow-hidden rounded-full border bg-card/70 py-2.5">
       <div className="fade-x flex items-center gap-8 overflow-hidden pl-6">
-        {items.map((lane, i) => (
+        {LANES.map((lane) => (
           <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: duplicated static strip
-            key={i}
+            key={lane.route}
             className="flex items-center gap-2.5 whitespace-nowrap text-xs font-medium text-muted-foreground"
           >
             <span className="size-1.5 shrink-0 rounded-full bg-primary" />

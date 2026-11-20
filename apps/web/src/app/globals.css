@@ -383,26 +383,6 @@
     align-items: center;
   }
 
-  /* Soft brand glow behind hero content */
-  .bg-hero-glow {
-    background: radial-gradient(
-      52rem 30rem at 50% -6rem,
-      color-mix(in oklch, var(--primary) 16%, transparent),
-      transparent 70%
-    );
-  }
-  /* Brand-gradient display text (hero keyword) */
-  .text-gradient {
-    background: linear-gradient(
-      92deg,
-      var(--primary),
-      color-mix(in oklch, var(--primary) 45%, var(--info))
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
   /* Hero motion (all neutralised by the reduced-motion kill switch below).
      will-change promotes the blurred blobs to their own compositor layer so
      the drift is a cheap transform, not a per-frame repaint of the blur. */
@@ -413,13 +393,6 @@
   .animate-aurora-fast {
     will-change: transform;
     animation: aurora-drift 11s ease-in-out infinite reverse;
-  }
-  .animate-marquee {
-    will-change: transform;
-    animation: marquee-slide 32s linear infinite;
-  }
-  .animate-marquee:hover {
-    animation-play-state: paused;
   }
   /* Rotate around the element's own centre (all globe rings share centre). */
   .animate-orbit-slow {
@@ -662,14 +635,6 @@
     transform: translate(3%, -2%) scale(1.08);
   }
 }
-@keyframes marquee-slide {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
 @keyframes orbit-spin {
   to {
     transform: rotate(360deg);
@@ -854,21 +819,6 @@
   --globe-line: oklch(0.78 0.09 250 / 0.5);
   --globe-line-soft: oklch(0.78 0.09 250 / 0.22);
   --globe-halo: oklch(0.8 0.1 250 / 0.2);
-}
-
-/*
- * Inside azure panels the hero globe swaps its azure line-work for white
- * (azure-on-azure would vanish): re-pin the wireframe + node/star tokens the
- * globe consumes. Glass cards nested deeper re-pin their own set above.
- */
-.panel-globe-scope {
-  --globe-line: oklch(1 0 0 / 0.6);
-  --globe-line-soft: oklch(1 0 0 / 0.28);
-  --globe-halo: oklch(1 0 0 / 0.32);
-  --primary: oklch(1 0 0 / 0.95);
-  --info: oklch(0.92 0.06 220);
-  --muted-foreground: oklch(1 0 0 / 0.6);
-  --background: oklch(0.5 0.16 252);
 }
 
 /*

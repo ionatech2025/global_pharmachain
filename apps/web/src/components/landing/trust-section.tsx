@@ -34,7 +34,7 @@ const FEATURES = [
     icon: MessageSquare,
     title: "Confidential Pairwise Threads",
     record: "A segregated negotiation room for every tender and procurement contract.",
-    meaning: "Zero data leakage across competing suppliers.",
+    meaning: "Competing suppliers never see each other's quotations or threads.",
   },
   {
     icon: Truck,
