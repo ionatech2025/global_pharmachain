@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import {
   categoryPriceTrends,
   completedMonths,
+  dealTotal,
   isAnonymous,
   lastCompletedQuarter,
   lastMonths,
   monthlyCounts,
   monthlyPriceSeries,
+  publishedAverage,
 } from "./series";
 
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -141,7 +143,15 @@ describe("categoryPriceTrends", () => {
     price: number,
     supplierCompanyId = "s1",
     buyerCompanyId = "b1",
-  ) => ({ ...quote(day, price), category, supplierCompanyId, buyerCompanyId });
+    settled: { rfqSettled?: boolean; accepted?: boolean } = {},
+  ) => ({
+    ...quote(day, price),
+    category,
+    supplierCompanyId,
+    buyerCompanyId,
+    rfqSettled: settled.rfqSettled ?? true,
+    accepted: settled.accepted ?? false,
+  });
   /** One quote each from three suppliers to three buyers: the smallest month the chart may show. */
   const fromThree = (category: typeof apis, day: string, prices: [number, number, number]) =>
     prices.map((price, i) => inCategory(category, day, price, `s${i + 1}`, `b${i + 1}`));
@@ -243,6 +253,121 @@ describe("categoryPriceTrends", () => {
       months,
     );
     expect(result.categories[0]?.series).toEqual([null, null, 14, 15]);
+  });
+});
+
+describe("who can ever know a price", () => {
+  const months = ["2026-07", "2026-08", "2026-09"];
+  const apis = { id: "c1", name: "APIs", slug: "apis" };
+  const q = (
+    day: string,
+    price: number,
+    supplier: string,
+    buyer: string,
+    settled: { rfqSettled?: boolean; accepted?: boolean } = {},
+    currency = "USD",
+  ) => ({
+    ...quote(day, price, currency),
+    category: apis,
+    supplierCompanyId: supplier,
+    buyerCompanyId: buyer,
+    rfqSettled: settled.rfqSettled ?? true,
+    accepted: settled.accepted ?? false,
+  });
+  const losing = (day: string, prices: number[]) =>
+    prices.map((price, i) => q(day, price, `s${i + 1}`, `b${i + 1}`));
+
+  test("the winning quotation is left out: it becomes the order's price, which appointees read", () => {
+    const result = categoryPriceTrends(
+      [
+        ...losing("2026-07-01", [12, 12, 12]),
+        q("2026-07-02", 30, "s4", "b4", { accepted: true }),
+        ...losing("2026-08-01", [13, 13, 13]),
+      ],
+      months,
+    );
+    expect(result.categories[0]?.series).toEqual([12, 13, null]);
+  });
+
+  test("a month waits until every RFQ quoted in it is settled, so it never changes once shown", () => {
+    const result = categoryPriceTrends(
+      [
+        ...losing("2026-07-01", [12, 12, 12]),
+        q("2026-07-02", 11, "s4", "b4", { rfqSettled: false }),
+        ...losing("2026-08-01", [13, 13, 13]),
+        ...losing("2026-09-01", [14, 14, 14]),
+      ],
+      months,
+    );
+    expect(result.categories[0]?.series).toEqual([null, 13, 14]);
+  });
+
+  test("the report's average uses only the months the chart can show", () => {
+    // September's lone supplier is withheld by the chart; the quarter must not blend it back in.
+    const quotes = [
+      ...losing("2026-07-01", [12, 12, 12]),
+      ...losing("2026-08-01", [13, 13, 13]),
+      q("2026-09-01", 23.4, "s9", "b9"),
+    ];
+    expect(categoryPriceTrends(quotes, months).categories[0]?.series).toEqual([12, 13, null]);
+    expect(publishedAverage(quotes, months)).toEqual({
+      average: 12.5,
+      currency: "USD",
+      unit: "kg",
+      quotations: 6,
+    });
+  });
+
+  test("the report's average stays in one currency, never blending USD with UGX", () => {
+    const quotes = [
+      ...losing("2026-07-01", [12, 12, 12]),
+      ...["s4", "s5", "s6"].map((s, i) => q("2026-08-01", 40_000, s, `b${i + 4}`, {}, "UGX")),
+      ...losing("2026-08-02", [14, 14, 14]),
+    ];
+    expect(publishedAverage(quotes, months)).toMatchObject({ average: 13, currency: "USD" });
+  });
+
+  test("nothing publishable, no average", () => {
+    expect(publishedAverage([q("2026-07-01", 12, "s1", "b1")], months)).toBeNull();
+  });
+});
+
+describe("dealTotal", () => {
+  const deal = (id: string, value: number, parties: string[], settled = true) => ({
+    id,
+    value,
+    parties,
+    settled,
+  });
+
+  test("waits until every deal is delivered, while new appointees could still learn some", () => {
+    expect(
+      dealTotal([
+        deal("o1", 100, ["b1", "s1"]),
+        deal("o2", 200, ["b2", "s2"]),
+        deal("o3", 300, ["b3", "s3"], false),
+      ]),
+    ).toBeNull();
+  });
+
+  test("an appointee on two of three deals could read the third off the total", () => {
+    expect(
+      dealTotal([
+        deal("o1", 100, ["b1", "s1", "fwd"]),
+        deal("o2", 200, ["b2", "s2", "fwd"]),
+        deal("o3", 300, ["b3", "s3"]),
+      ]),
+    ).toBeNull();
+  });
+
+  test("settled deals no single company can isolate are summed", () => {
+    expect(
+      dealTotal([
+        deal("o1", 100.1, ["b1", "s1"]),
+        deal("o2", 200.2, ["b2", "s2"]),
+        deal("o3", 300.3, ["b3", "s3"]),
+      ]),
+    ).toBe(600.6);
   });
 });
 

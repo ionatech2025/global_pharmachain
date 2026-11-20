@@ -169,25 +169,89 @@ export function isAnonymous(contributions: readonly Contribution[]): boolean {
   return true;
 }
 
-export type PartiedQuote = PricedQuote & { supplierCompanyId: string; buyerCompanyId: string };
+/**
+ * A quotation as the published price figures see it. Who can ever know a
+ * price must be settled before it is blended, so only losing quotations on
+ * RFQs whose award is decided count: the winning price becomes the order's
+ * price, which the buyer's logistics partners read, and an undecided RFQ may
+ * still make any quote a winner.
+ */
+export type PartiedQuote = PricedQuote & {
+  supplierCompanyId: string;
+  buyerCompanyId: string;
+  /** The RFQ is awarded or cancelled, or closed with no quote left that could still win. */
+  rfqSettled: boolean;
+  /** This quotation won the RFQ. */
+  accepted: boolean;
+};
 
-/** Drops each unit/currency month whose average would expose a single supplier's price. */
-function publishableQuotes<Q extends PartiedQuote>(quotes: readonly Q[]): Q[] {
+/**
+ * The quotations behind every unit/currency month the price figures may show.
+ * A month waits until every RFQ quoted in it is settled, so it never changes
+ * once shown; then its losing quotations are published only if no company can
+ * isolate one supplier's price from their average (isAnonymous).
+ */
+export function publishableQuotes<Q extends PartiedQuote>(quotes: readonly Q[]): Q[] {
   const buckets = new Map<string, Q[]>();
   for (const q of quotes) {
     const key = `${q.currency}|${unitKey(q.unit)}|${monthKey(q.createdAt)}`;
     buckets.set(key, [...(buckets.get(key) ?? []), q]);
   }
   return [...buckets.values()]
-    .filter((bucket) =>
+    .filter((bucket) => bucket.every((q) => q.rfqSettled))
+    .map((bucket) => bucket.filter((q) => !q.accepted))
+    .filter((losing) =>
       isAnonymous(
-        bucket.map((q) => ({
+        losing.map((q) => ({
           key: q.supplierCompanyId,
           parties: [q.supplierCompanyId, q.buyerCompanyId],
         })),
       ),
     )
     .flat();
+}
+
+/**
+ * One average over the same months the chart may show, in their most-quoted
+ * unit and currency: built only from publishable months, so comparing it with
+ * the chart cannot recover a month the chart withholds.
+ */
+export function publishedAverage(
+  quotes: readonly PartiedQuote[],
+  months: readonly string[],
+): { average: number; currency: string; unit: string | null; quotations: number } | null {
+  const window = new Set(months);
+  const shown = publishableQuotes(quotes.filter((q) => window.has(monthKey(q.createdAt))));
+  const { currency, unit } = monthlyPriceSeries(shown, months);
+  const inPair = shown.filter((q) => q.currency === currency && unitKey(q.unit) === (unit ?? ""));
+  if (currency === null || inPair.length === 0) return null;
+  const total = inPair.reduce(
+    (t, q) => t + (typeof q.unitPrice === "number" ? q.unitPrice : q.unitPrice.toNumber()),
+    0,
+  );
+  return {
+    average: Math.round((total / inPair.length) * 100) / 100,
+    currency,
+    unit,
+    quotations: inPair.length,
+  };
+}
+
+/** One deal inside a published total. */
+export interface Deal {
+  id: string;
+  value: number;
+  /** Delivery confirmed: nobody new can be appointed to it, so who knows its value is final. */
+  settled: boolean;
+  /** Buyer, seller and every company ever appointed to it. */
+  parties: readonly string[];
+}
+
+/** The total of these deals, or null while it could expose one deal's value. */
+export function dealTotal(deals: readonly Deal[]): number | null {
+  if (!deals.every((d) => d.settled)) return null;
+  if (!isAnonymous(deals.map((d) => ({ key: d.id, parties: d.parties })))) return null;
+  return Math.round(deals.reduce((t, d) => t + d.value, 0) * 100) / 100;
 }
 
 export interface CategoryRef {
