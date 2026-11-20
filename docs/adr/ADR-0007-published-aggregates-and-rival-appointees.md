@@ -4,7 +4,7 @@ date: 2026-11-20
 decision-makers: platform engineering
 ---
 
-# ADR-0007: Price and deal figures are published only when no single company can isolate one, from closed periods; rival bidders cannot be appointed to an order
+# ADR-0007: Price and deal figures come only from settled records no single company can isolate, over closed periods; rival bidders cannot be appointed to an order
 
 ## Context and Problem Statement
 
@@ -54,28 +54,46 @@ and who may be appointed to an order?
 
 ## Decision Outcome
 
-Chosen: **option 3, over closed periods**, plus a guard on appointments.
+Chosen: **option 3, applied only to records whose set of knowers can no longer
+grow, over closed periods**, plus a guard on appointments.
 
 * `isAnonymous(contributions)` in `apps/api/src/modules/intelligence/series.ts`
   takes each contribution's `key` (whose figure must stay hidden) and `parties`
   (who already knows it). A figure is published only when at least two
   contributors are blended, and every party, after removing what it knows, is
   left with none or at least two.
-  * Quotes: key = supplier, parties = supplier and the RFQ's buyer. In practice
-    a month needs three suppliers, and no buyer may have received all but one.
-  * Orders: key = order, parties = buyer, seller and every appointee.
-  * Demand volume: key = buyer, parties = buyer. Suppliers already see the RFQs
-    aimed at their type, so they are not modelled as parties (a `shortcut:`
-    comment marks this).
+* **The parties must be complete and final, or the rule means nothing.** The
+  first version of this ADR modelled a quote's knowers as its supplier and
+  buyer, and an order's as buyer, seller and current appointees. An
+  independent review broke it three ways, each reproduced against the real
+  service: a winning quote becomes the order's price, which every logistics
+  partner the buyer appoints reads; appointments can be added after a figure
+  is published; and the report blended months the chart withheld. Each patch
+  on that model would have had to guess who might know a figure later. So:
+  * **Prices** count only quotations that **did not win**, on RFQs whose award is
+    **settled**: `AWARDED`, `CANCELLED`, or `CLOSED` with no quote left that
+    could still be awarded (award needs an `ACTIVE` quote inside its validity).
+    A losing quote's price is known to its supplier and the RFQ's buyer only,
+    for good. A month waits until every RFQ quoted in it is settled, so it never
+    changes once shown. Parties: supplier and buyer.
+  * **Deal totals** are published only when every order in the period is
+    `DELIVERY_CONFIRMED`, after which nobody can be appointed to it. Parties:
+    buyer, seller and every company ever appointed (`dealTotal`).
+  * **Demand volume** is withheld. RFQ quantities carry free-text units, so their
+    sum is no quantity, and every verified supplier of the targeted type sees
+    each RFQ, so its knowers cannot be bounded.
+* **One source for both endpoints.** The market report's category price is
+  `publishedAverage`: the average over exactly the months the chart may show
+  in the quarter, in one unit and currency (it used to blend USD with UGX).
+  Report rows now carry `currency` and `unit`.
+* **Closed periods.** The price chart shows the last 12 completed months. The
+  market report covers the last completed calendar quarter (`period`, for
+  example `2026-Q3`), and its trade totals cover that quarter, not all time.
+  Its JSON field names (`rfqCount90d` and so on) are kept so subscribers'
+  parsers keep working; `demandVolume90d` is now always `null`.
 * Option 1 fails when one supplier sends several quotes. Option 2 fails when
   one company is party to several deals in a total. Option 4 makes the figures
   wrong for everyone and is not needed at this scale.
-* **Closed periods.** The price chart shows the last 12 completed months and
-  counts every quotation submitted in them, revisions included, so a published
-  month never changes. The market report covers the last completed calendar
-  quarter (`period`, for example `2026-Q3`), and its trade totals cover that
-  quarter, not all time. Its JSON field names (`rfqCount90d` and so on) are
-  kept so subscribers' parsers keep working.
 * **Appointments.** `LogisticsService.appoint` refuses a company that quoted on
   the order's RFQ, unless it is the order's seller, with a message that says why.
 
@@ -84,21 +102,30 @@ Chosen: **option 3, over closed periods**, plus a guard on appointments.
 * Good: the landing page's statements ("competing suppliers never see each
   other's quotations", the FAQ on who sees what) hold for the published
   intelligence too.
-* Bad: on today's small network many months and categories show as gaps until
-  three suppliers quote in them. The chart says so. The report shows "—".
-* Bad: the market report is up to three months old by design.
-* Neutral: appointments made before this change are not revoked. The rule
-  applies to new ones.
+* Bad: figures appear later (after awards settle and orders are confirmed) and
+  more often show as gaps or "—" on today's small network. Winning prices, the
+  most telling ones, are never in the price index. The chart and report say why.
+* Bad: the market report is up to three months old by design, and no longer
+  has a demand volume.
+* Neutral: collusion between companies, or one firm acting through several
+  registered companies, is outside this model.
+* Neutral: appointments made before this change are not revoked. If one exists,
+  the buyer chose that partner for a live shipment; revoking it would cut the
+  shipment's logistics. New ones are refused.
 
 ### Confirmation
 
-* `apps/api/src/modules/intelligence/series.test.ts`: on the old code, a
-  one-supplier month published `11`, a two-supplier month `10.75`, and a month
-  where one buyer had two of three quotes `12`. All three are now gaps. Order
-  totals where one company was party to two of three deals are withheld. Closed
-  windows are tested across the year boundary.
-* Local API: `/intelligence/prices` covers months `2025-11..2026-10` on
-  2026-11-20, and the market report period is `2026-Q3`.
-* Local API: appointing the losing bidder now returns 400 "... quoted on this
-  order's RFQ and was not awarded it ...". A forwarder that never bid is still
+* `apps/api/src/modules/intelligence/series.test.ts` (30 tests): one-supplier,
+  two-supplier and buyer-holds-all-but-one months are gaps (on the first code
+  they published `11`, `10.75`, `12`); a winning quote is left out; a month with
+  an unsettled RFQ waits; the report average uses only the chart's months and
+  one currency; deal totals wait for delivery and refuse an appointee on two of
+  three deals; closed windows hold across the year boundary.
+* The reviewer's harness (real `IntelligenceService`, in-memory database), five
+  attacks: all succeed on `faf41e0` (withheld price recovered as 23.42 for
+  23.4; a UGX price as 61500.01; an appointee reading a third supplier's 17.35;
+  a later appointee reading a 77250 deal; a supplier reading a 3750 quantity).
+  All fail on the final code.
+* Local API: appointing the losing bidder returns 400 "... quoted on this
+  order's RFQ and was not awarded it ..."; a forwarder that never bid is still
   appointed (201).

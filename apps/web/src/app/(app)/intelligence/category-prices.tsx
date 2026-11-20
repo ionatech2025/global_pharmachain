@@ -57,8 +57,9 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          No category has a price trend yet. A trend needs at least two completed months in which
-          three or more suppliers quoted in one unit and currency.
+          No category has a price trend yet. A month is shown once every RFQ quoted in it is
+          settled, and only if enough suppliers quoted in one unit and currency that no company can
+          work out another&apos;s price. A trend needs two such months.
         </p>
         <Provenance>
           {coverageLine} Choosing a material category when raising an RFQ is what puts its quotes
@@ -162,9 +163,10 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
 
       <Provenance>
         Each category in its most-quoted unit and currency; other units and currencies are left out,
-        never converted. A month is a gap unless at least three suppliers quoted in it, so no
-        supplier's price can be worked out from the average; the month in progress is not shown.{" "}
-        {coverageLine}
+        never converted. Only quotations that did not win count, once their RFQ is awarded,
+        cancelled or closed: a winning price becomes an order that logistics partners see. A month
+        stays a gap until then, and unless enough suppliers quoted that no company can work out
+        another&apos;s price from the average. The month in progress is not shown. {coverageLine}
       </Provenance>
     </div>
   );
