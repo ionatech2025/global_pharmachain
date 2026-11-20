@@ -104,18 +104,27 @@ grow, over closed periods**, plus a guard on appointments.
   wrong for everyone and is not needed at this scale.
 * **Appointments.** `LogisticsService.appoint` refuses a company that quoted on
   the order's RFQ, unless it is the order's seller, with a message that says why.
+  Migration `20261120000000_revoke_rival_appointments` revokes any such
+  appointment made before the guard and writes an `AuditLog` row for each
+  (`order.appointment-revoked-rival-bidder`). Revoking is safe: a company quotes
+  only on RFQs aimed at its own type, and only logistics companies can be
+  appointed, so such a row is a losing bidder placed on the logistics contract
+  its rival won.
 * **Quote state changes are atomic.** `acceptQuotation` marks the quote
   `ACCEPTED` only if it is still `ACTIVE` and inside its validity, in the same
   transaction that awards the RFQ. `resubmitQuotation` re-checks inside its
   transaction that the RFQ is still `OPEN` before its deadline, under a
   `FOR SHARE` lock on the RFQ row (the row the award, close and cancel update
   first, so they queue), and supersedes the old version only if it is still
-  `ACTIVE`. The lock writes nothing: bumping the RFQ's `updatedAt` would show
+  `ACTIVE`, `EXPIRED` or `WITHDRAWN`. A supplier whose quote lapsed, or who
+  withdrew, can therefore quote again before the deadline; the one-live-quote
+  index refuses a fresh submission. The lock writes nothing: bumping the RFQ's `updatedAt` would show
   every supplier's live feed that a rival had revised its quote. `withdrawQuotation` withdraws only an
   `ACTIVE` quote. So a quote is never replaced after its RFQ is settled, and a
   published month never moves.
 * **One snapshot.** The price query reads each quote's RFQ, order and live
-  quotes inside one interactive `RepeatableRead` transaction (a one-query batch
+  quotes inside one interactive `RepeatableRead` transaction (`maxWait` 10 s,
+  as for plain queries; a one-query batch
   `$transaction([...])` would run with no transaction at all), so an award landing mid-read
   cannot show a winning quote as a settled loss.
 * The order page hides "Appoint partner" once delivery has been confirmed.
@@ -175,6 +184,11 @@ grow, over closed periods**, plus a guard on appointments.
   * An award committed between the reader's RFQ and later reads gives a
     consistent view at RepeatableRead. At read committed, or in a one-query
     batch, it shows the winner as a settled loss.
+* `e2e/confidentiality-gaps.spec.ts` (Playwright): closed periods and withheld
+  fields on both endpoints, the quote lifecycle (revise, withdraw, revise again,
+  refused after award), a delivered order refusing a new partner with no button
+  on its page, and the landing's claims. Its withdrawn-quote revision failed on
+  the code before `3a2f148` (409) and passes after.
 * Local API: appointing the losing bidder returns 400 "... quoted on this
   order's RFQ and was not awarded it ..."; a forwarder that never bid is still
   appointed (201).
