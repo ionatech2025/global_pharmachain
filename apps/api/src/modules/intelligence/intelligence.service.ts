@@ -54,7 +54,8 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
           },
         },
       }),
-    { isolationLevel: "RepeatableRead", timeout: 15_000 },
+    // maxWait matches the pool's own wait, so this read is not the first to fail under load.
+    { isolationLevel: "RepeatableRead", timeout: 15_000, maxWait: 10_000 },
   );
   return rows.map((q) => ({
     createdAt: q.createdAt,
