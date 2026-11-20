@@ -63,6 +63,18 @@ export class LogisticsService {
     if (company.verificationStatus !== "VERIFIED") {
       throw badRequest("This company has not passed verification yet");
     }
+    // Appointees read the order's awarded terms, so a rival bidder on its RFQ may not be one.
+    const quotedOnRfq =
+      company.id !== order.sellerCompanyId &&
+      (await prisma.quotation.findFirst({
+        where: { rfqId: order.rfqId, supplierCompanyId: company.id },
+        select: { id: true },
+      })) !== null;
+    if (quotedOnRfq) {
+      throw badRequest(
+        `${company.name} quoted on this order's RFQ and was not awarded it, so it cannot be appointed: it would see the winning terms. Pick another ${LOGISTICS_ROLE_LABELS[body.role].toLowerCase()}.`,
+      );
+    }
 
     const appointment = await prisma.$transaction(async (tx) => {
       await tx.shipmentAppointment.updateMany({
