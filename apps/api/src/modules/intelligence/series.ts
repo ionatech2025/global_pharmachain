@@ -128,6 +128,51 @@ export function monthlyPriceSeries(
 /** A trend needs at least two priced months; one month is a single price. */
 export const MIN_PRICED_MONTHS = 2;
 
+/** One figure inside a published sum or average. */
+export interface Contribution {
+  /** Whose figure must stay hidden: the quoting supplier, or one deal. */
+  key: string;
+  /** Companies that already know the figure: its owner and counterparties. */
+  parties: readonly string[];
+}
+
+/**
+ * Whether a sum or average over these figures may be shown to other companies.
+ * Any viewer can take out the figures it already knows; what remains must
+ * still blend at least two contributors (or nothing), otherwise the viewer has
+ * read one competitor's price or one deal's value off the aggregate.
+ */
+export function isAnonymous(contributions: readonly Contribution[]): boolean {
+  const blended = (rest: readonly Contribution[]) => new Set(rest.map((c) => c.key)).size;
+  if (blended(contributions) < 2) return false;
+  for (const party of new Set(contributions.flatMap((c) => c.parties))) {
+    const left = blended(contributions.filter((c) => !c.parties.includes(party)));
+    if (left === 1) return false;
+  }
+  return true;
+}
+
+export type PartiedQuote = PricedQuote & { supplierCompanyId: string; buyerCompanyId: string };
+
+/** Drops each unit/currency month whose average would expose a single supplier's price. */
+function publishableQuotes<Q extends PartiedQuote>(quotes: readonly Q[]): Q[] {
+  const buckets = new Map<string, Q[]>();
+  for (const q of quotes) {
+    const key = `${q.currency}|${unitKey(q.unit)}|${monthKey(q.createdAt)}`;
+    buckets.set(key, [...(buckets.get(key) ?? []), q]);
+  }
+  return [...buckets.values()]
+    .filter((bucket) =>
+      isAnonymous(
+        bucket.map((q) => ({
+          key: q.supplierCompanyId,
+          parties: [q.supplierCompanyId, q.buyerCompanyId],
+        })),
+      ),
+    )
+    .flat();
+}
+
 export interface CategoryRef {
   id: string;
   name: string;
@@ -156,16 +201,18 @@ export interface CategoryPriceTrends {
  * like-for-like (one unit, one currency — see monthlyPriceSeries); an average
  * over every product on the platform is not a price of anything. Quotations
  * on RFQs raised for any category mix products and units, so they are counted
- * in `coverage` and priced nowhere.
+ * in `coverage` and priced nowhere. A month that would expose one supplier's
+ * price (see isAnonymous) is a gap, though its quotations still count in
+ * `coverage`.
  */
 export function categoryPriceTrends(
-  quotes: ReadonlyArray<PricedQuote & { category: CategoryRef | null }>,
+  quotes: ReadonlyArray<PartiedQuote & { category: CategoryRef | null }>,
   months: readonly string[],
 ): CategoryPriceTrends {
   const window = new Set(months);
   const inWindow = quotes.filter((q) => window.has(monthKey(q.createdAt)));
 
-  const byCategory = new Map<string, { category: CategoryRef; quotes: PricedQuote[] }>();
+  const byCategory = new Map<string, { category: CategoryRef; quotes: PartiedQuote[] }>();
   for (const q of inWindow) {
     if (!q.category) continue;
     const entry = byCategory.get(q.category.id) ?? { category: q.category, quotes: [] };
@@ -174,7 +221,10 @@ export function categoryPriceTrends(
   }
 
   const categories = [...byCategory.values()]
-    .map(({ category, quotes: own }) => ({ category, ...monthlyPriceSeries(own, months) }))
+    .map(({ category, quotes: own }) => ({
+      category,
+      ...monthlyPriceSeries(publishableQuotes(own), months),
+    }))
     .filter((t) => t.series.filter((v) => v !== null).length >= MIN_PRICED_MONTHS)
     .sort((a, b) => b.sampleSize - a.sampleSize || a.category.name.localeCompare(b.category.name));
 

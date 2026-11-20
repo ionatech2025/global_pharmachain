@@ -4,7 +4,7 @@ import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
-import { categoryPriceTrends, lastMonths, monthlyCounts } from "./series";
+import { categoryPriceTrends, isAnonymous, lastMonths, monthlyCounts } from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -60,7 +60,14 @@ export class IntelligenceService {
         createdAt: true,
         unitPrice: true,
         currency: true,
-        rfq: { select: { unit: true, category: { select: { id: true, name: true, slug: true } } } },
+        supplierCompanyId: true,
+        rfq: {
+          select: {
+            unit: true,
+            buyerCompanyId: true,
+            category: { select: { id: true, name: true, slug: true } },
+          },
+        },
       },
     });
     return {
@@ -72,6 +79,8 @@ export class IntelligenceService {
           currency: q.currency,
           unit: q.rfq.unit,
           category: q.rfq.category,
+          supplierCompanyId: q.supplierCompanyId,
+          buyerCompanyId: q.rfq.buyerCompanyId,
         })),
         months,
       ),
@@ -272,51 +281,106 @@ export class IntelligenceService {
         "Market data insights require an active subscription — purchase it under Usage & credits",
       );
     }
-    const categories = await prisma.category.findMany({ select: { id: true, name: true } });
+    const since = new Date(Date.now() - 90 * DAY);
+    const [categories, rfqs, quotes, orders] = await Promise.all([
+      prisma.category.findMany({ select: { id: true, name: true } }),
+      prisma.rfq.findMany({
+        where: { createdAt: { gte: since }, categoryId: { not: null } },
+        select: { categoryId: true, quantity: true, buyerCompanyId: true },
+      }),
+      prisma.quotation.findMany({
+        where: { createdAt: { gte: since }, status: { not: "SUPERSEDED" } },
+        select: {
+          unitPrice: true,
+          supplierCompanyId: true,
+          rfq: { select: { categoryId: true, buyerCompanyId: true } },
+        },
+      }),
+      prisma.order.findMany({
+        select: {
+          id: true,
+          currency: true,
+          totalAmount: true,
+          buyerCompanyId: true,
+          sellerCompanyId: true,
+          appointments: { select: { companyId: true } },
+        },
+      }),
+    ]);
+    /** Total (or mean, given a divisor) rounded to `dp` decimals. */
+    const sum = (values: number[], dp: number, divisor = 1) =>
+      Math.round((values.reduce((t, v) => t + v, 0) / divisor) * 10 ** dp) / 10 ** dp;
+
     const rows = [];
     for (const category of categories) {
-      const [demand, price] = await Promise.all([
-        prisma.rfq.aggregate({
-          where: { categoryId: category.id, createdAt: { gte: new Date(Date.now() - 90 * DAY) } },
-          _sum: { quantity: true },
-          _count: true,
-        }),
-        prisma.quotation.aggregate({
-          where: {
-            rfq: { categoryId: category.id },
-            createdAt: { gte: new Date(Date.now() - 90 * DAY) },
-          },
-          _avg: { unitPrice: true },
-          _count: true,
-        }),
-      ]);
-      if (demand._count === 0 && price._count === 0) continue;
+      const demand = rfqs.filter((r) => r.categoryId === category.id);
+      const priced = quotes.filter((q) => q.rfq.categoryId === category.id);
+      if (demand.length === 0 && priced.length === 0) continue;
+      // shortcut: an RFQ's quantity counts as known to its buyer only; suppliers already see
+      // the RFQs aimed at their type. Model them as parties if demand data ever gets finer.
+      const demandShown = isAnonymous(
+        demand.map((r) => ({ key: r.buyerCompanyId, parties: [r.buyerCompanyId] })),
+      );
+      const priceShown = isAnonymous(
+        priced.map((q) => ({
+          key: q.supplierCompanyId,
+          parties: [q.supplierCompanyId, q.rfq.buyerCompanyId],
+        })),
+      );
       rows.push({
         category: category.name,
-        rfqCount90d: demand._count,
-        demandVolume90d: String(demand._sum.quantity ?? 0),
-        avgQuotedUnitPrice: price._avg.unitPrice
-          ? Math.round(Number(price._avg.unitPrice) * 100) / 100
+        rfqCount90d: demand.length,
+        demandVolume90d: demandShown
+          ? String(
+              sum(
+                demand.map((r) => r.quantity.toNumber()),
+                4,
+              ),
+            )
           : null,
-        quoteCount90d: price._count,
+        avgQuotedUnitPrice: priceShown
+          ? sum(
+              priced.map((q) => q.unitPrice.toNumber()),
+              2,
+              priced.length,
+            )
+          : null,
+        quoteCount90d: priced.length,
       });
     }
-    const lanes = await prisma.order.groupBy({
-      by: ["currency"],
-      _count: true,
-      _sum: { totalAmount: true },
-      orderBy: { currency: "asc" },
-    });
+
+    const byCurrency = new Map<string, typeof orders>();
+    for (const order of orders) {
+      byCurrency.set(order.currency, [...(byCurrency.get(order.currency) ?? []), order]);
+    }
     return {
       generatedAt: new Date().toISOString(),
       anonymisation:
-        "Category-level aggregates only; no company identities or per-deal values are included.",
+        "Category-level aggregates only; no company identities or per-deal values are included. A figure that would let any one company work out another company's price or deal value is withheld.",
       categories: rows,
-      tradeVolumes: lanes.map((l) => ({
-        currency: l.currency,
-        orders: l._count,
-        totalValue: String(l._sum?.totalAmount ?? 0),
-      })),
+      tradeVolumes: [...byCurrency.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([currency, list]) => ({
+          currency,
+          orders: list.length,
+          totalValue: isAnonymous(
+            list.map((o) => ({
+              key: o.id,
+              parties: [
+                o.buyerCompanyId,
+                o.sellerCompanyId,
+                ...o.appointments.map((a) => a.companyId),
+              ],
+            })),
+          )
+            ? String(
+                sum(
+                  list.map((o) => o.totalAmount.toNumber()),
+                  2,
+                ),
+              )
+            : null,
+        })),
     };
   }
 
@@ -328,7 +392,7 @@ export class IntelligenceService {
       rows: report.categories.map((c) => [
         c.category,
         String(c.rfqCount90d),
-        c.demandVolume90d,
+        c.demandVolume90d ?? "—",
         c.avgQuotedUnitPrice === null ? "—" : String(c.avgQuotedUnitPrice),
         String(c.quoteCount90d),
       ]),
