@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { categoryPriceTrends, lastMonths, monthlyCounts, monthlyPriceSeries } from "./series";
+import {
+  categoryPriceTrends,
+  isAnonymous,
+  lastMonths,
+  monthlyCounts,
+  monthlyPriceSeries,
+} from "./series";
 
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
 const quote = (day: string, unitPrice: number, currency = "USD", unit = "kg") => ({
@@ -111,19 +117,24 @@ describe("categoryPriceTrends", () => {
   const months = ["2026-07", "2026-08", "2026-09", "2026-10"];
   const apis = { id: "c1", name: "APIs", slug: "apis" };
   const excipients = { id: "c2", name: "Excipients", slug: "excipients" };
-  const inCategory = (category: typeof apis | null, day: string, price: number) => ({
-    ...quote(day, price),
-    category,
-  });
+  const inCategory = (
+    category: typeof apis | null,
+    day: string,
+    price: number,
+    supplierCompanyId = "s1",
+    buyerCompanyId = "b1",
+  ) => ({ ...quote(day, price), category, supplierCompanyId, buyerCompanyId });
+  /** One quote each from three suppliers to three buyers: the smallest month the chart may show. */
+  const fromThree = (category: typeof apis, day: string, prices: [number, number, number]) =>
+    prices.map((price, i) => inCategory(category, day, price, `s${i + 1}`, `b${i + 1}`));
 
   test("prices each category on its own and never across them", () => {
     const result = categoryPriceTrends(
       [
-        inCategory(apis, "2026-07-01", 12),
-        inCategory(apis, "2026-09-01", 13),
-        inCategory(apis, "2026-09-02", 15),
-        inCategory(excipients, "2026-08-01", 2),
-        inCategory(excipients, "2026-10-01", 3),
+        ...fromThree(apis, "2026-07-01", [12, 12, 12]),
+        ...fromThree(apis, "2026-09-01", [13, 15, 14]),
+        ...fromThree(excipients, "2026-08-01", [2, 2, 2]),
+        ...fromThree(excipients, "2026-10-01", [3, 3, 3]),
       ],
       months,
     );
@@ -135,17 +146,16 @@ describe("categoryPriceTrends", () => {
   test("a category priced in one month only has no trend, but still counts in coverage", () => {
     const result = categoryPriceTrends(
       [
-        inCategory(apis, "2026-08-01", 12),
-        inCategory(apis, "2026-08-20", 12.5),
+        ...fromThree(apis, "2026-08-01", [12, 12.5, 13]),
         inCategory(null, "2026-08-02", 11),
         inCategory(null, "2026-09-02", 11),
       ],
       months,
     );
     expect(result.categories).toEqual([]);
-    expect(result.coverage.quotations).toBe(4);
-    expect(result.coverage.categorised).toBe(2);
-    expect(result.coverage.byCategory).toEqual([{ category: apis, quotations: 2 }]);
+    expect(result.coverage.quotations).toBe(5);
+    expect(result.coverage.categorised).toBe(3);
+    expect(result.coverage.byCategory).toEqual([{ category: apis, quotations: 3 }]);
   });
 
   test("RFQs raised for any category are priced nowhere", () => {
@@ -160,17 +170,90 @@ describe("categoryPriceTrends", () => {
   test("most-quoted category first", () => {
     const result = categoryPriceTrends(
       [
-        inCategory(excipients, "2026-07-01", 2),
-        inCategory(excipients, "2026-08-01", 2),
-        inCategory(excipients, "2026-09-01", 2),
-        inCategory(apis, "2026-07-01", 12),
-        inCategory(apis, "2026-10-01", 12),
+        ...fromThree(excipients, "2026-07-01", [2, 2, 2]),
+        ...fromThree(excipients, "2026-08-01", [2, 2, 2]),
+        ...fromThree(excipients, "2026-09-01", [2, 2, 2]),
+        ...fromThree(apis, "2026-07-01", [12, 12, 12]),
+        ...fromThree(apis, "2026-10-01", [12, 12, 12]),
       ],
       months,
     );
     expect(result.categories.map((c) => [c.category.slug, c.sampleSize])).toEqual([
-      ["excipients", 3],
-      ["apis", 2],
+      ["excipients", 9],
+      ["apis", 6],
     ]);
+  });
+
+  test("a month one supplier priced is a gap: its average would be that supplier's price", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(apis, "2026-07-01", 10, "s1"),
+        inCategory(apis, "2026-07-09", 12, "s1"),
+        ...fromThree(apis, "2026-08-01", [12, 12, 12]),
+        ...fromThree(apis, "2026-09-01", [14, 14, 14]),
+      ],
+      months,
+    );
+    expect(result.categories[0]?.series).toEqual([null, 12, 14, null]);
+    expect(result.categories[0]?.sampleSize).toBe(6);
+    // Withheld from the price, still counted in coverage.
+    expect(result.coverage.quotations).toBe(8);
+  });
+
+  test("two suppliers are not enough: either could subtract its own quote and read the other's", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(apis, "2026-08-01", 12.4, "s1", "b1"),
+        inCategory(apis, "2026-08-02", 9.1, "s2", "b2"),
+        ...fromThree(apis, "2026-09-01", [14, 14, 14]),
+        ...fromThree(apis, "2026-10-01", [15, 15, 15]),
+      ],
+      months,
+    );
+    expect(result.categories[0]?.series).toEqual([null, null, 14, 15]);
+  });
+
+  test("a buyer who received two of a month's three quotes could read the third, so it is withheld", () => {
+    const result = categoryPriceTrends(
+      [
+        inCategory(apis, "2026-08-01", 12, "s1", "b1"),
+        inCategory(apis, "2026-08-02", 13, "s2", "b1"),
+        inCategory(apis, "2026-08-03", 11, "s3", "b2"),
+        ...fromThree(apis, "2026-09-01", [14, 14, 14]),
+        ...fromThree(apis, "2026-10-01", [15, 15, 15]),
+      ],
+      months,
+    );
+    expect(result.categories[0]?.series).toEqual([null, null, 14, 15]);
+  });
+});
+
+describe("isAnonymous", () => {
+  const order = (id: string, buyer: string, seller: string) => ({
+    key: id,
+    parties: [buyer, seller],
+  });
+
+  test("three deals between six companies can be summed", () => {
+    expect(
+      isAnonymous([order("o1", "b1", "s1"), order("o2", "b2", "s2"), order("o3", "b3", "s3")]),
+    ).toBe(true);
+  });
+
+  test("a company party to two of three deals could read the third off the total", () => {
+    expect(
+      isAnonymous([order("o1", "x", "s1"), order("o2", "b2", "x"), order("o3", "b3", "s3")]),
+    ).toBe(false);
+  });
+
+  test("a company party to every deal learns nothing new", () => {
+    expect(
+      isAnonymous([order("o1", "x", "s1"), order("o2", "x", "s2"), order("o3", "x", "s3")]),
+    ).toBe(true);
+  });
+
+  test("one contribution, or none, is never published", () => {
+    expect(isAnonymous([order("o1", "b1", "s1")])).toBe(false);
+    expect(isAnonymous([])).toBe(false);
   });
 });
