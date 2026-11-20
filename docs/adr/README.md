@@ -13,3 +13,4 @@ review records under `docs/` (e.g. `2026-10-client-review.md`); new ones are rec
 | [0004](ADR-0004-shipment-stage-actions-and-admin-corrections.md) | Shipment stage actions follow the API's actor rule; platform corrections start from an admin order list | Accepted | 2026-11-12 |
 | [0005](ADR-0005-live-order-page-change-feed.md) | The order page follows the order over the polling change feed | Accepted | 2026-11-12 |
 | [0006](ADR-0006-request-log-from-fastify-hooks.md) | The request log is written from Fastify hooks, not a Nest interceptor | Accepted | 2026-11-12 |
+| [0007](ADR-0007-published-aggregates-and-rival-appointees.md) | Price and deal figures only when no single company can isolate one, from closed periods; rival bidders cannot be appointed | Accepted | 2026-11-20 |
