@@ -115,7 +115,8 @@ grow, over closed periods**, plus a guard on appointments.
   `ACTIVE` quote. So a quote is never replaced after its RFQ is settled, and a
   published month never moves.
 * **One snapshot.** The price query reads each quote's RFQ, order and live
-  quotes inside one `RepeatableRead` batch transaction, so an award landing mid-read
+  quotes inside one interactive `RepeatableRead` transaction (a one-query batch
+  `$transaction([...])` would run with no transaction at all), so an award landing mid-read
   cannot show a winning quote as a settled loss.
 * The order page hides "Appoint partner" once delivery has been confirmed.
 
