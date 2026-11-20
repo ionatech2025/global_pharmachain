@@ -107,13 +107,15 @@ grow, over closed periods**, plus a guard on appointments.
 * **Quote state changes are atomic.** `acceptQuotation` marks the quote
   `ACCEPTED` only if it is still `ACTIVE` and inside its validity, in the same
   transaction that awards the RFQ. `resubmitQuotation` re-checks inside its
-  transaction that the RFQ is still `OPEN` before its deadline (a conditional
-  update on the RFQ row, the row the award locks first) and supersedes the old
-  version only if it is still `ACTIVE`. `withdrawQuotation` withdraws only an
+  transaction that the RFQ is still `OPEN` before its deadline, under a
+  `FOR SHARE` lock on the RFQ row (the row the award, close and cancel update
+  first, so they queue), and supersedes the old version only if it is still
+  `ACTIVE`. The lock writes nothing: bumping the RFQ's `updatedAt` would show
+  every supplier's live feed that a rival had revised its quote. `withdrawQuotation` withdraws only an
   `ACTIVE` quote. So a quote is never replaced after its RFQ is settled, and a
   published month never moves.
 * **One snapshot.** The price query reads each quote's RFQ, order and live
-  quotes inside a `RepeatableRead` transaction, so an award landing mid-read
+  quotes inside one `RepeatableRead` batch transaction, so an award landing mid-read
   cannot show a winning quote as a settled loss.
 * The order page hides "Appoint partner" once delivery has been confirmed.
 

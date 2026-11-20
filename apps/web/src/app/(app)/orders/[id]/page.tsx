@@ -329,7 +329,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <CardContent>
             {order.appointments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No forwarder, clearing agent or transporter appointed yet.
+                {order.deliveryConfirmedAt
+                  ? "No forwarder, clearing agent or transporter was appointed."
+                  : "No forwarder, clearing agent or transporter appointed yet."}
               </p>
             ) : (
               <ul className="space-y-2">

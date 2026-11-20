@@ -745,13 +745,13 @@ export class RfqService {
     this.assertRfqOpenForQuoting(current.rfq);
 
     const quotation = await prisma.$transaction(async (tx) => {
-      // Checked again under the RFQ row lock the award also takes: a version may be
-      // replaced only while its RFQ is open (published prices rely on it, ADR-0007).
-      const open = await tx.rfq.updateMany({
-        where: { id: current.rfqId, status: "OPEN", deadline: { gt: new Date() } },
-        data: { updatedAt: new Date() },
-      });
-      if (open.count === 0) throw conflict("This RFQ no longer accepts quotations");
+      // Re-checked under a share lock on the RFQ row, so an award, close or cancel queues
+      // behind it: a version is replaced only while its RFQ is open (ADR-0007). It writes
+      // nothing, so other suppliers' feeds cannot tell that a rival revised its quote.
+      const [locked] = await tx.$queryRaw<Array<{ status: string; deadline: Date }>>`
+        SELECT status::text AS status, deadline FROM "Rfq" WHERE id = ${current.rfqId}::uuid FOR SHARE`;
+      if (!locked) throw notFound("RFQ not found");
+      this.assertRfqOpenForQuoting(locked);
       const replaced = await tx.quotation.updateMany({
         where: { id: current.id, status: "ACTIVE" },
         data: { status: "SUPERSEDED" },
@@ -917,7 +917,9 @@ export class RfqService {
         data: { status: "ACCEPTED" },
       });
       if (accepted.count === 0) {
-        throw conflict("This quotation was withdrawn or expired while it was being accepted");
+        throw conflict(
+          "This quotation was withdrawn, replaced or expired while it was being accepted",
+        );
       }
       const order = await tx.order.create({
         data: {

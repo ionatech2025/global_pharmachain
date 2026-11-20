@@ -23,9 +23,9 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
   const now = new Date();
   // One snapshot: the RFQ, its order and its live quotes are read by separate statements,
   // and an award landing between them could show a winning quote as a settled loss.
-  const rows = await prisma.$transaction(
-    (tx) =>
-      tx.quotation.findMany({
+  const [rows] = await prisma.$transaction(
+    [
+      prisma.quotation.findMany({
         // A replaced version can no longer move a published month (it is replaced only while
         // its RFQ is open), so leave it out rather than let old offers skew the average.
         where: { ...where, status: { not: "SUPERSEDED" } },
@@ -52,6 +52,7 @@ async function partiedQuotes(where: Prisma.QuotationWhereInput) {
           },
         },
       }),
+    ],
     { isolationLevel: "RepeatableRead" },
   );
   return rows.map((q) => ({
