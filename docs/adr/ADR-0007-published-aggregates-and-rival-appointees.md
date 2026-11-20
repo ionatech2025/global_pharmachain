@@ -73,12 +73,20 @@ grow, over closed periods**, plus a guard on appointments.
   * **Prices** count only quotations that **did not win**, on RFQs whose award is
     **settled**: `AWARDED`, `CANCELLED`, or `CLOSED` with no quote left that
     could still be awarded (award needs an `ACTIVE` quote inside its validity).
-    A losing quote's price is known to its supplier and the RFQ's buyer only,
-    for good. A month waits until every RFQ quoted in it is settled, so it never
-    changes once shown. Parties: supplier and buyer.
+    Every version from the winning supplier counts as won, since an earlier
+    version often carries the order's price, and replaced (`SUPERSEDED`)
+    offers are left out (a quote is replaced only while its RFQ is open).
+    `quoteStanding` decides both. A losing quote's price is known to its
+    supplier and the RFQ's buyer only, for good. A month waits until every RFQ
+    quoted in it is settled, so it never changes once shown. Parties: supplier
+    and buyer.
   * **Deal totals** are published only when every order in the period is
-    `DELIVERY_CONFIRMED`, after which nobody can be appointed to it. Parties:
-    buyer, seller and every company ever appointed (`dealTotal`).
+    `DELIVERY_CONFIRMED`. Parties: buyer, seller and every company ever
+    appointed (`dealTotal`). Nobody can be appointed to an order once its
+    delivery has been confirmed, even if a platform admin later corrects the
+    stage back (`deliveryConfirmedAt` is never cleared), and the appointment
+    re-checks this inside its transaction with a conditional update on the
+    order row.
   * **Demand volume** is withheld. RFQ quantities carry free-text units, so their
     sum is no quantity, and every verified supplier of the targeted type sees
     each RFQ, so its knowers cannot be bounded.
@@ -96,6 +104,9 @@ grow, over closed periods**, plus a guard on appointments.
   wrong for everyone and is not needed at this scale.
 * **Appointments.** `LogisticsService.appoint` refuses a company that quoted on
   the order's RFQ, unless it is the order's seller, with a message that says why.
+* **Awards are atomic.** `acceptQuotation` marks the quote `ACCEPTED` only if it
+  is still `ACTIVE` and inside its validity, in the same transaction that awards
+  the RFQ, so a quote cannot be both counted as losing and then accepted.
 
 ### Consequences
 
@@ -115,17 +126,28 @@ grow, over closed periods**, plus a guard on appointments.
 
 ### Confirmation
 
-* `apps/api/src/modules/intelligence/series.test.ts` (30 tests): one-supplier,
+* `apps/api/src/modules/intelligence/series.test.ts` (32 tests): one-supplier,
   two-supplier and buyer-holds-all-but-one months are gaps (on the first code
-  they published `11`, `10.75`, `12`); a winning quote is left out; a month with
-  an unsettled RFQ waits; the report average uses only the chart's months and
-  one currency; deal totals wait for delivery and refuse an appointee on two of
-  three deals; closed windows hold across the year boundary.
-* The reviewer's harness (real `IntelligenceService`, in-memory database), five
-  attacks: all succeed on `faf41e0` (withheld price recovered as 23.42 for
-  23.4; a UGX price as 61500.01; an appointee reading a third supplier's 17.35;
-  a later appointee reading a 77250 deal; a supplier reading a 3750 quantity).
-  All fail on the final code.
+  they published `11`, `10.75`, `12`); a winning quote, and any version from its
+  supplier, is left out; a month with an unsettled RFQ waits; the report
+  average uses only the chart's months and one currency; deal totals wait for
+  delivery and refuse an appointee on two of three deals; closed windows hold
+  across the year boundary.
+* Independent reviews ran attacks against the real `IntelligenceService`,
+  `ShipmentService` and `LogisticsService` over an in-memory database. Each
+  one was reproduced on the code it broke and fails on the final code:
+  * reading a withheld price off chart plus report (23.42 for 23.4);
+  * a UGX price (61500.01);
+  * an appointee reading a third supplier's price (17.36 for 17.35);
+  * the same through a winner's superseded version;
+  * a later appointee reading a deal (77250);
+  * the same after an admin stage correction;
+  * a supplier reading an RFQ quantity (3750);
+  * replaced offers skewing the index (21.8 for 13).
+* Randomized checks (30,000 categories with mixed states, plus a run across
+  settlement) found no published figure from which one price could be solved.
+  A control that injects a differencing pair finds thousands, so the check
+  detects leaks.
 * Local API: appointing the losing bidder returns 400 "... quoted on this
   order's RFQ and was not awarded it ..."; a forwarder that never bid is still
   appointed (201).
