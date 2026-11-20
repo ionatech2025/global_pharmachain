@@ -17,6 +17,23 @@ export function lastMonths(n: number, now = new Date()): string[] {
   return out;
 }
 
+/**
+ * The last n months that have ended. Published prices and deal values come
+ * only from closed periods: a figure that moves while you watch shows the
+ * value of whatever single record moved it.
+ */
+export function completedMonths(n: number, now = new Date()): string[] {
+  return lastMonths(n, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)));
+}
+
+/** The last calendar quarter that has ended, as [from, to) in UTC. */
+export function lastCompletedQuarter(now = new Date()): { from: Date; to: Date; label: string } {
+  const q = Math.floor(now.getUTCMonth() / 3);
+  const to = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 1));
+  const from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() - 3, 1));
+  return { from, to, label: `${from.getUTCFullYear()}-Q${from.getUTCMonth() / 3 + 1}` };
+}
+
 /** Events per month across the window; anything outside it is not counted. */
 export function monthlyCounts(dates: readonly Date[], months: readonly string[]): number[] {
   const byMonth = new Map<string, number>(months.map((m) => [m, 0]));

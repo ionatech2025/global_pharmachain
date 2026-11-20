@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   categoryPriceTrends,
+  completedMonths,
   isAnonymous,
+  lastCompletedQuarter,
   lastMonths,
   monthlyCounts,
   monthlyPriceSeries,
@@ -18,6 +20,22 @@ const quote = (day: string, unitPrice: number, currency = "USD", unit = "kg") =>
 describe("lastMonths", () => {
   test("ends with the current month and crosses the year boundary", () => {
     expect(lastMonths(3, at("2026-01-15"))).toEqual(["2025-11", "2025-12", "2026-01"]);
+  });
+});
+
+describe("closed periods", () => {
+  test("completed months stop before the month in progress, across the year boundary", () => {
+    expect(completedMonths(3, at("2026-01-15"))).toEqual(["2025-10", "2025-11", "2025-12"]);
+  });
+
+  test("the last completed quarter is whole and ends where the current one starts", () => {
+    const q = lastCompletedQuarter(at("2026-11-20"));
+    expect([q.from.toISOString(), q.to.toISOString(), q.label]).toEqual([
+      "2026-07-01T00:00:00.000Z",
+      "2026-10-01T00:00:00.000Z",
+      "2026-Q3",
+    ]);
+    expect(lastCompletedQuarter(at("2026-01-15")).label).toBe("2025-Q4");
   });
 });
 

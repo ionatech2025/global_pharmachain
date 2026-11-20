@@ -4,9 +4,17 @@ import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
-import { categoryPriceTrends, isAnonymous, lastMonths, monthlyCounts } from "./series";
+import {
+  categoryPriceTrends,
+  completedMonths,
+  isAnonymous,
+  lastCompletedQuarter,
+  lastMonths,
+  monthlyCounts,
+} from "./series";
 
 const DAY = 24 * 60 * 60 * 1000;
+const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 
 /**
  * Intelligence engine (Phase 5 §1): transparent statistics over live
@@ -47,13 +55,15 @@ export class IntelligenceService {
   /**
    * Quoted-price trends per category, each in its most-quoted unit and
    * currency — see categoryPriceTrends. One query for the whole window.
+   * Completed months only, and every quotation submitted in them (revisions
+   * included): a later resubmission or a new quote must not move a published
+   * month, or the change would show the price behind it.
    */
   async priceTrends(categoryId?: string) {
-    const months = lastMonths(12);
+    const months = completedMonths(12);
     const quotes = await prisma.quotation.findMany({
       where: {
-        createdAt: { gte: new Date(Date.now() - 366 * DAY) },
-        status: { not: "SUPERSEDED" },
+        createdAt: { gte: new Date(`${months[0]}-01T00:00:00Z`), lt: monthStart(new Date()) },
         ...(categoryId ? { rfq: { categoryId } } : {}),
       },
       select: {
@@ -281,15 +291,18 @@ export class IntelligenceService {
         "Market data insights require an active subscription — purchase it under Usage & credits",
       );
     }
-    const since = new Date(Date.now() - 90 * DAY);
+    // A closed quarter: two downloads either match or cover different quarters,
+    // so no single new record can be read off their difference.
+    const period = lastCompletedQuarter();
+    const createdAt = { gte: period.from, lt: period.to };
     const [categories, rfqs, quotes, orders] = await Promise.all([
       prisma.category.findMany({ select: { id: true, name: true } }),
       prisma.rfq.findMany({
-        where: { createdAt: { gte: since }, categoryId: { not: null } },
+        where: { createdAt, categoryId: { not: null } },
         select: { categoryId: true, quantity: true, buyerCompanyId: true },
       }),
       prisma.quotation.findMany({
-        where: { createdAt: { gte: since }, status: { not: "SUPERSEDED" } },
+        where: { createdAt },
         select: {
           unitPrice: true,
           supplierCompanyId: true,
@@ -297,6 +310,7 @@ export class IntelligenceService {
         },
       }),
       prisma.order.findMany({
+        where: { createdAt },
         select: {
           id: true,
           currency: true,
@@ -327,6 +341,7 @@ export class IntelligenceService {
           parties: [q.supplierCompanyId, q.rfq.buyerCompanyId],
         })),
       );
+      // The *90d names predate the quarterly period; kept so subscribers' parsers still work.
       rows.push({
         category: category.name,
         rfqCount90d: demand.length,
@@ -355,8 +370,13 @@ export class IntelligenceService {
     }
     return {
       generatedAt: new Date().toISOString(),
+      period: {
+        label: period.label,
+        from: period.from.toISOString(),
+        to: period.to.toISOString(),
+      },
       anonymisation:
-        "Category-level aggregates only; no company identities or per-deal values are included. A figure that would let any one company work out another company's price or deal value is withheld.",
+        "Category-level aggregates only; no company identities or per-deal values are included. Figures cover the last completed quarter; one that would let any one company work out another company's price or deal value is withheld.",
       categories: rows,
       tradeVolumes: [...byCurrency.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
@@ -387,8 +407,8 @@ export class IntelligenceService {
   marketReportTable(report: Awaited<ReturnType<IntelligenceService["marketReport"]>>): PdfTable {
     return {
       title: "Global PharmaChain market intelligence",
-      subtitle: `Generated ${report.generatedAt} · ${report.anonymisation}`,
-      columns: ["Category", "RFQs (90d)", "Demand volume", "Avg quoted price", "Quotes (90d)"],
+      subtitle: `${report.period.label} · generated ${report.generatedAt} · ${report.anonymisation}`,
+      columns: ["Category", "RFQs", "Demand volume", "Avg quoted price", "Quotes"],
       rows: report.categories.map((c) => [
         c.category,
         String(c.rfqCount90d),

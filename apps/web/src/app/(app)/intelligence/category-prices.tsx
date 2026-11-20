@@ -51,14 +51,14 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
   const named = coverage.byCategory
     .map((c) => `${c.category.name} (${fmtNumber(c.quotations)})`)
     .join(", ");
-  const coverageLine = `${fmtNumber(coverage.categorised)} of ${fmtNumber(coverage.quotations)} quotation(s) in the last 12 months are on RFQs that name a category${named ? ` — ${named}` : ""}. Quotations on RFQs raised for any category mix products and units, so they are not priced here.`;
+  const coverageLine = `${fmtNumber(coverage.categorised)} of ${fmtNumber(coverage.quotations)} quotation(s) in the last 12 completed months are on RFQs that name a category${named ? ` — ${named}` : ""}. Quotations on RFQs raised for any category mix products and units, so they are not priced here.`;
 
   if (categories.length === 0) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          No category has a price trend yet — a trend needs quotations in at least two months, in
-          one unit and currency.
+          No category has a price trend yet. A trend needs at least two completed months in which
+          three or more suppliers quoted in one unit and currency.
         </p>
         <Provenance>
           {coverageLine} Choosing a material category when raising an RFQ is what puts its quotes
@@ -162,7 +162,9 @@ export function CategoryPrices({ data, labels }: { data: PriceTrends; labels: st
 
       <Provenance>
         Each category in its most-quoted unit and currency; other units and currencies are left out,
-        never converted. Months without a quotation are gaps. {coverageLine}
+        never converted. A month is a gap unless at least three suppliers quoted in it, so no
+        supplier's price can be worked out from the average; the month in progress is not shown.{" "}
+        {coverageLine}
       </Provenance>
     </div>
   );
