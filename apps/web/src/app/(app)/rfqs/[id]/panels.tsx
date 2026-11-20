@@ -408,6 +408,11 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
   const router = useRouter();
   const existing = rfq.myQuotation;
   const open = rfq.status === "OPEN" && new Date(rfq.deadline) > new Date();
+  // An expired or withdrawn quote is replaced by a new version; a fresh submission would be refused.
+  const revisable =
+    existing !== null &&
+    existing !== undefined &&
+    ["ACTIVE", "EXPIRED", "WITHDRAWN"].includes(existing.status);
   const closedReason = quotingClosedReason(rfq);
   const [unitPrice, setUnitPrice] = useState(existing?.unitPrice ?? "");
   const [currency, setCurrency] = useState(existing?.currency ?? "USD");
@@ -429,7 +434,7 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
       attachmentDocumentIds: attachmentIds,
     };
     try {
-      if (existing && existing.status === "ACTIVE") {
+      if (existing && revisable) {
         await api.post(`/quotations/${existing.id}/resubmit`, payload);
         toast.success("Quotation updated — the buyer sees your latest version");
       } else {
@@ -598,7 +603,9 @@ export function SupplierQuotePanel({ rfq }: { rfq: RfqDetail }) {
                 ? "Sending…"
                 : existing?.status === "ACTIVE"
                   ? "Resubmit quotation"
-                  : "Submit quotation"}
+                  : revisable
+                    ? "Submit a new version"
+                    : "Submit quotation"}
             </Button>
             {existing?.status === "ACTIVE" && open && (
               <ConfirmDialog

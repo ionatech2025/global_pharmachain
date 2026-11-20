@@ -16,7 +16,7 @@ import {
   type RfqStatus,
   skipTake,
 } from "@pharmachain/core";
-import { Prisma, prisma } from "@pharmachain/db";
+import { Prisma, prisma, type QuotationStatus } from "@pharmachain/db";
 import { genericEventEmail } from "@pharmachain/email";
 import { notify } from "@pharmachain/notifications";
 import { badRequest, conflict, forbidden, limitReached, notFound } from "../../common/errors";
@@ -63,6 +63,9 @@ export async function rfqReach(
 function withEffectiveStatus<T extends { status: RfqStatus; deadline: Date }>(rfq: T): T {
   return { ...rfq, status: effectiveRfqStatus(rfq.status, rfq.deadline) };
 }
+
+/** Versions a supplier may replace with a new one while the RFQ is open. */
+const REVISABLE_QUOTE_STATUSES: readonly QuotationStatus[] = ["ACTIVE", "EXPIRED", "WITHDRAWN"];
 
 @Injectable()
 export class RfqService {
@@ -739,7 +742,9 @@ export class RfqService {
     if (!current || current.supplierCompanyId !== membership.companyId) {
       throw notFound("Quotation not found");
     }
-    if (current.status !== "ACTIVE") {
+    // An expired or withdrawn quote can be replaced too while the RFQ is open: the one-live-quote
+    // index would refuse a fresh submission, leaving the supplier unable to quote again.
+    if (!REVISABLE_QUOTE_STATUSES.includes(current.status)) {
       throw conflict(`A quotation in status ${current.status} cannot be resubmitted`);
     }
     this.assertRfqOpenForQuoting(current.rfq);
@@ -753,7 +758,7 @@ export class RfqService {
       if (!locked) throw notFound("RFQ not found");
       this.assertRfqOpenForQuoting(locked);
       const replaced = await tx.quotation.updateMany({
-        where: { id: current.id, status: "ACTIVE" },
+        where: { id: current.id, status: { in: [...REVISABLE_QUOTE_STATUSES] } },
         data: { status: "SUPERSEDED" },
       });
       if (replaced.count === 0) {
