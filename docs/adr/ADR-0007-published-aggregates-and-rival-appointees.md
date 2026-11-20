@@ -104,9 +104,18 @@ grow, over closed periods**, plus a guard on appointments.
   wrong for everyone and is not needed at this scale.
 * **Appointments.** `LogisticsService.appoint` refuses a company that quoted on
   the order's RFQ, unless it is the order's seller, with a message that says why.
-* **Awards are atomic.** `acceptQuotation` marks the quote `ACCEPTED` only if it
-  is still `ACTIVE` and inside its validity, in the same transaction that awards
-  the RFQ, so a quote cannot be both counted as losing and then accepted.
+* **Quote state changes are atomic.** `acceptQuotation` marks the quote
+  `ACCEPTED` only if it is still `ACTIVE` and inside its validity, in the same
+  transaction that awards the RFQ. `resubmitQuotation` re-checks inside its
+  transaction that the RFQ is still `OPEN` before its deadline (a conditional
+  update on the RFQ row, the row the award locks first) and supersedes the old
+  version only if it is still `ACTIVE`. `withdrawQuotation` withdraws only an
+  `ACTIVE` quote. So a quote is never replaced after its RFQ is settled, and a
+  published month never moves.
+* **One snapshot.** The price query reads each quote's RFQ, order and live
+  quotes inside a `RepeatableRead` transaction, so an award landing mid-read
+  cannot show a winning quote as a settled loss.
+* The order page hides "Appoint partner" once delivery has been confirmed.
 
 ### Consequences
 
@@ -141,7 +150,10 @@ grow, over closed periods**, plus a guard on appointments.
   * an appointee reading a third supplier's price (17.36 for 17.35);
   * the same through a winner's superseded version;
   * a later appointee reading a deal (77250);
-  * the same after an admin stage correction;
+  * the same after an admin stage correction, and with a confirmation forced
+    between the appointment's check and its insert;
+  * a resubmission racing the award, which moved a published month by the
+    replaced offer (31.72 for 31.7);
   * a supplier reading an RFQ quantity (3750);
   * replaced offers skewing the index (21.8 for 13).
 * Randomized checks (30,000 categories with mixed states, plus a run across

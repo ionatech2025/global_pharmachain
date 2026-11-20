@@ -745,10 +745,20 @@ export class RfqService {
     this.assertRfqOpenForQuoting(current.rfq);
 
     const quotation = await prisma.$transaction(async (tx) => {
-      await tx.quotation.update({
-        where: { id: current.id },
+      // Checked again under the RFQ row lock the award also takes: a version may be
+      // replaced only while its RFQ is open (published prices rely on it, ADR-0007).
+      const open = await tx.rfq.updateMany({
+        where: { id: current.rfqId, status: "OPEN", deadline: { gt: new Date() } },
+        data: { updatedAt: new Date() },
+      });
+      if (open.count === 0) throw conflict("This RFQ no longer accepts quotations");
+      const replaced = await tx.quotation.updateMany({
+        where: { id: current.id, status: "ACTIVE" },
         data: { status: "SUPERSEDED" },
       });
+      if (replaced.count === 0) {
+        throw conflict("This quotation changed while you were replacing it");
+      }
       const next = await tx.quotation.create({
         data: {
           refNo: generateRefNo("QUO"),
@@ -795,10 +805,15 @@ export class RfqService {
       throw notFound("Quotation not found");
     }
     if (current.status !== "ACTIVE") throw conflict("Only active quotations can be withdrawn");
-    const updated = await prisma.quotation.update({
-      where: { id: quotationId },
+    // Conditional, so a quote accepted a moment ago is never overwritten as withdrawn.
+    const withdrawn = await prisma.quotation.updateMany({
+      where: { id: quotationId, status: "ACTIVE" },
       data: { status: "WITHDRAWN", withdrawnAt: new Date() },
     });
+    if (withdrawn.count === 0) {
+      throw conflict("This quotation changed while you were withdrawing it");
+    }
+    const updated = await prisma.quotation.findUniqueOrThrow({ where: { id: quotationId } });
     await notify({
       userIds: [current.rfq.createdById],
       type: "NEW_QUOTATION",

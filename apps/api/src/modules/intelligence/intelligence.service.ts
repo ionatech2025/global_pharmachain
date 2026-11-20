@@ -21,33 +21,39 @@ const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMo
 /** Quotations as the published price figures see them: see PartiedQuote in series.ts. */
 async function partiedQuotes(where: Prisma.QuotationWhereInput) {
   const now = new Date();
-  const rows = await prisma.quotation.findMany({
-    // A replaced version can no longer move a published month (it is replaced only while
-    // its RFQ is open), so leave it out rather than let old offers skew the average.
-    where: { ...where, status: { not: "SUPERSEDED" } },
-    select: {
-      createdAt: true,
-      unitPrice: true,
-      currency: true,
-      status: true,
-      supplierCompanyId: true,
-      rfq: {
+  // One snapshot: the RFQ, its order and its live quotes are read by separate statements,
+  // and an award landing between them could show a winning quote as a settled loss.
+  const rows = await prisma.$transaction(
+    (tx) =>
+      tx.quotation.findMany({
+        // A replaced version can no longer move a published month (it is replaced only while
+        // its RFQ is open), so leave it out rather than let old offers skew the average.
+        where: { ...where, status: { not: "SUPERSEDED" } },
         select: {
-          unit: true,
+          createdAt: true,
+          unitPrice: true,
+          currency: true,
           status: true,
-          buyerCompanyId: true,
-          category: { select: { id: true, name: true, slug: true } },
-          order: { select: { sellerCompanyId: true } },
-          // A closed RFQ can still be awarded while a quote on it is live.
-          quotations: {
-            where: { status: "ACTIVE", validUntil: { gt: now } },
-            select: { id: true },
-            take: 1,
+          supplierCompanyId: true,
+          rfq: {
+            select: {
+              unit: true,
+              status: true,
+              buyerCompanyId: true,
+              category: { select: { id: true, name: true, slug: true } },
+              order: { select: { sellerCompanyId: true } },
+              // A closed RFQ can still be awarded while a quote on it is live.
+              quotations: {
+                where: { status: "ACTIVE", validUntil: { gt: now } },
+                select: { id: true },
+                take: 1,
+              },
+            },
           },
         },
-      },
-    },
-  });
+      }),
+    { isolationLevel: "RepeatableRead" },
+  );
   return rows.map((q) => ({
     createdAt: q.createdAt,
     unitPrice: q.unitPrice,
