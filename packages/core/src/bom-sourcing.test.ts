@@ -8,7 +8,8 @@ const line = (materialName: string, ...rfqs: ReturnType<typeof rfq>[]) => ({
 });
 
 // Version 2 (newest first, as the API lists them) keeps Item 1 and drops Item 2.
-const v2 = { items: [line("Item 1")] };
+const kept = line("Item 1");
+const v2 = { items: [kept] };
 const v1 = {
   items: [line("Item 1", rfq("RFQ-A", "OPEN")), line("Item 2", rfq("RFQ-B", "OPEN"))],
 };
@@ -16,7 +17,7 @@ const v1 = {
 describe("bomSourcing: which RFQ covers a line", () => {
   test("a kept line shows the open RFQ raised from the earlier version", () => {
     const sourcingOf = bomSourcing([v2, v1]);
-    expect(sourcingOf(v2.items[0])).toEqual({ rfq: rfq("RFQ-A", "OPEN"), sourced: false });
+    expect(sourcingOf(kept)).toEqual({ rfq: rfq("RFQ-A", "OPEN"), sourced: false });
   });
 
   test("materials match regardless of case and spacing", () => {
@@ -29,7 +30,8 @@ describe("bomSourcing: which RFQ covers a line", () => {
   });
 
   test("an award does not carry into a new version, and does not hide its new RFQ", () => {
-    const old = { items: [line("Lactose", rfq("RFQ-OLD", "AWARDED"))] };
+    const awarded = line("Lactose", rfq("RFQ-OLD", "AWARDED"));
+    const old = { items: [awarded] };
     const fresh = line("Lactose");
     expect(bomSourcing([{ items: [fresh] }, old])(fresh)).toBeNull();
     const reordered = line("Lactose", rfq("RFQ-NEW", "OPEN"));
@@ -37,7 +39,7 @@ describe("bomSourcing: which RFQ covers a line", () => {
       rfq: rfq("RFQ-NEW", "OPEN"),
       sourced: false,
     });
-    expect(bomSourcing([old])(old.items[0])).toEqual({
+    expect(bomSourcing([old])(awarded)).toEqual({
       rfq: rfq("RFQ-OLD", "AWARDED"),
       sourced: true,
     });
