@@ -1,8 +1,10 @@
 /**
- * Which RFQ covers a BOM line. Every BOM version stores its lines as new rows,
- * so an RFQ is matched to a line by its material, not by the row it was raised
- * from: the RFQ raised from version 5's "Item 2" still covers version 6's
- * "Item 2" (client review 2026-11-25).
+ * Which RFQ covers a BOM line (ADR-0008). Every BOM version stores its lines as
+ * new rows, and an RFQ records the row it was raised from. A line's own RFQs
+ * come first. Failing those, an open RFQ raised from the same material in
+ * another version covers it, so a line kept in a new version does not invite a
+ * second RFQ while the first is still with suppliers (client review 2026-11-25).
+ * An award does not carry over: it sourced an earlier recipe's batch.
  */
 export interface BomLineRfq {
   id: string;
@@ -10,8 +12,13 @@ export interface BomLineRfq {
   status: string;
 }
 
+interface BomLine<R extends BomLineRfq> {
+  materialName: string;
+  rfqs: readonly R[];
+}
+
 interface BomVersionLines<R extends BomLineRfq> {
-  items: ReadonlyArray<{ materialName: string; rfqs: readonly R[] }>;
+  items: ReadonlyArray<BomLine<R>>;
 }
 
 export interface BomLineSourcing<R extends BomLineRfq> {
@@ -23,23 +30,24 @@ export interface BomLineSourcing<R extends BomLineRfq> {
 const materialKey = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
- * Looks up a line's sourcing across every version of one product's BOM. An
- * awarded RFQ beats an open one; closed and cancelled RFQs leave the line free
- * for a new RFQ.
+ * Looks up a line's sourcing among every version of one product's BOM, listed
+ * newest first. Closed and cancelled RFQs leave the line free for a new RFQ.
  */
 export function bomSourcing<R extends BomLineRfq>(
   versions: ReadonlyArray<BomVersionLines<R>>,
-): (materialName: string) => BomLineSourcing<R> | null {
-  const byMaterial = new Map<string, R[]>();
+): (line: BomLine<R>) => BomLineSourcing<R> | null {
+  const openByMaterial = new Map<string, R>();
   for (const item of versions.flatMap((v) => v.items)) {
+    const open = item.rfqs.find((r) => r.status === "OPEN");
     const key = materialKey(item.materialName);
-    byMaterial.set(key, [...(byMaterial.get(key) ?? []), ...item.rfqs]);
+    if (open && !openByMaterial.has(key)) openByMaterial.set(key, open);
   }
-  return (materialName) => {
-    const rfqs = byMaterial.get(materialKey(materialName)) ?? [];
-    const awarded = rfqs.find((r) => r.status === "AWARDED");
+  return (line) => {
+    const awarded = line.rfqs.find((r) => r.status === "AWARDED");
     if (awarded) return { rfq: awarded, sourced: true };
-    const open = rfqs.find((r) => r.status === "OPEN");
+    const open =
+      line.rfqs.find((r) => r.status === "OPEN") ??
+      openByMaterial.get(materialKey(line.materialName));
     return open ? { rfq: open, sourced: false } : null;
   };
 }

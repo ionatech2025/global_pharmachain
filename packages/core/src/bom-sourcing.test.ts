@@ -13,24 +13,45 @@ const v1 = {
   items: [line("Item 1", rfq("RFQ-A", "OPEN")), line("Item 2", rfq("RFQ-B", "OPEN"))],
 };
 
-describe("bomSourcing: an RFQ follows its material into later versions", () => {
-  test("a kept line shows the RFQ raised from the earlier version", () => {
+describe("bomSourcing: which RFQ covers a line", () => {
+  test("a kept line shows the open RFQ raised from the earlier version", () => {
     const sourcingOf = bomSourcing([v2, v1]);
-    expect(sourcingOf("Item 1")).toEqual({ rfq: rfq("RFQ-A", "OPEN"), sourced: false });
+    expect(sourcingOf(v2.items[0])).toEqual({ rfq: rfq("RFQ-A", "OPEN"), sourced: false });
   });
 
   test("materials match regardless of case and spacing", () => {
-    expect(bomSourcing([v2, v1])("  item   1 ")?.rfq.refNo).toBe("RFQ-A");
+    expect(bomSourcing([v2, v1])(line("  item   1 "))?.rfq.refNo).toBe("RFQ-A");
   });
 
-  test("an awarded RFQ beats an open one; cancelled and closed ones free the line", () => {
-    const sourcingOf = bomSourcing([
-      { items: [line("API", rfq("RFQ-O", "OPEN"), rfq("RFQ-W", "AWARDED"))] },
-      { items: [line("Solvent", rfq("RFQ-X", "CANCELLED"), rfq("RFQ-C", "CLOSED"))] },
-    ]);
-    expect(sourcingOf("API")).toEqual({ rfq: rfq("RFQ-W", "AWARDED"), sourced: true });
-    expect(sourcingOf("Solvent")).toBeNull();
-    expect(sourcingOf("Unknown")).toBeNull();
+  test("the line's own RFQ beats an earlier version's", () => {
+    const own = line("Item 1", rfq("RFQ-NEW", "OPEN"));
+    expect(bomSourcing([{ items: [own] }, v1])(own)?.rfq.refNo).toBe("RFQ-NEW");
+  });
+
+  test("an award does not carry into a new version, and does not hide its new RFQ", () => {
+    const old = { items: [line("Lactose", rfq("RFQ-OLD", "AWARDED"))] };
+    const fresh = line("Lactose");
+    expect(bomSourcing([{ items: [fresh] }, old])(fresh)).toBeNull();
+    const reordered = line("Lactose", rfq("RFQ-NEW", "OPEN"));
+    expect(bomSourcing([{ items: [reordered] }, old])(reordered)).toEqual({
+      rfq: rfq("RFQ-NEW", "OPEN"),
+      sourced: false,
+    });
+    expect(bomSourcing([old])(old.items[0])).toEqual({
+      rfq: rfq("RFQ-OLD", "AWARDED"),
+      sourced: true,
+    });
+  });
+
+  test("on its own line, an awarded RFQ beats an open one; cancelled and closed free the line", () => {
+    const sourcingOf = bomSourcing([]);
+    expect(sourcingOf(line("API", rfq("RFQ-O", "OPEN"), rfq("RFQ-W", "AWARDED")))).toEqual({
+      rfq: rfq("RFQ-W", "AWARDED"),
+      sourced: true,
+    });
+    expect(sourcingOf(line("Solvent", rfq("RFQ-X", "CANCELLED"), rfq("RFQ-C", "CLOSED")))).toBe(
+      null,
+    );
   });
 });
 
