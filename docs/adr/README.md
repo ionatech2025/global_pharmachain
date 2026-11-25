@@ -14,3 +14,4 @@ review records under `docs/` (e.g. `2026-10-client-review.md`); new ones are rec
 | [0005](ADR-0005-live-order-page-change-feed.md) | The order page follows the order over the polling change feed | Accepted | 2026-11-12 |
 | [0006](ADR-0006-request-log-from-fastify-hooks.md) | The request log is written from Fastify hooks, not a Nest interceptor | Accepted | 2026-11-12 |
 | [0007](ADR-0007-published-aggregates-and-rival-appointees.md) | Price and deal figures only from settled records no single company can isolate, over closed periods; rival bidders cannot be appointed | Accepted | 2026-11-20 |
+| [0008](ADR-0008-bom-line-rfqs-follow-the-material.md) | A BOM line's RFQ follows its material across versions; activation never cancels an RFQ | Accepted | 2026-11-25 |
