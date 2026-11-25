@@ -22,11 +22,19 @@ async function ok(res: APIResponse, what: string) {
   return res.json();
 }
 
+/** What a test created, recorded the moment each exists so `cleanUp` undoes it
+ *  even when a later step fails. */
+interface Created {
+  productId?: string;
+  rfqIds: string[];
+}
+
 /** A draft finished product with an ACTIVE version 1 BOM of the given lines. */
 async function productWithBom(
   page: Page,
   categoryId: string,
   lines: Array<{ materialName: string; quantityPerUnit: string; unit: string }>,
+  created: Created,
 ) {
   const tag = Date.now().toString(36).toUpperCase();
   const product = await ok(
@@ -45,6 +53,7 @@ async function productWithBom(
     }),
     "create draft product",
   );
+  created.productId = product.id;
   const bom = await ok(
     await page.request.post(`${API_PATH}/boms`, {
       data: {
@@ -58,8 +67,13 @@ async function productWithBom(
   return { productId: product.id as string, bom, tag };
 }
 
-async function raiseRfq(page: Page, bomItem: { id: string; materialName: string }, target: object) {
-  return ok(
+async function raiseRfq(
+  page: Page,
+  bomItem: { id: string; materialName: string },
+  target: object,
+  created: Created,
+) {
+  const rfq = await ok(
     await page.request.post(`${API_PATH}/rfqs`, {
       data: {
         title: bomItem.materialName,
@@ -72,11 +86,13 @@ async function raiseRfq(page: Page, bomItem: { id: string; materialName: string 
     }),
     `raise RFQ for ${bomItem.materialName}`,
   );
+  created.rfqIds.push(rfq.id);
+  return rfq;
 }
 
-/** Undoes what a test created, whether it passed or not: cancels its RFQs and
- *  deactivates its draft product, so no residue is left open on a deployment. */
-async function cleanUp(page: Page, rfqIds: string[], productId: string | undefined) {
+/** Cancels the test's RFQs and deactivates its draft product, so no residue is
+ *  left open on a deployment or counted on the demo buyer's dashboard. */
+async function cleanUp(page: Page, { productId, rfqIds }: Created) {
   for (const id of rfqIds) await page.request.post(`${API_PATH}/rfqs/${id}/cancel`);
   if (productId) await page.request.post(`${API_PATH}/catalogue/${productId}/deactivate`);
   await page.context().close();
@@ -96,16 +112,17 @@ test("Raise RFQ from a BOM line pre-fills the quantity, and the BOM shows what w
   await topUpCredits(browser, [{ email: "admin@nilepharma.demo", kind: "RFQ", count: 1 }]);
   const categories = await ok(await buyer.request.get(`${API_PATH}/catalogue/categories`), "cats");
   const categoryId = target?.categoryId ?? categories[0].id;
-  const rfqIds: string[] = [];
-  let productId: string | undefined;
+  const created: Created = { rfqIds: [] };
   try {
-    const made = await productWithBom(buyer, categoryId, [
-      { materialName: "Item 2", quantityPerUnit: "20", unit: "kg" },
-    ]);
-    productId = made.productId;
+    const made = await productWithBom(
+      buyer,
+      categoryId,
+      [{ materialName: "Item 2", quantityPerUnit: "20", unit: "kg" }],
+      created,
+    );
     const material = `Item 2 ${made.tag}`;
 
-    await buyer.goto(`/catalogue/${productId}/bom`);
+    await buyer.goto(`/catalogue/${made.productId}/bom`);
     await buyer.waitForLoadState("networkidle");
     const line = buyer.getByRole("row", { name: new RegExp(material) });
     await line.getByRole("link", { name: "Raise RFQ" }).click();
@@ -117,12 +134,16 @@ test("Raise RFQ from a BOM line pre-fills the quantity, and the BOM shows what w
     await expect(buyer.getByLabel("Unit", { exact: true })).toHaveValue("kg");
 
     await quantity.fill("100");
+    const published = buyer.waitForResponse(
+      (r) => r.request().method() === "POST" && new URL(r.url()).pathname.endsWith("/rfqs"),
+    );
     await buyer.getByRole("button", { name: "Publish RFQ" }).click();
+    const response = await published;
+    if (response.ok()) created.rfqIds.push((await response.json()).id);
     await expect(buyer).toHaveURL(/\/rfqs\/[0-9a-f-]{36}$/, { timeout: 30_000 });
-    rfqIds.push(buyer.url().split("/").pop() as string);
     await expect(buyer.getByRole("main")).toContainText(/Quantity:\s*100 kg/);
 
-    await buyer.goto(`/catalogue/${productId}/bom`);
+    await buyer.goto(`/catalogue/${made.productId}/bom`);
     await buyer.waitForLoadState("networkidle");
     const after = buyer.getByRole("row", { name: new RegExp(material) });
     await expect(after, "the recipe keeps its own quantity per unit").toContainText("20 kg");
@@ -130,7 +151,7 @@ test("Raise RFQ from a BOM line pre-fills the quantity, and the BOM shows what w
       /RFQ in progress.*100 kg requested/,
     );
   } finally {
-    await cleanUp(buyer, rfqIds, productId);
+    await cleanUp(buyer, created);
   }
 });
 
@@ -146,23 +167,24 @@ test("a new BOM version keeps its lines' RFQs and warns before dropping a line w
   await topUpCredits(browser, [{ email: "admin@nilepharma.demo", kind: "RFQ", count: 2 }]);
   const categories = await ok(await buyer.request.get(`${API_PATH}/catalogue/categories`), "cats");
   const categoryId = target?.categoryId ?? categories[0].id;
-  const rfqIds: string[] = [];
-  let productId: string | undefined;
+  const created: Created = { rfqIds: [] };
   try {
-    const made = await productWithBom(buyer, categoryId, [
-      { materialName: "Item 1", quantityPerUnit: "1000", unit: "g" },
-      { materialName: "Item 2", quantityPerUnit: "20", unit: "kg" },
-    ]);
-    productId = made.productId;
+    const made = await productWithBom(
+      buyer,
+      categoryId,
+      [
+        { materialName: "Item 1", quantityPerUnit: "1000", unit: "g" },
+        { materialName: "Item 2", quantityPerUnit: "20", unit: "kg" },
+      ],
+      created,
+    );
     const { tag } = made;
     const [kept, dropped] = made.bom.items as Array<{ id: string; materialName: string }>;
-    const keptRfq = await raiseRfq(buyer, kept, target ?? {});
-    rfqIds.push(keptRfq.id);
-    const droppedRfq = await raiseRfq(buyer, dropped, target ?? {});
-    rfqIds.push(droppedRfq.id);
+    const keptRfq = await raiseRfq(buyer, kept, target ?? {}, created);
+    const droppedRfq = await raiseRfq(buyer, dropped, target ?? {}, created);
 
     // Version 2 deletes Item 2 and keeps Item 1, through the edit form.
-    await buyer.goto(`/catalogue/${productId}/bom`);
+    await buyer.goto(`/catalogue/${made.productId}/bom`);
     await buyer.waitForLoadState("networkidle");
     await buyer.getByRole("button", { name: "Edit (creates new version)" }).click();
     await buyer.getByRole("button", { name: "Remove line" }).nth(1).click();
@@ -195,6 +217,6 @@ test("a new BOM version keeps its lines' RFQs and warns before dropping a line w
     )) as Array<{ material: string }>;
     expect(risk.map((r) => r.material)).not.toContain(`Item 1 ${tag}`);
   } finally {
-    await cleanUp(buyer, rfqIds, productId);
+    await cleanUp(buyer, created);
   }
 });
