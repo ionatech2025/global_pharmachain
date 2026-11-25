@@ -258,9 +258,9 @@ fix (`e2e/client-review-2026-11-25.spec.ts`). The decision is recorded in
 
 | Figure | Comment | Verdict | What changed |
 | --- | --- | --- | --- |
-| 16 | *"When the user (operations staff) raises an RFQ via the BOM line, the quantity is not pre-filled in the RFQ form"* | **Real defect** | The **Raise RFQ** link sent the material, category and unit, but not the quantity. It now sends the quantity too, so the form opens with the line's quantity per unit. A note under the field says the BOM counts per production unit and asks for the total needed. |
+| 16 | *"When the user (operations staff) raises an RFQ via the BOM line, the quantity is not pre-filled in the RFQ form"* | **Real defect** | The **Raise RFQ** link sent the material, category and unit, but not the quantity. It now sends the quantity too, so the form opens with the line's quantity per unit. A note under the field says the BOM counts per production unit and asks for the total needed. The RFQ quantity must now be more than zero with at most 4 decimal places, which is what it is stored with. A tiny per-unit figure such as 0.000125 is refused instead of being silently rounded to 0.0001. |
 | 16–19 | *"once changed in the RFQ form that change should also reflect in the BOM view"*; TC3: *"TESTED... BUT THE ORIGINAL BOM QTY IS NOT ADJUSTED"* | **Shown, not written back** | The BOM line now shows the RFQ's quantity under its badge, for example *RFQ in progress · RFQ-2026-R4JDF2MV* and below it *100 kg requested*. The BOM's **Qty / unit** stays as it is, which is what TC3 asks for (*"not the original BOM value"*). The BOM column is the amount in **one production unit**. The RFQ asks for a **purchase total**. Writing 100 kg over 20 kg would change the recipe. It would also rewrite a version, and versions are never overwritten. |
-| Question | *"What happens if a user deletes one of the items for which they had raised an RFQ, and activates the new BOM version? Is the last RFQ based on the previous BOM closed?"* | **The RFQ stays open; the buyer is now told** | Activation never closes or cancels an RFQ. Cancelling notifies every supplier who received it, and suppliers may already be quoting, so only the buyer decides. Before this change, nothing showed it. Every new version also lost the RFQ badge on the lines it **kept**, so they offered **Raise RFQ** again, which invites a duplicate. Now a line's RFQ follows its material name into later versions. When a version without that material is activated, a confirmation first lists each open RFQ that loses its line, with its quantity and a link to it. **Cancel RFQ** is on that link's page. |
+| Question | *"What happens if a user deletes one of the items for which they had raised an RFQ, and activates the new BOM version? Is the last RFQ based on the previous BOM closed?"* | **The RFQ stays open; the buyer is now told** | Activation never closes or cancels an RFQ. Cancelling notifies every supplier who received it, and suppliers may already be quoting, so only the buyer decides. Before this change, nothing showed it. Every new version also lost the RFQ badge on the lines it **kept**, so they offered **Raise RFQ** again, which invites a duplicate. Now a line's open RFQ follows its material name into later versions. An award does not carry over, so the buyer can raise the next batch. When a version without that material is activated, a confirmation first lists each open RFQ that loses its line, with its quantity and a link to it. **Cancel RFQ** is on that link's page. The dashboard's **Stockout risk (BOM)** figure and the intelligence stockout list now apply the same rule, so all three agree. |
 
 ### Answer for the client
 
@@ -286,9 +286,17 @@ the buyer can decide. Lines kept in the new version keep their RFQ badge.
   `Expected: "20"`, `Received: ""`. The second fails because the kept line
   shows *Raise RFQ*. With this change, both pass 3 times out of 3.
 - `packages/core/src/bom-sourcing.test.ts` covers matching across versions,
-  case and spacing, awarded before open, and which RFQs a version leaves
-  behind. Related specs still pass, 33 of 33: this spec, `routes.spec.ts`,
-  `endpoints.spec.ts`, and the November 11 RFQ cases.
+  case and spacing, the line's own RFQ first, an award not carrying over, and
+  which RFQs a version leaves behind. `packages/core/src/schemas/rfq.test.ts`
+  covers the quantity rule. The spec also checks that the intelligence
+  stockout list does not report the kept line.
+- An independent review found that the first version let an old award hide a
+  newer open RFQ and left the dashboard counting rows its own way. Both are
+  fixed, with tests.
+- After those fixes the spec passes 6 of 6 (3 repeats), and related specs pass
+  37 of 37: `routes.spec.ts`, `endpoints.spec.ts` (the dashboard KPIs and the
+  intelligence endpoints included), `golden-path.spec.ts` and the November 11
+  RFQ cases.
 - Screenshots of the BOM page, the dialog and the form were checked at 1280 px
   and 390 px. The first build cut the longer badge off at the card edge, so the
   quantity now sits on its own line under the badge.
