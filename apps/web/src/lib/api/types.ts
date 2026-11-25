@@ -321,7 +321,14 @@ export type BomRow = Jsonify<Bom> & {
   items: Array<
     Jsonify<BomItem> & {
       category: { id: string; name: string } | null;
-      rfqs: Array<{ id: string; refNo: string; status: string }>;
+      rfqs: Array<{
+        id: string;
+        refNo: string;
+        status: string;
+        awardedAt: string | null;
+        quantity: string;
+        unit: string;
+      }>;
     }
   >;
   createdBy: { name: string };

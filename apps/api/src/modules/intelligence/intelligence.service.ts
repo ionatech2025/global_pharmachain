@@ -4,6 +4,7 @@ import { backtestMape, forecast, orderStatusIndex } from "@pharmachain/core";
 import { type Prisma, prisma } from "@pharmachain/db";
 import { forbidden } from "../../common/errors";
 import type { Membership } from "../../lib/context";
+import { activeBomLines } from "../bom/bom-coverage";
 import {
   categoryPriceTrends,
   completedMonths,
@@ -208,18 +209,12 @@ export class IntelligenceService {
 
   /** Materials on active BOMs with no sourcing activity (stockout risk). */
   async stockoutRisk(membership: Membership) {
-    const items = await prisma.bomItem.findMany({
-      where: { bom: { status: "ACTIVE", productListing: { companyId: membership.companyId } } },
-      include: {
-        rfqs: { select: { id: true, status: true } },
-        bom: { select: { productListing: { select: { name: true } } } },
-      },
-    });
-    return items
-      .filter((item) => !item.rfqs.some((r) => r.status === "OPEN" || r.status === "AWARDED"))
+    const lines = await activeBomLines(membership.companyId);
+    return lines
+      .filter((item) => !item.sourcing)
       .map((item) => ({
         material: item.materialName,
-        product: item.bom.productListing.name,
+        product: item.product,
         quantityPerUnit: String(item.quantityPerUnit),
         unit: item.unit,
         reason: item.rfqs.length === 0 ? "never sourced on-platform" : "no open or awarded RFQ",

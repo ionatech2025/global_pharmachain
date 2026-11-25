@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { DASHBOARD_WIDGETS, DEFAULT_WIDGETS, isLogisticsCompanyType } from "@pharmachain/core";
 import { prisma } from "@pharmachain/db";
 import type { AuthUser, Membership } from "../../lib/context";
+import { activeBomLines } from "../bom/bom-coverage";
 
 export interface KpiValue {
   key: string;
@@ -46,8 +47,7 @@ export class AnalyticsService {
       buyerOrders,
       deliveredEvents,
       quotations,
-      bomItemsTotal,
-      bomItemsSourced,
+      bomLines,
       ratingsReceived,
       expiringDocs,
       activeAppointments,
@@ -68,15 +68,7 @@ export class AnalyticsService {
         where: { supplierCompanyId: companyId, status: { not: "SUPERSEDED" } },
         include: { rfq: { select: { createdAt: true } } },
       }),
-      prisma.bomItem.count({
-        where: { bom: { status: "ACTIVE", productListing: { companyId } } },
-      }),
-      prisma.bomItem.count({
-        where: {
-          bom: { status: "ACTIVE", productListing: { companyId } },
-          rfqs: { some: {} },
-        },
-      }),
+      activeBomLines(companyId),
       prisma.rating.aggregate({
         where: { targetCompanyId: companyId, status: "PUBLISHED" },
         _avg: { stars: true },
@@ -185,12 +177,13 @@ export class AnalyticsService {
       detail: `RFQ published → quote submitted, ${responses.length} quote(s)`,
     });
 
-    // Stockout risk: active-BOM materials without any sourcing RFQ.
+    // Stockout risk: active-BOM materials with no open or awarded RFQ.
+    const bomItemsSourced = bomLines.filter((line) => line.sourcing).length;
     kpis.push({
       key: "kpi-stockout-risk",
       label: "Stockout risk (BOM)",
-      value: String(Math.max(0, bomItemsTotal - bomItemsSourced)),
-      detail: `${bomItemsSourced}/${bomItemsTotal} BOM material(s) have sourcing RFQs`,
+      value: String(bomLines.length - bomItemsSourced),
+      detail: `${bomItemsSourced}/${bomLines.length} BOM material(s) have an open or awarded RFQ`,
       href: "/catalogue",
     });
 

@@ -6,7 +6,13 @@ import { currencySchema, decimalString, futureDatetime } from "./common";
 export const rfqCreateSchema = z.object({
   title: z.string().min(3).max(160),
   specifications: z.string().max(4000).optional(),
-  quantity: decimalString,
+  // Rfq.quantity is Decimal(16,4): a fifth decimal place would be rounded away
+  // on save, and nobody can quote on zero. A BOM line pre-fills this field with
+  // its per-unit figure, which can be smaller (client review 2026-11-25).
+  quantity: z
+    .string()
+    .regex(/^\d{1,12}(\.\d{1,4})?$/, "Must be a number with up to 4 decimal places")
+    .refine((v) => Number(v) > 0, "Must be more than zero"),
   unit: z.string().min(1).max(20),
   targetCompanyType: z.enum(COMPANY_TYPES),
   categoryId: z.uuid().optional(),

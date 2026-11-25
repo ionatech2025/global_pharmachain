@@ -1,5 +1,6 @@
 "use client";
 
+import { bomSourcing, openRfqsWithoutLine } from "@pharmachain/core";
 import { Badge } from "@pharmachain/ui/components/badge";
 import { Button } from "@pharmachain/ui/components/button";
 import {
@@ -23,6 +24,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { BomStatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/api/http";
@@ -47,6 +49,7 @@ export function BomManager({
 }) {
   const router = useRouter();
   const latest = boms[0];
+  const sourcingOf = bomSourcing(boms);
   const [editing, setEditing] = useState(boms.length === 0);
   const [notes, setNotes] = useState(latest?.notes ?? "");
   const [items, setItems] = useState<DraftItem[]>(
@@ -207,9 +210,11 @@ export function BomManager({
               </CardDescription>
             </div>
             {bom.status !== "ACTIVE" && (
-              <Button size="sm" variant="outline" onClick={() => activate(bom.id)}>
-                Activate
-              </Button>
+              <ActivateButton
+                version={bom.version}
+                leftBehind={openRfqsWithoutLine(boms, bom)}
+                onActivate={() => activate(bom.id)}
+              />
             )}
           </CardHeader>
           <CardContent>
@@ -224,9 +229,7 @@ export function BomManager({
               </TableHeader>
               <TableBody>
                 {bom.items.map((item) => {
-                  // Line coverage at a glance: sourced (awarded) beats in-progress.
-                  const awardedRfq = item.rfqs.find((r) => r.status === "AWARDED");
-                  const openRfq = awardedRfq ?? item.rfqs.find((r) => r.status === "OPEN");
+                  const sourcing = sourcingOf(item, bom);
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.materialName}</TableCell>
@@ -237,13 +240,18 @@ export function BomManager({
                         {fmtNumber(item.quantityPerUnit)} {item.unit}
                       </TableCell>
                       <TableCell>
-                        {openRfq ? (
-                          <Link href={`/rfqs/${openRfq.id}`}>
-                            {awardedRfq ? (
-                              <Badge variant="success">Sourced · {awardedRfq.refNo}</Badge>
-                            ) : (
-                              <Badge variant="warning">RFQ in progress · {openRfq.refNo}</Badge>
-                            )}
+                        {sourcing ? (
+                          <Link
+                            href={`/rfqs/${sourcing.rfq.id}`}
+                            className="inline-flex flex-col items-start gap-1"
+                          >
+                            <Badge variant={sourcing.sourced ? "success" : "warning"}>
+                              {sourcing.sourced ? "Sourced" : "RFQ in progress"} ·{" "}
+                              {sourcing.rfq.refNo}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {fmtNumber(sourcing.rfq.quantity)} {sourcing.rfq.unit} requested
+                            </span>
                           </Link>
                         ) : (
                           <Button asChild size="sm" variant="ghost">
@@ -254,6 +262,7 @@ export function BomManager({
                                   bomItemId: item.id,
                                   title: item.materialName,
                                   categoryId: item.categoryId ?? undefined,
+                                  quantity: item.quantityPerUnit,
                                   unit: item.unit,
                                 },
                               }}
@@ -272,5 +281,56 @@ export function BomManager({
         </Card>
       ))}
     </div>
+  );
+}
+
+/**
+ * Activating a version that drops a line does not cancel that line's open RFQ:
+ * suppliers may already be quoting, and only the buyer can say it is no longer
+ * needed. So the buyer is told which RFQs lose their line before activating.
+ */
+function ActivateButton({
+  version,
+  leftBehind,
+  onActivate,
+}: {
+  version: number;
+  leftBehind: Array<{ materialName: string; rfq: BomRow["items"][number]["rfqs"][number] }>;
+  onActivate: () => Promise<void>;
+}) {
+  if (leftBehind.length === 0) {
+    return (
+      <Button size="sm" variant="outline" onClick={onActivate}>
+        Activate
+      </Button>
+    );
+  }
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button size="sm" variant="outline">
+          Activate
+        </Button>
+      }
+      title={`Activate version ${version}?`}
+      description={`Version ${version} has no line for the materials below. Their RFQs stay open with suppliers. Activating does not cancel them; cancel any you no longer need from the RFQ page.`}
+      details={
+        <ul className="space-y-1 text-sm">
+          {leftBehind.map(({ materialName, rfq }) => (
+            <li key={rfq.id}>
+              <Link
+                className="font-medium underline-offset-4 hover:underline"
+                href={`/rfqs/${rfq.id}`}
+              >
+                {rfq.refNo}
+              </Link>{" "}
+              · {materialName} · {fmtNumber(rfq.quantity)} {rfq.unit}
+            </li>
+          ))}
+        </ul>
+      }
+      confirmLabel={`Activate version ${version}`}
+      onConfirm={onActivate}
+    />
   );
 }
