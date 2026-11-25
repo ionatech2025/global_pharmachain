@@ -59,7 +59,13 @@ export function RfqForm({
   prefill,
 }: {
   categories: Array<{ id: string; name: string }>;
-  prefill: { bomItemId?: string; title?: string; categoryId?: string; unit?: string };
+  prefill: {
+    bomItemId?: string;
+    title?: string;
+    categoryId?: string;
+    quantity?: string;
+    unit?: string;
+  };
 }) {
   const router = useRouter();
   // Schema defaults (.default([])) make the form input wider than the parsed
@@ -69,7 +75,7 @@ export function RfqForm({
     defaultValues: {
       title: prefill.title ?? "",
       specifications: "",
-      quantity: "",
+      quantity: prefill.quantity ?? "",
       unit: prefill.unit ?? "kg",
       targetCompanyType: "RAW_MATERIAL_MANUFACTURER",
       categoryId: prefill.categoryId,
@@ -145,7 +151,7 @@ export function RfqForm({
                 </FormItem>
               )}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="quantity"
@@ -155,6 +161,12 @@ export function RfqForm({
                     <FormControl>
                       <Input inputMode="decimal" placeholder="500" {...field} />
                     </FormControl>
+                    {prefill.bomItemId && (
+                      <FormDescription>
+                        Pre-filled from the BOM, which counts per production unit. Change it to the
+                        total you need; the BOM line keeps its own quantity.
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

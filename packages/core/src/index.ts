@@ -1,6 +1,7 @@
 import "./zod-messages";
 
 export * from "./billing";
+export * from "./bom-sourcing";
 export * from "./countries";
 export * from "./enums";
 export * from "./files";

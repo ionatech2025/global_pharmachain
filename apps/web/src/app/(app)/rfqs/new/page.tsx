@@ -9,6 +9,7 @@ interface SearchParams {
   bomItemId?: string;
   title?: string;
   categoryId?: string;
+  quantity?: string;
   unit?: string;
 }
 
@@ -34,6 +35,7 @@ export default async function NewRfqPage({
           bomItemId: params.bomItemId,
           title: params.title,
           categoryId: params.categoryId,
+          quantity: params.quantity,
           unit: params.unit,
         }}
       />

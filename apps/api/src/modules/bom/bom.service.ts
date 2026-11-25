@@ -9,7 +9,7 @@ const BOM_INCLUDE = {
     include: {
       category: { select: { id: true, name: true } },
       // "RFQ in progress" indicator per line (US-802)
-      rfqs: { select: { id: true, refNo: true, status: true } },
+      rfqs: { select: { id: true, refNo: true, status: true, quantity: true, unit: true } },
     },
     orderBy: { sortOrder: "asc" },
   },
