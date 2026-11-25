@@ -229,7 +229,7 @@ export function BomManager({
               </TableHeader>
               <TableBody>
                 {bom.items.map((item) => {
-                  const sourcing = sourcingOf(item);
+                  const sourcing = sourcingOf(item, bom);
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.materialName}</TableCell>

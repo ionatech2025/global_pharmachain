@@ -8,10 +8,18 @@ import { prisma } from "@pharmachain/db";
  */
 export async function activeBomLines(companyId: string) {
   const boms = await prisma.bom.findMany({
-    where: { productListing: { companyId } },
+    // A deactivated product is not being made, so its materials are no risk.
+    where: {
+      productListing: {
+        companyId,
+        status: { not: "DEACTIVATED" },
+        boms: { some: { status: "ACTIVE" } },
+      },
+    },
     orderBy: { version: "desc" },
     select: {
       status: true,
+      createdAt: true,
       productListingId: true,
       productListing: { select: { name: true } },
       items: {
@@ -19,7 +27,10 @@ export async function activeBomLines(companyId: string) {
           materialName: true,
           quantityPerUnit: true,
           unit: true,
-          rfqs: { select: { id: true, refNo: true, status: true } },
+          rfqs: {
+            select: { id: true, refNo: true, status: true, awardedAt: true },
+            orderBy: { createdAt: "desc" },
+          },
         },
       },
     },
@@ -33,7 +44,7 @@ export async function activeBomLines(companyId: string) {
       return bom.items.map((item) => ({
         ...item,
         product: bom.productListing.name,
-        sourcing: sourcingOf(item),
+        sourcing: sourcingOf(item, bom),
       }));
     });
 }
