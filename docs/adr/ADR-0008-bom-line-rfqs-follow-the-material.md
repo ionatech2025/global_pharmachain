@@ -42,13 +42,17 @@ activation.**
 
 * `bomSourcing` (`packages/core/src/bom-sourcing.ts`) decides which RFQ covers a
   line. The line's own RFQs come first, and an awarded one beats an open one.
-  Without either, an **open** RFQ raised from the same material in another
-  version covers it. The name is compared ignoring case and repeated spaces.
-  An award does not carry over: it sourced an earlier recipe's batch, and the
-  buyer must be able to raise the next one. Closed and cancelled RFQs free the line.
+  Without either, an RFQ raised from the same material in another version
+  covers it: while it is **open**, and once **awarded** only if the award came
+  after this line's version was created. The name is compared ignoring case and
+  repeated spaces. So an RFQ that was in flight when the version was made still
+  counts once it is awarded, while a version made after an award offers
+  **Raise RFQ** for the next batch. Closed and cancelled RFQs free the line.
+  When a line has several RFQs of the same status, the newest shows.
 * The BOM page, the dashboard's **Stockout risk (BOM)** figure and the
   intelligence stockout list all use this rule (`activeBomLines` in
-  `apps/api/src/modules/bom/bom-coverage.ts`), so they agree.
+  `apps/api/src/modules/bom/bom-coverage.ts`), so they agree. The two figures
+  leave out deactivated products, which are not being made.
 * The line shows its RFQ badge (*RFQ in progress · ‹ref›*) with the RFQ's
   quantity on its own line under it (*‹quantity› requested*). The BOM's own
   quantity per unit does not change.
@@ -80,8 +84,8 @@ asking.
   counts only open or awarded RFQs, as the intelligence list already did.
 * Neutral: renaming a material breaks the match. The old name's RFQ is then
   listed as losing its line when the version is activated, so it is still seen.
-* Neutral: two lines with the same material name in one version share an
-  RFQ carried from another version.
+* Neutral: two lines with the same material name share their RFQs with each
+  other and with that material's lines in other versions.
 * Bad: a CLOSED RFQ (deadline passed, award still possible) frees its line and
   is not listed on activation. This rule predates this decision; counting
   CLOSED as in progress would block **Raise RFQ** for good after an RFQ that
@@ -90,8 +94,8 @@ asking.
 ### Confirmation
 
 * `packages/core/src/bom-sourcing.test.ts` covers matching across versions,
-  own RFQs first, an award not carrying over, and which RFQs a version leaves
-  behind. `packages/core/src/schemas/rfq.test.ts` covers the quantity rule.
+  own RFQs first, an award carried only when it came after the version, and
+  which RFQs a version leaves behind. `packages/core/src/schemas/rfq.test.ts` covers the quantity rule.
 * `e2e/client-review-2026-11-25.spec.ts` drives the BOM page and the RFQ form
   in a browser. It checks the pre-filled quantity, the requested quantity on
   the line, the kept line's RFQ in version 2, the activation warning, and that
